@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build
+dist/
+target/
+src-tauri/target/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Application-owned build inputs/outputs (never committed binaries/models)
+.build-cache/
+src-tauri/resources/runtime/
+src-tauri/resources/native/
+__pycache__/
+
+# Sales / outreach logs (PII de terceros; nueva estrategia fuera de git)
+sales/
+
+# Experimento local de diarización: venv, binarios NeMo, fuentes, modelos y
+# audio de muestra. Nada de esto se versiona (cientos de MB y binarios).
+experiments/diarization/local/
+
+# Experimento local de transcribe.cpp (Parakeet TDT v3): fuentes, build CMake,
+# GGUFs y audio de muestra. Mismo motivo, cientos de MB y binarios.
+experiments/transcribe-cpp/local/
+
+# Generated QA output and Tauri schemas
+artifacts/
+src-tauri/gen/
+playwright-report/
+test-results/
+installers/
+*.dmg
+*.dmg.sha256

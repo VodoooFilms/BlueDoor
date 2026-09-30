@@ -1,0 +1,93 @@
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/newsreader-normal.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Newsreader";
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+  src: url("/fonts/newsreader-italic.ttf") format("truetype");
+}
+
+:root {
+  color-scheme: light;
+  font-family: "Helvetica Neue", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  --font-heading: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --background: #fafaf7;
+  --panel: #f2efe7;
+  --surface: #ffffff;
+  --text: #373731;
+  --muted: #8b8880;
+  --lm-live: #55554d;
+  --line: #e5e1d7;
+  --line-dark: #cbc5b7;
+  --hover: #ebe8df;
+  --segment: #f5f3ed;
+  --segment-active: #ffffff;
+  --button: #1e1f1b;
+  --button-hover: #3d3e36;
+  --button-text: #ffffff;
+  --button-disabled: #e7e4dc;
+  --button-disabled-text: #9b978e;
+  --progress: #373831;
+  --progress-track: #e9e5dc;
+  --success: #59715b;
+  --accent: #36372f;
+  --violet: #36372f;
+  --accent-soft: rgba(54, 55, 47, .06);
+  --accent-hover: #1e1f1b;
+  --error: #9b4a43;
+  --error-background: #fcf5f2;
+  --shadow: rgba(46, 42, 32, .06);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #22231f;
+  --panel: #2b2c26;
+  --surface: #30312b;
+  --text: #eeece4;
+  --muted: #aba79a;
+  --lm-live: #d3cebf;
+  --line: #414238;
+  --line-dark: #5b5b4e;
+  --hover: #3b3c33;
+  --segment: #282923;
+  --segment-active: #393a32;
+  --button: #eeece4;
+  --button-hover: #ffffff;
+  --button-text: #22231f;
+  --button-disabled: #414238;
+  --button-disabled-text: #858173;
+  --progress: #d3cebf;
+  --progress-track: #414238;
+  --success: #9cb89d;
+  --accent: #d3cebf;
+  --violet: #d3cebf;
+  --accent-soft: rgba(211, 206, 191, .08);
+  --accent-hover: #ffffff;
+  --error: #dfa299;
+  --error-background: #362a26;
+  --shadow: rgba(0, 0, 0, .16);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--background);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: color .15s ease, background-color .15s ease;
+}
+button, input, select, textarea { font: inherit; }
+button:focus-visible { outline: 2px solid var(--line-dark); outline-offset: 3px; }
+.hidden { display: none !important; }

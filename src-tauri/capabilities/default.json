@@ -1,0 +1,12 @@
+{
+  "identifier": "default",
+  "description": "Belegal _ Local demo default capability",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "core:window:allow-destroy",
+    "core:window:allow-is-fullscreen",
+    "core:window:allow-set-fullscreen"
+  ]
+}

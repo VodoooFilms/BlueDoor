@@ -1,0 +1,85 @@
+name: CI
+
+# La capa de privacidad se verifica igual que el resto: un refactor que rompa la
+# sanitización o la puerta de exportación debe fallar aquí antes de distribuir.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+
+  rust:
+    name: Rust (fmt + clippy + tests)
+    # Apple Silicon: es la plataforma donde se ejecuta la inferencia real
+    # (Metal) y la única documentada como soportada para el demo.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # Sin `cargo fmt --check`: el crate ya venia sin formatear (lib.rs y
+      # llm.rs), y reformatear todo mezclaria un cambio de estilo dentro de un
+      # commit de privacidad. El estandar real del proyecto es clippy.
+      - name: Clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      # llama-cpp se compila desde el crate; no hay paso nativo manual.
+      - name: Tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+  privacy-ui:
+    name: Privacy UI (sin peticiones externas)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps webkit
+      - name: Servidor de la app (1420)
+        run: pnpm dev > /tmp/vite.log 2>&1 &
+      - name: Servidor del harness de editor (5198)
+        run: pnpm exec vite --config tests/vite.config.ts > /tmp/vite-tests.log 2>&1 &
+      - name: Espera a los servidores
+        run: |
+          for port in 1420 5198; do
+            for _ in $(seq 1 30); do
+              curl -sf "http://localhost:$port" >/dev/null && break
+              sleep 1
+            done
+            curl -sf "http://localhost:$port" >/dev/null || { cat /tmp/vite.log /tmp/vite-tests.log; exit 1; }
+          done
+      - run: node tests/check-private-ai.mjs
+      - run: node tests/check-editor.mjs
+      - run: node tests/check-history.mjs
+      - run: node tests/check-conversation.mjs

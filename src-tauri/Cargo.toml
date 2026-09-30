@@ -1,0 +1,49 @@
+[package]
+name = "belegal-local-demo"
+version = "0.2.0"
+description = "Local & Private Belegal local demo Transcription"
+authors = ["Belegal _ Local demo"]
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "belegal_local_demo_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+transcribe-cpp = "0.2.4"
+hound = "3.5"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+ureq = { version = "2", features = ["tls"] }
+genpdf = "0.2"
+encoding_rs = "0.8"
+
+tempfile = "3"
+sha2 = "0.10"
+fs2 = "0.4"
+regex = "1"
+pdf-extract = "0.7"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+quick-xml = "0.37"
+llama-cpp-2 = { version = "=0.1.156", default-features = false, features = ["dynamic-link", "dynamic-backends"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+llama-cpp-sys-2 = { version = "=0.1.156", default-features = false, features = ["dynamic-link", "dynamic-backends", "metal"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+llama-cpp-sys-2 = { version = "=0.1.156", default-features = false, features = ["dynamic-link", "dynamic-backends"] }
+# Keep full model verification fast in development on Apple Silicon.
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
+sha2 = { version = "0.10", features = ["asm"] }
+
+[profile.dev.package.sha2]
+opt-level = 3
