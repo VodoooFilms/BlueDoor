@@ -43,9 +43,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      # Sin `cargo fmt --check`: el crate ya venia sin formatear (lib.rs y
-      # llm.rs), y reformatear todo mezclaria un cambio de estilo dentro de un
-      # commit de privacidad. El estandar real del proyecto es clippy.
+      - name: Format
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - name: Clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       # llama-cpp se compila desde el crate; no hay paso nativo manual.
@@ -53,7 +52,7 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
   privacy-ui:
-    name: Privacy UI (sin peticiones externas)
+    name: UI (privacy, setup, editor, audio)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -66,20 +65,4 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps webkit
-      - name: Servidor de la app (1420)
-        run: pnpm dev > /tmp/vite.log 2>&1 &
-      - name: Servidor del harness de editor (5198)
-        run: pnpm exec vite --config tests/vite.config.ts > /tmp/vite-tests.log 2>&1 &
-      - name: Espera a los servidores
-        run: |
-          for port in 1420 5198; do
-            for _ in $(seq 1 30); do
-              curl -sf "http://localhost:$port" >/dev/null && break
-              sleep 1
-            done
-            curl -sf "http://localhost:$port" >/dev/null || { cat /tmp/vite.log /tmp/vite-tests.log; exit 1; }
-          done
-      - run: node tests/check-private-ai.mjs
-      - run: node tests/check-editor.mjs
-      - run: node tests/check-history.mjs
-      - run: node tests/check-conversation.mjs
+      - run: pnpm test:ui

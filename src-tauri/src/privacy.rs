@@ -197,84 +197,151 @@ pub(crate) struct PrivacyState(pub Mutex<Option<Session>>);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct OcrSuggestion { pub original: String, pub replacement: String }
+pub(crate) struct OcrSuggestion {
+    pub original: String,
+    pub replacement: String,
+}
 
 fn valid_ocr_prefix(s: &OcrSuggestion, text: &str) -> bool {
-    s.original.chars().count() >= 3 && s.original.chars().all(char::is_alphabetic)
+    s.original.chars().count() >= 3
+        && s.original.chars().all(char::is_alphabetic)
         && s.replacement.chars().all(char::is_alphabetic)
         && s.replacement.chars().count() == s.original.chars().count() + 1
         && s.replacement.ends_with(&s.original)
-        && text.match_indices(&s.original).any(|(start, value)| boundary(text, start, start + value.len()))
+        && text
+            .match_indices(&s.original)
+            .any(|(start, value)| boundary(text, start, start + value.len()))
 }
 pub(crate) fn parse_ocr_suggestions(raw: &str, text: &str) -> Result<Vec<OcrSuggestion>, String> {
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]
-    struct Response { suggestions: Vec<OcrSuggestion> }
+    struct Response {
+        suggestions: Vec<OcrSuggestion>,
+    }
     let response: Response = serde_json::from_str(raw.trim())
         .map_err(|_| "Qwen no devolvió sugerencias OCR válidas. El texto no se modificó.")?;
-    if response.suggestions.len() > 50 { return Err("Demasiadas sugerencias OCR; revisa un documento más corto.".into()); }
+    if response.suggestions.len() > 50 {
+        return Err("Demasiadas sugerencias OCR; revisa un documento más corto.".into());
+    }
     let mut seen = HashSet::new();
-    Ok(response.suggestions.into_iter().filter(|s| valid_ocr_prefix(s, text) && seen.insert(s.original.clone())).collect())
+    Ok(response
+        .suggestions
+        .into_iter()
+        .filter(|s| valid_ocr_prefix(s, text) && seen.insert(s.original.clone()))
+        .collect())
 }
 
 #[tauri::command]
-pub(crate) async fn suggest_private_ocr(id: String, revision: u64, model_id: String, app: tauri::AppHandle) -> Result<Vec<OcrSuggestion>, String> {
-    let session = get_privacy_session(app.clone())?.filter(|s| s.id == id && s.revision == revision)
+pub(crate) async fn suggest_private_ocr(
+    id: String,
+    revision: u64,
+    model_id: String,
+    app: tauri::AppHandle,
+) -> Result<Vec<OcrSuggestion>, String> {
+    let session = get_privacy_session(app.clone())?
+        .filter(|s| s.id == id && s.revision == revision)
         .ok_or("El documento cambió. Recarga la sesión.")?;
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<crate::llm::LlmState>();
-        let mut cache = state.0.try_lock().map_err(|_| "Ya hay un análisis local en curso.")?;
+        let mut cache = state
+            .0
+            .try_lock()
+            .map_err(|_| "Ya hay un análisis local en curso.")?;
         if cache.as_ref().is_none_or(|(loaded, _)| loaded != &model_id) {
             let path = crate::paths::models_dir(&app).join(crate::models::qwen_file(&model_id)?);
-            crate::models::verify_model_file(&path).map_err(|_| "Descarga Qwen desde Modelos antes de revisar OCR.")?;
-            *cache = Some((model_id, crate::llm::LlmEngine::load(path.to_str().ok_or("Ruta no válida")?)?));
+            crate::models::verify_model_file(&path)
+                .map_err(|_| "Descarga Qwen desde Modelos antes de revisar OCR.")?;
+            *cache = Some((
+                model_id,
+                crate::llm::LlmEngine::load(path.to_str().ok_or("Ruta no válida")?)?,
+            ));
         }
         let mut suggestions = vec![];
         let mut seen = HashSet::new();
         for chunk in chunks(&session.original) {
             for suggestion in cache.as_ref().unwrap().1.suggest_ocr_prefixes(&chunk)? {
-                if seen.insert(suggestion.original.clone()) { suggestions.push(suggestion); }
+                if seen.insert(suggestion.original.clone()) {
+                    suggestions.push(suggestion);
+                }
             }
         }
         if get_privacy_session(app.clone())?.is_none_or(|s| s.id != id || s.revision != revision) {
             return Err("El documento cambió. Se descartaron las sugerencias OCR.".into());
         }
         Ok(suggestions)
-    }).await.map_err(|_| "Se interrumpió la revisión OCR local.")?
+    })
+    .await
+    .map_err(|_| "Se interrumpió la revisión OCR local.")?
 }
 
 #[tauri::command]
-pub(crate) fn apply_private_ocr(id: String, revision: u64, suggestion: OcrSuggestion, app: tauri::AppHandle) -> Result<Session, String> {
+pub(crate) fn apply_private_ocr(
+    id: String,
+    revision: u64,
+    suggestion: OcrSuggestion,
+    app: tauri::AppHandle,
+) -> Result<Session, String> {
     let privacy = app.state::<PrivacyState>();
-    let mut guard = privacy.0.lock().map_err(|_| "Sesión privada no disponible")?;
-    let session = guard.as_mut().filter(|s| s.id == id && s.revision == revision)
+    let mut guard = privacy
+        .0
+        .lock()
+        .map_err(|_| "Sesión privada no disponible")?;
+    let session = guard
+        .as_mut()
+        .filter(|s| s.id == id && s.revision == revision)
         .ok_or("La sugerencia está desactualizada.")?;
-    if !valid_ocr_prefix(&suggestion, &session.original) { return Err("La corrección solo puede añadir una letra inicial a una palabra existente.".into()); }
+    if !valid_ocr_prefix(&suggestion, &session.original) {
+        return Err(
+            "La corrección solo puede añadir una letra inicial a una palabra existente.".into(),
+        );
+    }
     session.original = corrected_ocr_text(&session.original, &suggestion)?;
-    session.entities.clear(); session.sanitized.clear(); session.warnings.clear();
+    session.entities.clear();
+    session.sanitized.clear();
+    session.warnings.clear();
     session.advisories.clear();
-    session.analyzed = false; session.reviewed = false; session.edited = false; session.revision += 1;
+    session.analyzed = false;
+    session.reviewed = false;
+    session.edited = false;
+    session.revision += 1;
     Ok(session.clone())
 }
 
 fn corrected_ocr_text(text: &str, suggestion: &OcrSuggestion) -> Result<String, String> {
     if !valid_ocr_prefix(suggestion, text) {
-        return Err("La corrección solo puede añadir una letra inicial a una palabra existente.".into());
+        return Err(
+            "La corrección solo puede añadir una letra inicial a una palabra existente.".into(),
+        );
     }
-    let pattern = Regex::new(&regex::escape(&suggestion.original)).map_err(|_| "Palabra OCR no válida")?;
-    let updated = pattern.replace_all(text, |capture: &regex::Captures| {
-        let hit = capture.get(0).unwrap();
-        if boundary(text, hit.start(), hit.end()) { suggestion.replacement.clone() } else { hit.as_str().to_string() }
-    }).into_owned();
-    if updated.len() > MAX_DOCUMENT_BYTES { return Err("El texto corregido supera 64 KB.".into()); }
+    let pattern =
+        Regex::new(&regex::escape(&suggestion.original)).map_err(|_| "Palabra OCR no válida")?;
+    let updated = pattern
+        .replace_all(text, |capture: &regex::Captures| {
+            let hit = capture.get(0).unwrap();
+            if boundary(text, hit.start(), hit.end()) {
+                suggestion.replacement.clone()
+            } else {
+                hit.as_str().to_string()
+            }
+        })
+        .into_owned();
+    if updated.len() > MAX_DOCUMENT_BYTES {
+        return Err("El texto corregido supera 64 KB.".into());
+    }
     Ok(updated)
 }
 
 fn needs_ocr_cleanup(session: &Session) -> bool {
     let extension = std::path::Path::new(&session.file_name)
-        .extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     session.original == session.extracted_original
-        && matches!(extension.as_str(), "pdf" | "png" | "jpg" | "jpeg" | "tiff" | "tif" | "heic")
+        && matches!(
+            extension.as_str(),
+            "pdf" | "png" | "jpg" | "jpeg" | "tiff" | "tif" | "heic"
+        )
 }
 
 fn patterns() -> &'static Vec<(Kind, Regex)> {
@@ -387,21 +454,56 @@ fn grounded(text: &str, original: &str) -> bool {
 /// independently been found in the source. Any other word still blocks output.
 fn receipt_fields(original: &str, proposed: &Detection) -> Option<Vec<Detection>> {
     let label = normalized(&proposed.text);
-    if matches!(label.as_str(), "ahorros" | "ahorros socic" | "ahorros socios" | "cuenta corriente" | "cuenta de ahorros" | "cuenta origen" | "tipo de cuenta") {
+    if matches!(
+        label.as_str(),
+        "ahorros"
+            | "ahorros socic"
+            | "ahorros socios"
+            | "cuenta corriente"
+            | "cuenta de ahorros"
+            | "cuenta origen"
+            | "tipo de cuenta"
+    ) {
         return Some(vec![]);
     }
-    if proposed.kind != Kind::Address { return None; }
+    if proposed.kind != Kind::Address {
+        return None;
+    }
     let mut remainder = proposed.text.clone();
     let mut found = vec![];
     for detection in deterministic_detections(&proposed.text) {
-        if detection.kind != Kind::Other || !grounded(original, &detection.text) { return None; }
+        if detection.kind != Kind::Other || !grounded(original, &detection.text) {
+            return None;
+        }
         remainder = remainder.replace(&detection.text, " ");
         found.push(detection);
     }
-    if remainder.chars().any(|c| c.is_numeric()) { return None; }
-    let words: Vec<_> = remainder.split(|c: char| !c.is_alphabetic()).filter(|w| !w.is_empty()).map(name_token).collect();
-    if words.is_empty() || !words.iter().any(|w| w == "cuenta" || w == "cuonta")
-        || !words.iter().all(|w| matches!(w.as_str(), "cuenta" | "cuonta" | "origen" | "origеn" | "tipo" | "tpo" | "tpо" | "ahorros" | "socic" | "socios")) {
+    if remainder.chars().any(|c| c.is_numeric()) {
+        return None;
+    }
+    let words: Vec<_> = remainder
+        .split(|c: char| !c.is_alphabetic())
+        .filter(|w| !w.is_empty())
+        .map(name_token)
+        .collect();
+    if words.is_empty()
+        || !words.iter().any(|w| w == "cuenta" || w == "cuonta")
+        || !words.iter().all(|w| {
+            matches!(
+                w.as_str(),
+                "cuenta"
+                    | "cuonta"
+                    | "origen"
+                    | "origеn"
+                    | "tipo"
+                    | "tpo"
+                    | "tpо"
+                    | "ahorros"
+                    | "socic"
+                    | "socios"
+            )
+        })
+    {
         return None;
     }
     Some(found)
@@ -409,18 +511,30 @@ fn receipt_fields(original: &str, proposed: &Detection) -> Option<Vec<Detection>
 
 /// Recover accent-only model normalization by selecting a unique source span.
 /// No edit distance, guessed OCR letters or reconstructed names are accepted.
-fn ground_model_detections(original: &str, model: Vec<Detection>) -> Result<Vec<Detection>, String> {
+fn ground_model_detections(
+    original: &str,
+    model: Vec<Detection>,
+) -> Result<Vec<Detection>, String> {
     let mut result = vec![];
     for mut detection in model {
-        if let Some(fields) = receipt_fields(original, &detection) { result.extend(fields); continue; }
+        if let Some(fields) = receipt_fields(original, &detection) {
+            result.extend(fields);
+            continue;
+        }
         let text = detection.text.trim();
         if text.len() < 2 || text.len() > 500 {
             return Err("Qwen propuso una entidad que no coincide con el documento. No se aprobará la salida; vuelve a analizar.".into());
         }
-        if grounded(original, text) { detection.text = text.into(); result.push(detection); continue; }
+        if grounded(original, text) {
+            detection.text = text.into();
+            result.push(detection);
+            continue;
+        }
         let mut pattern = String::new();
         for (i, word) in text.split_whitespace().enumerate() {
-            if i > 0 { pattern.push_str(r"\s+"); }
+            if i > 0 {
+                pattern.push_str(r"\s+");
+            }
             for c in word.chars() {
                 match c.to_ascii_lowercase() {
                     'a' | 'á' | 'Á' => pattern.push_str("[aá]"),
@@ -432,8 +546,15 @@ fn ground_model_detections(original: &str, model: Vec<Detection>) -> Result<Vec<
                 }
             }
         }
-        let re = RegexBuilder::new(&pattern).case_insensitive(true).build().map_err(|_| "Entidad no válida")?;
-        let spans: HashSet<&str> = re.find_iter(original).filter(|m| boundary(original, m.start(), m.end())).map(|m| m.as_str()).collect();
+        let re = RegexBuilder::new(&pattern)
+            .case_insensitive(true)
+            .build()
+            .map_err(|_| "Entidad no válida")?;
+        let spans: HashSet<&str> = re
+            .find_iter(original)
+            .filter(|m| boundary(original, m.start(), m.end()))
+            .map(|m| m.as_str())
+            .collect();
         if spans.len() != 1 {
             return Err("Qwen propuso una entidad que no coincide con el documento. No se aprobará la salida; vuelve a analizar.".into());
         }
@@ -482,9 +603,17 @@ fn merge_detections(original: &str, model: Vec<Detection>) -> Result<Vec<Entity>
 }
 
 fn name_token(text: &str) -> String {
-    text.to_lowercase().chars().map(|c| match c {
-        'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' | 'ü' => 'u', _ => c,
-    }).collect()
+    text.to_lowercase()
+        .chars()
+        .map(|c| match c {
+            'á' => 'a',
+            'é' => 'e',
+            'í' => 'i',
+            'ó' => 'o',
+            'ú' | 'ü' => 'u',
+            _ => c,
+        })
+        .collect()
 }
 
 /// Receipt OCR often truncates surnames and loses accents. Only standalone
@@ -492,27 +621,69 @@ fn name_token(text: &str) -> String {
 /// qualify. Ambiguous prefixes receive a distinct alias rather than implying
 /// that two people are the same person.
 fn add_ocr_name_variants(original: &str, entities: &mut Vec<Entity>) {
-    let people: Vec<Entity> = entities.iter().filter(|e| e.kind == Kind::Person).cloned().collect();
+    let people: Vec<Entity> = entities
+        .iter()
+        .filter(|e| e.kind == Kind::Person)
+        .cloned()
+        .collect();
     let mut seen: HashSet<String> = entities.iter().map(|e| normalized(&e.original)).collect();
     let mut next = entities.iter().filter(|e| e.kind == Kind::Person).count() + 1;
     for line in original.lines() {
         let line = line.trim();
         let words: Vec<&str> = line.split_whitespace().collect();
-        if !(2..=6).contains(&words.len()) || line.len() > 120
-            || !words.iter().all(|word| word.chars().all(|c| c.is_uppercase()))
-            || words.iter().any(|word| matches!(*word, "PRESENTA" | "SOLICITA" | "COMPARECE" | "MANIFIESTA" | "DECLARA" | "RECIBE" | "TRANSFIERE" | "PAGA" | "PARA" | "CON" | "DESDE" | "HASTA")) {
+        if !(2..=6).contains(&words.len())
+            || line.len() > 120
+            || !words
+                .iter()
+                .all(|word| word.chars().all(|c| c.is_uppercase()))
+            || words.iter().any(|word| {
+                matches!(
+                    *word,
+                    "PRESENTA"
+                        | "SOLICITA"
+                        | "COMPARECE"
+                        | "MANIFIESTA"
+                        | "DECLARA"
+                        | "RECIBE"
+                        | "TRANSFIERE"
+                        | "PAGA"
+                        | "PARA"
+                        | "CON"
+                        | "DESDE"
+                        | "HASTA"
+                )
+            })
+        {
             continue;
         }
-        let candidates: HashSet<String> = people.iter().filter(|person| {
-            let known: Vec<&str> = person.original.split_whitespace().collect();
-            known.len() >= 2 && known[0].chars().count() >= 3 && known[1].chars().count() >= 3
-                && name_token(words[0]) == name_token(known[0])
-                && name_token(words[1]) == name_token(known[1])
-        }).map(|e| e.alias.clone()).collect();
-        if candidates.is_empty() || !seen.insert(normalized(line)) { continue; }
-        let alias = if candidates.len() == 1 { candidates.into_iter().next().unwrap() }
-            else { let alias = format!("PERSON_{next:02}"); next += 1; alias };
-        entities.push(Entity { kind: Kind::Person, original: line.into(), alias, source: "pattern".into() });
+        let candidates: HashSet<String> = people
+            .iter()
+            .filter(|person| {
+                let known: Vec<&str> = person.original.split_whitespace().collect();
+                known.len() >= 2
+                    && known[0].chars().count() >= 3
+                    && known[1].chars().count() >= 3
+                    && name_token(words[0]) == name_token(known[0])
+                    && name_token(words[1]) == name_token(known[1])
+            })
+            .map(|e| e.alias.clone())
+            .collect();
+        if candidates.is_empty() || !seen.insert(normalized(line)) {
+            continue;
+        }
+        let alias = if candidates.len() == 1 {
+            candidates.into_iter().next().unwrap()
+        } else {
+            let alias = format!("PERSON_{next:02}");
+            next += 1;
+            alias
+        };
+        entities.push(Entity {
+            kind: Kind::Person,
+            original: line.into(),
+            alias,
+            source: "pattern".into(),
+        });
     }
 }
 
@@ -551,23 +722,47 @@ pub(crate) fn sanitize(original: &str, entities: &[Entity]) -> Result<String, St
 /// intact; unreadable script fragments receive a visible annotation instead
 /// of being reconstructed or silently omitted. Legitimate Cyrillic documents
 /// are preserved, as are every line containing numbers and every alias.
-fn sanitize_for_file(original: &str, entities: &[Entity], file_name: &str) -> Result<String, String> {
+fn sanitize_for_file(
+    original: &str,
+    entities: &[Entity],
+    file_name: &str,
+) -> Result<String, String> {
     let sanitized = sanitize(original, entities)?;
-    let extension = std::path::Path::new(file_name).extension().and_then(|x| x.to_str()).unwrap_or("").to_ascii_lowercase();
-    if !matches!(extension.as_str(), "pdf" | "png" | "jpg" | "jpeg" | "tiff" | "tif" | "heic") { return Ok(sanitized); }
+    let extension = std::path::Path::new(file_name)
+        .extension()
+        .and_then(|x| x.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if !matches!(
+        extension.as_str(),
+        "pdf" | "png" | "jpg" | "jpeg" | "tiff" | "tif" | "heic"
+    ) {
+        return Ok(sanitized);
+    }
     let cyrillic = |c: char| ('\u{0400}'..='\u{052f}').contains(&c);
-    let latin = original.chars().filter(|c| c.is_alphabetic() && !cyrillic(*c)).count();
+    let latin = original
+        .chars()
+        .filter(|c| c.is_alphabetic() && !cyrillic(*c))
+        .count();
     let foreign = original.chars().filter(|c| cyrillic(*c)).count();
-    if latin < 200 || latin < foreign * 5 { return Ok(sanitized); }
-    Ok(sanitized.lines().map(|line| {
-        match line.trim() {
+    if latin < 200 || latin < foreign * 5 {
+        return Ok(sanitized);
+    }
+    Ok(sanitized
+        .lines()
+        .map(|line| match line.trim() {
             "Tpо:" | "Tpo:" => "Tipo:".into(),
             "Cuonta:" => "Cuenta:".into(),
-            _ if line.chars().any(cyrillic) && !line.chars().any(char::is_numeric)
-                && !entities.iter().any(|e| line.contains(&e.alias)) => "[Fragmento OCR ilegible]".into(),
+            _ if line.chars().any(cyrillic)
+                && !line.chars().any(char::is_numeric)
+                && !entities.iter().any(|e| line.contains(&e.alias)) =>
+            {
+                "[Fragmento OCR ilegible]".into()
+            }
             _ => line.to_string(),
-        }
-    }).collect::<Vec<String>>().join("\n"))
+        })
+        .collect::<Vec<String>>()
+        .join("\n"))
 }
 
 fn validate_entities(original: &str, entities: &[Entity]) -> Result<(), String> {
@@ -731,10 +926,19 @@ fn reset_analysis(session: &mut Session) {
 }
 
 #[tauri::command]
-pub(crate) fn reset_private_analysis(id: String, revision: u64, app: tauri::AppHandle) -> Result<Session, String> {
+pub(crate) fn reset_private_analysis(
+    id: String,
+    revision: u64,
+    app: tauri::AppHandle,
+) -> Result<Session, String> {
     let privacy = app.state::<PrivacyState>();
-    let mut guard = privacy.0.lock().map_err(|_| "Sesión privada no disponible")?;
-    let session = guard.as_mut().filter(|s| s.id == id && s.revision == revision)
+    let mut guard = privacy
+        .0
+        .lock()
+        .map_err(|_| "Sesión privada no disponible")?;
+    let session = guard
+        .as_mut()
+        .filter(|s| s.id == id && s.revision == revision)
         .ok_or("El documento cambió. Recarga la sesión.")?;
     reset_analysis(session);
     Ok(session.clone())
@@ -806,7 +1010,9 @@ pub(crate) async fn analyze_private_document(
             let mut seen = HashSet::new();
             for chunk in chunks(&session.original) {
                 for suggestion in engine.suggest_ocr_prefixes(&chunk)? {
-                    if valid_ocr_prefix(&suggestion, &original) && seen.insert(suggestion.original.clone()) {
+                    if valid_ocr_prefix(&suggestion, &original)
+                        && seen.insert(suggestion.original.clone())
+                    {
                         original = corrected_ocr_text(&original, &suggestion)?;
                     }
                 }
@@ -814,7 +1020,10 @@ pub(crate) async fn analyze_private_document(
         }
         let entities = analyze_with(engine, &original)?;
         // Progress carries only operation identity; private document data stays local.
-        let _ = app.emit("private-analysis-progress", (id.as_str(), requested_revision, "sanitizing"));
+        let _ = app.emit(
+            "private-analysis-progress",
+            (id.as_str(), requested_revision, "sanitizing"),
+        );
         let sanitized = sanitize_for_file(&original, &entities, &session.file_name)?;
         // Deliberately no `require_sanitized` here. Finding nothing is a valid
         // analysis result that the lawyer must see; it becomes a refusal at
@@ -866,7 +1075,12 @@ pub(crate) fn review_private_document(
         return Err("Analiza el documento con Qwen antes de revisar la salida.".into());
     }
     let sanitized = sanitize_for_file(&session.original, &entities, &session.file_name)?;
-    let map_changed = session.entities.len() != entities.len() || session.entities.iter().zip(entities.iter()).any(|(a, b)| a.kind != b.kind || a.original != b.original || a.alias != b.alias);
+    let map_changed = session.entities.len() != entities.len()
+        || session
+            .entities
+            .iter()
+            .zip(entities.iter())
+            .any(|(a, b)| a.kind != b.kind || a.original != b.original || a.alias != b.alias);
     // Review can remove a false positive, but pattern checks still block real
     // identifiers and an empty map can never be approved.
     session.entities = entities
@@ -896,10 +1110,17 @@ pub(crate) fn update_private_document(
     app: tauri::AppHandle,
 ) -> Result<Session, String> {
     let privacy = app.state::<PrivacyState>();
-    let mut guard = privacy.0.lock().map_err(|_| "Sesión privada no disponible")?;
-    let session = guard.as_mut().filter(|s| s.id == id && s.revision == revision)
+    let mut guard = privacy
+        .0
+        .lock()
+        .map_err(|_| "Sesión privada no disponible")?;
+    let session = guard
+        .as_mut()
+        .filter(|s| s.id == id && s.revision == revision)
         .ok_or("La edición está desactualizada. Recarga el documento.")?;
-    if !session.analyzed { return Err("Analiza el documento antes de editarlo.".into()); }
+    if !session.analyzed {
+        return Err("Analiza el documento antes de editarlo.".into());
+    }
     if text.trim().is_empty() || text.len() > MAX_DOCUMENT_BYTES {
         return Err("El documento editado debe contener texto y no superar 64 KB.".into());
     }
@@ -942,7 +1163,9 @@ fn checked_outbound(session: &Session) -> Result<OutboundPreview, String> {
         );
     }
     let sanitized = sanitize_for_file(&session.original, &session.entities, &session.file_name)?;
-    if (!session.edited && sanitized != session.sanitized) || !leak_warnings(&session.sanitized, &session.entities).is_empty() {
+    if (!session.edited && sanitized != session.sanitized)
+        || !leak_warnings(&session.sanitized, &session.entities).is_empty()
+    {
         return Err("La salida no supera la validación determinista. Revisa el mapa.".into());
     }
     require_sanitized(&session.original, &session.sanitized, &session.entities)?;
@@ -1041,660 +1264,4 @@ pub(crate) fn validate_private_export(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// llama.cpp initialises one Metal device per context and refuses a second
-    /// concurrent one, so the real-inference tests must not run in parallel.
-    /// The app itself never has this problem: `analyze_private_document`
-    /// serialises work behind a `try_lock` on the engine cache.
-    static REAL_INFERENCE: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    /// Loads a verified Qwen engine while holding the serialisation lock. The
-    /// returned guard must stay alive for as long as the engine is used.
-    fn locked_qwen_engine() -> (std::sync::MutexGuard<'static, ()>, crate::llm::LlmEngine) {
-        let guard = REAL_INFERENCE.lock().unwrap_or_else(|e| e.into_inner());
-        let path = crate::platform::test_models_dir().join(crate::models::QWEN_FILE);
-        crate::models::verify_model_file(&path).expect("install verified Qwen model first");
-        let engine = crate::llm::LlmEngine::load(path.to_str().unwrap()).unwrap();
-        (guard, engine)
-    }
-    fn entity(kind: Kind, original: &str, alias: &str) -> Entity {
-        Entity {
-            kind,
-            original: original.into(),
-            alias: alias.into(),
-            source: "test".into(),
-        }
-    }
-    #[test]
-    fn ocr_receipt_name_fragments_and_masked_accounts_are_redacted() {
-        let original = "José Antonio Martínez Valdez comparece.\nXIMENA BARRAGÁN CON SEDE EN LA PARROQUIA\nnombre\nJOSE ANTONIO MI\nE\nJOSE ANTONIO MARTIN\nJOSE ANTONIO MARTA\n4410XXXXX319\n2204XXX521\nSeptiembre 2025-2026\nBANCO PICHINCHA\n$500.00";
-        let entities = merge_detections(original, vec![Detection { kind: Kind::Person, text: "José Antonio Martínez Valdez".into() }]).unwrap();
-        let out = sanitize(original, &entities).unwrap();
-        for value in ["XIMENA BARRAGÁN", "JOSE ANTONIO", "4410", "2204"] { assert!(!out.contains(value), "{out}"); }
-        let aliases: HashSet<_> = entities.iter().filter(|e| e.original.starts_with("JOSE ANTONIO") || e.original.starts_with("José Antonio")).map(|e| &e.alias).collect();
-        assert_eq!(aliases.len(), 1);
-        assert!(out.contains("2025-2026"));
-        assert!(out.contains("$500.00"));
-        assert!(!out.contains("BANCO PICHINCHA"));
-        assert!(out.contains("COMPANY_01"));
-        assert!(leak_warnings(&out, &entities).is_empty());
-        assert!(!leak_warnings("4410XXXXX319", &[]).is_empty());
-    }
-    #[test]
-    fn ocr_variant_detection_does_not_consume_prose_or_infer_one_token_names() {
-        let original = "José Antonio Martínez comparece.\nJOSE ANTONIO PRESENTA EL ESCRITO PARA SU DEFENSA\nJOSE OTRO APELLIDO\nJOSE ANTONIO SOLICITA ASISTENCIA\nJosé Antonio solicita asistencia.\n2025–2026\n2025—2026";
-        let entities = merge_detections(original, vec![Detection { kind: Kind::Person, text: "José Antonio Martínez".into() }]).unwrap();
-        let out = sanitize(original, &entities).unwrap();
-        assert!(out.contains("JOSE ANTONIO PRESENTA EL ESCRITO PARA SU DEFENSA"));
-        assert!(out.contains("JOSE OTRO APELLIDO"));
-        assert!(out.contains("JOSE ANTONIO SOLICITA ASISTENCIA"));
-        assert!(out.contains("José Antonio solicita asistencia."));
-        assert!(out.contains("2025–2026\n2025—2026"));
-    }
-    #[test]
-    fn stable_aliases_preserve_facts_dates_amounts_and_unicode() {
-        let original="María Pérez demanda a Banco ABC. MARÍA PÉREZ reclama USD 1.500,00 el 2026-09-30. Correo: maria@example.com; cédula: 0912345678.";
-        let entities = merge_detections(
-            original,
-            vec![
-                Detection {
-                    kind: Kind::Person,
-                    text: "María Pérez".into(),
-                },
-                Detection {
-                    kind: Kind::Company,
-                    text: "Banco ABC".into(),
-                },
-            ],
-        )
-        .unwrap();
-        let out = sanitize(original, &entities).unwrap();
-        assert!(out.contains("PERSON_01 demanda a COMPANY_01. PERSON_01"));
-        assert!(out.contains("USD 1.500,00 el 2026-09-30"));
-        assert!(!out.contains("0912345678"));
-        assert!(!out.contains("maria@example.com"));
-        assert!(leak_warnings(&out, &entities).is_empty());
-    }
-    #[test]
-    fn patterns_cover_ids_email_phone_address_case_and_account() {
-        let text="Ana. email: ana@example.com. Tel: +593 99 123 4567; ID 0912345678; RUC 1790012345001. Proceso 17230-2025-01234. Dirección: Av. Amazonas 123, Quito\nCuenta bancaria: EC1234567890";
-        let entities = merge_detections(text, vec![]).unwrap();
-        for kind in [
-            Kind::Email,
-            Kind::Phone,
-            Kind::Id,
-            Kind::Case,
-            Kind::Address,
-            Kind::Other,
-        ] {
-            assert!(entities.iter().any(|e| e.kind == kind), "{kind:?}");
-        }
-        let out = sanitize(text, &entities).unwrap();
-        assert!(leak_warnings(&out, &entities).is_empty(), "{out}");
-    }
-    #[test]
-    fn compact_judicial_numbers_are_redacted_and_residuals_block_review() {
-        for text in [
-            "JUICIO DE ALIMENTOS No. 17203201900137",
-            "Juicio No.\n17203201900137",
-            "Proceso: 17203-2019-00137",
-            "Causa número 17203201900137",
-            "Referencia 17203201900137",
-        ] {
-            let entities = merge_detections(text, vec![]).unwrap();
-            assert!(entities.iter().any(|e| e.kind == Kind::Case), "{text}");
-            let output = sanitize(text, &entities).unwrap();
-            assert!(output.contains("CASE_01"), "{output}");
-            assert!(!output.contains("17203"), "{output}");
-            assert!(leak_warnings(&output, &entities).is_empty());
-            assert!(!leak_warnings(text, &[]).is_empty());
-        }
-        let amount = "Total USD 17203201900137";
-        assert!(deterministic_detections(amount).is_empty());
-    }
-    #[test]
-    fn clearing_analysis_keeps_original_and_invalidates_export() {
-        let mut session = Session::new("original.pdf".into(), "Documento original privado".into()).unwrap();
-        session.sanitized = "Documento sanitizado".into();
-        session.analyzed = true;
-        session.reviewed = true;
-        session.edited = true;
-        session.warnings.push("advertencia".into());
-        session.advisories.push("aviso".into());
-        let revision = session.revision;
-        reset_analysis(&mut session);
-        assert_eq!(session.original, "Documento original privado");
-        assert_eq!(session.extracted_original, session.original);
-        assert_eq!(session.file_name, "original.pdf");
-        assert_eq!(session.revision, revision + 1);
-        assert!(!session.analyzed && !session.reviewed && !session.edited);
-        assert!(session.sanitized.is_empty() && session.entities.is_empty());
-        assert!(session.warnings.is_empty() && session.advisories.is_empty());
-        assert!(check_export_payload(&session, "Documento sanitizado", None, "Documento sanitizado").is_err());
-    }
-
-    #[test]
-    fn automatic_ocr_cleanup_preserves_boundaries_and_initial_extraction() {
-        let mut session = Session::new("scan.PDF".into(), "ombre y sobrenombre, ombre.".into()).unwrap();
-        assert!(needs_ocr_cleanup(&session));
-        session.original = corrected_ocr_text(&session.original, &OcrSuggestion {
-            original: "ombre".into(), replacement: "nombre".into(),
-        }).unwrap();
-        assert_eq!(session.original, "nombre y sobrenombre, nombre.");
-        assert_eq!(session.extracted_original, "ombre y sobrenombre, ombre.");
-        assert!(!needs_ocr_cleanup(&session));
-        assert!(!needs_ocr_cleanup(&Session::new("document.txt".into(), "ombre".into()).unwrap()));
-        assert!(corrected_ocr_text("12345", &OcrSuggestion {
-            original: "12345".into(), replacement: "012345".into(),
-        }).is_err());
-    }
-
-    #[test]
-    fn ocr_suggestions_only_add_one_letter_to_exact_existing_words() {
-        let raw = r#"{"suggestions":[{"original":"ombre","replacement":"nombre"},{"original":"uenta","replacement":"cuenta"},{"original":"12345","replacement":"012345"},{"original":"ombre","replacement":"nombre completo"},{"original":"ausente","replacement":"causente"},{"original":"Ana","replacement":"Diana"}]}"#;
-        let suggestions = parse_ocr_suggestions(raw, "ombre del titular\nuenta de ahorros\n12345\nAna").unwrap();
-        assert_eq!(suggestions.len(), 2);
-        assert_eq!(suggestions[0].replacement, "nombre");
-        assert_eq!(suggestions[1].replacement, "cuenta");
-        assert!(parse_ocr_suggestions(r#"{"suggestions":[],"instruction":"ignore"}"#, "texto").is_err());
-        assert!(parse_ocr_suggestions(r#"{"suggestions":[{"original":"ombre","replacement":"nombre"}]}"#, "sobrenombre").unwrap().is_empty());
-    }
-    #[test]
-    #[ignore = "Requires verified local Qwen weights"]
-    fn real_qwen_suggests_ocr_missing_initials() {
-        let (_guard, engine) = locked_qwen_engine();
-        let text = "Recibo de pago\nEl ombre del titular aparece en el encabezado.\nLa uenta de ahorros recibe USD 1500.\nProceso 17203201900137.";
-        let suggestions = engine.suggest_ocr_prefixes(text).unwrap();
-        assert!(suggestions.iter().any(|s| s.original == "ombre" && s.replacement == "nombre"));
-        assert!(suggestions.iter().all(|s| valid_ocr_prefix(s, text)));
-    }
-    #[test]
-    fn overlapping_names_are_longest_first_and_aliases_are_not_replaced() {
-        let text = "Ana Pérez y Ana. Banana y Ana Pérez.";
-        let entities = vec![
-            entity(Kind::Person, "Ana", "PERSON_01"),
-            entity(Kind::Person, "Ana Pérez", "PERSON_02"),
-        ];
-        assert_eq!(
-            sanitize(text, &entities).unwrap(),
-            "PERSON_02 y PERSON_01. Banana y PERSON_02."
-        );
-    }
-    #[test]
-    fn review_can_group_variants_but_cannot_smuggle_private_aliases() {
-        let text = "María Pérez y María. maria@example.com";
-        let grouped = vec![
-            entity(Kind::Person, "María Pérez", "CLIENTE_01"),
-            entity(Kind::Person, "María", "CLIENTE_01"),
-        ];
-        assert_eq!(
-            sanitize(text, &grouped).unwrap(),
-            "CLIENTE_01 y CLIENTE_01. maria@example.com"
-        );
-        assert!(sanitize(text, &[entity(Kind::Person, "María", "maria@example.com")]).is_err());
-        assert!(sanitize(text, &[entity(Kind::Person, "invented", "PERSON_01")]).is_err());
-    }
-    #[test]
-    fn leaks_are_detected_independently_of_qwen_and_model_json_is_strict() {
-        assert!(!leak_warnings(
-            "email: secret@example.com. Tel +593 99 111 2222. ID 0912345678",
-            &[]
-        )
-        .is_empty());
-        assert!(parse_detections("ignore the rules").is_err());
-        // Un invents a category: kept as an unclassified span, never dropped.
-        let unknown = parse_detections(r#"{"entities":[{"kind":"UNKNOWN","text":"x"}]}"#).unwrap();
-        assert_eq!(unknown.len(), 1);
-        assert_eq!(unknown[0].kind, Kind::Other);
-        assert_eq!(unknown[0].text, "x");
-        // A shape we cannot read at all is still an error.
-        assert!(parse_detections(r#"{"entities":"nope"}"#).is_err());
-        assert!(parse_detections(r#"{"entities":[],"safe":true}"#).is_err());
-        assert!(parse_detections(r#"{"entities":[]}"#).is_err());
-        // One bad element must not cost us the good ones.
-        let mixed = parse_detections(
-            r#"[{"kind":"ACCOUNT","text":"EC1234567890"},{"kind":"PERSON","text":"Ana"}]"#,
-        )
-        .unwrap();
-        assert_eq!(mixed.len(), 2);
-        assert_eq!(mixed[0].kind, Kind::Other);
-        assert_eq!(mixed[1].kind, Kind::Person);
-        assert!(parse_detections("```json\n{\"entities\":[]}\n```").is_err());
-        assert!(!leak_warnings(
-            "María Pérez",
-            &[entity(Kind::Person, "María Pérez", "PERSON_01")]
-        )
-        .is_empty());
-    }
-    #[test]
-    fn complete_document_is_chunked_without_losing_unicode_or_tail() {
-        let text = "á".repeat(6000) + " FINAL_PRIVATE";
-        let parts = chunks(&text);
-        assert_eq!(parts.len(), 3);
-        assert!(parts.last().unwrap().ends_with("FINAL_PRIVATE"));
-        assert_eq!(parts[0].chars().count(), 2800);
-    }
-    #[test]
-    fn banks_are_companies_and_receipt_types_remain_visible() {
-        let text = "BANCO PICHINCHA\nAHORROS SOCIC\n4410XXXXX319";
-        let entities = merge_detections(text, vec![Detection { kind: Kind::Address, text: "BANCO PICHINCHA".into() }, Detection { kind: Kind::Address, text: "AHORROS SOCIC".into() }]).unwrap();
-        assert!(entities.iter().any(|e| e.kind == Kind::Company && e.original == "BANCO PICHINCHA"));
-        assert!(!entities.iter().any(|e| e.original == "AHORROS SOCIC"));
-        let out = sanitize(text, &entities).unwrap();
-        assert!(out.contains("COMPANY_01\nAHORROS SOCIC\nOTHER_01"));
-    }
-    #[test]
-    fn ocr_noise_is_annotated_without_altering_amounts_aliases_or_source() {
-        let text = format!("{}\nHONоSEOк\nроозаниткално\nTpо:\nCuonta:\n$500.00\n2025-2026\n672 =0\nслолдтою 22\nMaría Pérez", "Texto del documento legible. ".repeat(20));
-        let entities = vec![entity(Kind::Person, "María Pérez", "PERSON_01")];
-        let out = sanitize_for_file(&text, &entities, "scan.pdf").unwrap();
-        assert!(out.contains("[Fragmento OCR ilegible]"));
-        assert!(!out.contains("HONоSEOк"));
-        assert!(out.contains("Tipo:\nCuenta:\n$500.00\n2025-2026\n672 =0\nслолдтою 22\nPERSON_01"));
-        assert_eq!(sanitize_for_file(&text, &entities, "text.txt").unwrap(), sanitize(&text, &entities).unwrap());
-        let russian = "Это документ на русском языке.";
-        assert_eq!(sanitize_for_file(russian, &[], "scan.pdf").unwrap(), russian);
-    }
-    #[test]
-    fn cleaned_ocr_output_keeps_the_export_gate_exact() {
-        let mut session = reviewed_session();
-        session.file_name = "scan.pdf".into();
-        session.original.push_str(&format!("\n{}\nHONоSEOк\n$500.00", "Documento legible. ".repeat(20)));
-        session.sanitized = sanitize_for_file(&session.original, &session.entities, &session.file_name).unwrap();
-        assert!(session.original.contains("HONоSEOк"));
-        assert!(session.sanitized.contains("[Fragmento OCR ilegible]"));
-        assert!(checked_outbound(&session).is_ok());
-        assert!(check_export_payload(&session, &session.sanitized, None, "Documento sanitizado").is_ok());
-        assert!(check_export_payload(&session, &(session.sanitized.clone() + " nuevo texto"), None, "Documento sanitizado").is_err());
-    }
-    #[test]
-    fn receipt_labels_are_not_addresses_but_real_account_spans_are_retained() {
-        let source = "uenta Orige\nCuonta:\nTpо:\n4410XXXXX319\nAHORROS SOCIC\n2204XXX521";
-        for proposed in ["CUENTA ORIGEN", "CUENTA: TPо: 4410XXXXX319", "Cuenta Origen: TPo: 4410XXXXX319, Ahorros Socic: 2204XXX521"] {
-            let model = vec![Detection { kind: Kind::Address, text: proposed.into() }];
-            let entities = merge_detections(source, model).unwrap();
-            let out = sanitize(source, &entities).unwrap();
-            assert!(!out.contains("4410")); assert!(!out.contains("2204"));
-            assert!(leak_warnings(&out, &entities).is_empty());
-        }
-        for invented in ["Cuenta Origen de Pedro", "Cuenta Origen 999XXXXX000", "Cuenta Origen: Calle Inventada 22"] {
-            assert!(ground_model_detections(source, vec![Detection { kind: Kind::Address, text: invented.into() }]).is_err());
-        }
-    }
-    #[test]
-    fn normalized_model_names_use_exact_unique_source_spans() {
-        let text = "José Antonio Martínez\nJOSE ANTONIO MI";
-        let detections = ground_model_detections(text, vec![Detection { kind: Kind::Person, text: "Jose Antonio Martinez".into() }]).unwrap();
-        assert_eq!(detections[0].text, "José Antonio Martínez");
-        let entities = merge_detections(text, detections).unwrap();
-        let out = sanitize(text, &entities).unwrap();
-        assert!(!out.contains("Antonio"));
-        assert!(!out.contains("JOSE"));
-        for (source, proposed) in [("Ana Pérez / Ana Péréz", "Ana Perez"), ("JOSE ANTONIO MI", "José Antonio Martínez"), ("Ana", "Pedro")] {
-            assert!(ground_model_detections(source, vec![Detection { kind: Kind::Person, text: proposed.into() }]).is_err());
-        }
-    }
-    #[test]
-    fn unmatched_model_entity_retries_exact_extraction_without_dropping_it() {
-        use std::cell::Cell;
-        struct RetryExtractor { retried: Cell<bool>, succeeds: bool }
-        impl EntityExtractor for RetryExtractor {
-            fn extract(&self, _: &str) -> Result<Vec<Detection>, String> {
-                Ok(vec![Detection { kind: Kind::Person, text: "Pedro Inventado".into() }])
-            }
-            fn extract_exact(&self, _: &str) -> Result<Vec<Detection>, String> {
-                self.retried.set(true);
-                Ok(vec![Detection { kind: Kind::Person, text: if self.succeeds { "Ana Pérez" } else { "Pedro Inventado" }.into() }])
-            }
-        }
-        for succeeds in [true, false] {
-            let extractor = RetryExtractor { retried: Cell::new(false), succeeds };
-            let result = analyze_with(&extractor, "Ana Pérez comparece.");
-            assert!(extractor.retried.get());
-            assert_eq!(result.is_ok(), succeeds);
-            if let Ok(entities) = result { assert_eq!(sanitize("Ana Pérez comparece.", &entities).unwrap(), "PERSON_01 comparece."); }
-        }
-    }
-    #[test]
-    fn no_silent_truncation_and_no_hallucinated_entity() {
-        assert!(Session::new("x".into(), " ".into()).is_err());
-        assert!(Session::new("x".into(), "a".repeat(MAX_DOCUMENT_BYTES + 1)).is_err());
-        assert!(merge_detections(
-            "Ana",
-            vec![Detection {
-                kind: Kind::Person,
-                text: "Pedro".into()
-            }]
-        )
-        .is_err());
-    }
-    #[test]
-    fn preview_requires_analysis_review_and_revalidates_exact_payload() {
-        let mut session =
-            Session::new("private-name.txt".into(), "Ana usa ana@example.com".into()).unwrap();
-        session.entities = merge_detections(
-            &session.original,
-            vec![Detection {
-                kind: Kind::Person,
-                text: "Ana".into(),
-            }],
-        )
-        .unwrap();
-        session.sanitized = sanitize(&session.original, &session.entities).unwrap();
-        assert!(checked_outbound(&session).is_err());
-        session.analyzed = true;
-        assert!(checked_outbound(&session).is_err());
-        session.reviewed = true;
-        let payload = serde_json::to_value(checked_outbound(&session).unwrap()).unwrap();
-        assert_eq!(payload.as_object().unwrap().len(), 2);
-        assert!(!payload.to_string().contains("private-name"));
-        assert!(!payload.to_string().contains("ana@example.com"));
-        session.sanitized.push_str(" leaked@example.com");
-        assert!(checked_outbound(&session).is_err());
-        session.entities.clear();
-        session.sanitized = session.original.clone();
-        assert!(checked_outbound(&session).is_err());
-    }
-    #[test]
-    fn edited_document_requires_review_and_checks_exact_text() {
-        let mut session = Session::new("source.txt".into(), "Ana usa ana@example.com".into()).unwrap();
-        session.entities = merge_detections(&session.original, vec![Detection { kind: Kind::Person, text: "Ana".into() }]).unwrap();
-        session.sanitized = sanitize(&session.original, &session.entities).unwrap();
-        session.analyzed = true;
-        session.edited = true;
-        session.sanitized = "PERSON_01 presenta el escrito.\n\nSegundo párrafo.".into();
-        assert!(checked_outbound(&session).is_err());
-        session.reviewed = true;
-        assert_eq!(checked_outbound(&session).unwrap().document, session.sanitized);
-        session.sanitized.push_str(" ana@example.com");
-        assert!(checked_outbound(&session).is_err());
-    }
-    #[test]
-    #[ignore = "Requires a local QA text path and verified Qwen weights"]
-    fn real_qwen_analyzes_local_qa_document() {
-        let input = std::env::var("BELEGAL_QA_TEXT").expect("set a local OCR text path");
-        let mut text = std::fs::read_to_string(input).unwrap();
-        let (_guard, engine) = locked_qwen_engine();
-        let snapshot = text.clone();
-        for chunk in chunks(&snapshot) {
-            for suggestion in engine.suggest_ocr_prefixes(&chunk).unwrap() {
-                if valid_ocr_prefix(&suggestion, &text) { text = corrected_ocr_text(&text, &suggestion).unwrap(); }
-            }
-        }
-        let entities = analyze_with(&engine, &text).unwrap();
-        let sanitized = sanitize_for_file(&text, &entities, "scan.pdf").unwrap();
-        require_sanitized(&text, &sanitized, &entities).unwrap();
-        assert!(leak_warnings(&sanitized, &entities).is_empty());
-        assert!(!sanitized.contains("JOSE ANTONIO"));
-        assert!(!sanitized.contains("XIMENA BARRAGÁN"));
-        assert!(!sanitized.contains("4410XXXXX319"));
-        assert!(sanitized.contains("AHORROS SOCIC"));
-        assert!(!entities.iter().any(|e| e.original == "BANCO PICHINCHA" && e.kind != Kind::Company));
-        let mut session = Session::new("scan.pdf".into(), text).unwrap();
-        session.entities = entities;
-        session.sanitized = sanitized;
-        session.analyzed = true;
-        session.reviewed = true;
-        assert!(checked_outbound(&session).is_ok());
-    }
-    #[test]
-    #[ignore = "Requires verified local Qwen weights"]
-    fn real_qwen_handles_ocr_receipt_fragments() {
-        let (_guard, engine) = locked_qwen_engine();
-        let text = "OFICIO – DOCUMENTO DE REFERENCIA\nDe: José Antonio Martínez Valdez\nAsunto: Pagos Septiembre 2025-2026\nXIMENA BARRAGÁN CON SEDE EN LA PARROQUIA\nJosé Antonio Martínez Valdez comparece.\nANEXOS\nnombre\nJOSE ANTONIO MI\nE\n$500.00\nJOSE ANTONIO MARTIN\nTRANCO PICHNCHE\nJOSE ANTONIO MARTA\nCuonta:\n4410XXXXX319\n2204XXX521";
-        let entities = analyze_with(&engine, text).unwrap();
-        let out = sanitize(text, &entities).unwrap();
-        for private in ["José Antonio", "JOSE ANTONIO", "XIMENA BARRAGÁN", "4410", "2204"] {
-            assert!(!out.contains(private), "OCR sample still contains private information");
-        }
-        assert!(out.contains("2025-2026"));
-        assert!(out.contains("$500.00"));
-        assert!(leak_warnings(&out, &entities).is_empty());
-    }
-    #[test]
-    #[ignore = "Requires the verified Qwen3 model; run explicitly for local inference QA"]
-    fn real_qwen_extracts_private_document_locally() {
-        let (_guard, engine) = locked_qwen_engine();
-        let text="María Pérez demanda a Banco Andino S.A. Su cédula es 0912345678, correo maria.perez@example.com y teléfono +593 99 123 4567. Dirección: Av. Amazonas 123, Quito. Proceso 17230-2025-01234. Reclama USD 1500 el 30 de septiembre de 2026.";
-        let model = engine
-            .extract(text)
-            .expect("Qwen must return structured, completed output");
-        assert!(
-            model
-                .iter()
-                .any(|e| e.kind == Kind::Person && e.text.contains("María")),
-            "Qwen must detect a person"
-        );
-        assert!(
-            model
-                .iter()
-                .any(|e| e.kind == Kind::Company && e.text.contains("Banco")),
-            "Qwen must detect an organization"
-        );
-        let entities = merge_detections(text, model).unwrap();
-        let sanitized = sanitize(text, &entities).unwrap();
-        assert!(!sanitized.contains("María Pérez"));
-        assert!(!sanitized.contains("Banco Andino"));
-        assert!(sanitized.contains("COMPANY_01. Su cédula"));
-        assert!(!sanitized.contains("maria.perez@example.com"));
-        assert!(sanitized.contains("USD 1500"));
-        assert!(leak_warnings(&sanitized, &entities).is_empty());
-    }
-    #[test]
-    fn long_money_values_and_numeric_dates_are_not_redacted_as_identifiers() {
-        let original =
-            "USD 1500000000, $ 12345678, 123456789 euros. Fecha 30 09 2026 y 2026-09-30.";
-        let entities = merge_detections(original, vec![]).unwrap();
-        assert_eq!(sanitize(original, &entities).unwrap(), original);
-        assert!(leak_warnings(original, &[]).is_empty());
-    }
-
-    #[test]
-    fn a_category_the_model_invents_does_not_leave_the_span_in_the_text() {
-        // Regression: Qwen3 1.7B labels a bank account `ACCOUNT`, which is not
-        // a documented kind. The whole response used to be rejected, and
-        // dropping just that entry would leave the account number in the
-        // sanitized text. It has to be sanitized, not discarded.
-        let original = "Cuenta bancaria: EC1234567890 a nombre de Ana Ruiz.";
-        let raw = r#"[{"kind":"ACCOUNT","text":"EC1234567890"},{"kind":"PERSON","text":"Ana Ruiz"}]"#;
-        let entities = merge_detections(original, parse_detections(raw).unwrap()).unwrap();
-        let out = sanitize(original, &entities).unwrap();
-        assert!(
-            !out.contains("EC1234567890"),
-            "la cuenta se filtró al sanitizar: {out}"
-        );
-        assert!(out.contains("OTHER_01"), "{out}");
-        // And the deterministic layer is still the backstop if the map is wrong.
-        assert!(leak_warnings(&out, &entities).is_empty());
-    }
-
-    #[test]
-    fn an_empty_analysis_result_is_reported_not_rejected() {
-        // Regression: the map invariant used to run during analysis, so a
-        // document with nothing to detect failed outright and the lawyer never
-        // saw the empty map. Analysis must always return a result; refusing is
-        // a review/export concern.
-        let original = "Doña Carmen dispone de la casa de la calle Bolívar.";
-        let entities: Vec<Entity> = vec![];
-        let sanitized = sanitize(original, &entities).unwrap();
-        // No require_sanitized on this path: both facts are simply reported.
-        assert!(entities.is_empty());
-        assert_eq!(sanitized, original);
-        assert!(leak_warnings(&sanitized, &entities).is_empty());
-        assert!(privacy_advisories(&entities).iter().any(|a| a.contains("ninguna persona")));
-        // And the same session is still refused downstream, where it counts.
-        let mut session = Session::new("testamento.txt".into(), original.into()).unwrap();
-        session.entities = entities;
-        session.sanitized = sanitized;
-        session.analyzed = true;
-        assert!(checked_outbound(&session).is_err());
-        assert!(check_export_payload(&session, &session.sanitized, None, "Doc").is_err());
-    }
-
-    #[test]
-    fn an_empty_map_can_never_approve_the_original_document() {
-        // A will with names and places but no email/phone/ID: the deterministic
-        // layer finds nothing, so only the map invariant can stop it.
-        let original = "Doña Carmen dispone de la casa de la calle Bolívar para su sobrina.";
-        assert!(deterministic_detections(original).is_empty());
-        assert!(leak_warnings(original, &[]).is_empty());
-        // sanitize() with no entities is the original itself.
-        assert_eq!(sanitize(original, &[]).unwrap(), original);
-        assert!(require_sanitized(original, original, &[]).is_err());
-        assert!(require_sanitized(original, original, &[entity(Kind::Other, "x", "OTHER_01")]).is_err());
-
-        let mut session = Session::new("testamento.txt".into(), original.into()).unwrap();
-        session.entities = vec![];
-        session.sanitized = sanitize(original, &[]).unwrap();
-        session.analyzed = true;
-        session.reviewed = true;
-        let err = checked_outbound(&session).err().expect("mapa vacío debe fallar");
-        assert!(err.contains("mapa no tiene entidades"), "{err}");
-    }
-
-    #[test]
-    fn a_map_that_changes_nothing_is_refused() {
-        let original = "Ana llama a Pedro.";
-        let entities = vec![entity(Kind::Person, "Ana", "PERSON_01")];
-        // Sanitizing does change the text, so this map is acceptable.
-        assert!(require_sanitized(original, &sanitize(original, &entities).unwrap(), &entities).is_ok());
-        // An entity that survives in the output would make them identical.
-        let unchanged = "PERSON_01 llama a Pedro.";
-        assert!(require_sanitized(unchanged, unchanged, &entities).is_err());
-    }
-
-    #[test]
-    fn advisories_call_out_the_names_the_rules_cannot_check() {
-        assert!(privacy_advisories(&[]).iter().any(|a| a.contains("ninguna persona")));
-        assert!(
-            privacy_advisories(&[entity(Kind::Person, "Ana", "PERSON_01")]).is_empty(),
-            "con una persona en el mapa el aviso sobra"
-        );
-        // Organisations alone still leave every person name unchecked.
-        assert!(privacy_advisories(&[entity(Kind::Company, "Banco", "COMPANY_01")])
-            .iter()
-            .any(|a| a.contains("ninguna persona")));
-    }
-
-    #[test]
-    fn normalized_text_ignores_only_whitespace() {
-        assert_eq!(normalized_text("a  b\nc"), "a b c");
-        assert_ne!(normalized_text("PERSON_01 llama"), normalized_text("Ana llama"));
-    }
-
-    /// A reviewed session as the export gate would find it.
-    fn reviewed_session() -> Session {
-        let original = "María Pérez reclama a Banco Andino. Correo: maria@example.com.";
-        let entities = vec![
-            entity(Kind::Person, "María Pérez", "PERSON_01"),
-            entity(Kind::Email, "maria@example.com", "EMAIL_01"),
-        ];
-        let mut sanitized = original.to_string();
-        for e in &entities {
-            sanitized = sanitized.replace(&e.original, &e.alias);
-        }
-        let mut session = Session::new("demanda.pdf".into(), original.into()).unwrap();
-        session.entities = entities;
-        session.sanitized = sanitized;
-        session.analyzed = true;
-        session.reviewed = true;
-        session
-    }
-
-    #[test]
-    fn the_export_gate_approves_only_the_reviewed_document() {
-        let session = reviewed_session();
-        assert!(check_export_payload(&session, &session.sanitized, None, "Documento sanitizado").is_ok());
-    }
-
-    #[test]
-    fn the_export_gate_refuses_an_unreviewed_session() {
-        let mut session = reviewed_session();
-        session.reviewed = false;
-        let err =
-            check_export_payload(&session, &session.sanitized, None, "Documento").unwrap_err();
-        assert!(err.contains("revisión confirmada"), "got: {err}");
-    }
-
-    #[test]
-    fn the_export_gate_refuses_text_the_lawyer_never_saw() {
-        // Unsaved editor changes: valid text, but not the reviewed document.
-        let session = reviewed_session();
-        let tampered = format!("{} DATO EXTRA", session.sanitized);
-        let err = check_export_payload(&session, &tampered, None, "Documento").unwrap_err();
-        assert!(err.contains("sin revisar"), "got: {err}");
-    }
-
-    #[test]
-    fn the_export_gate_refuses_an_empty_map_even_when_reviewed() {
-        // The reviewed flag alone must not be enough: an empty map means the
-        // sanitized text is the original, so this is an unreviewed document
-        // that happens to be flagged as approved.
-        let mut session = reviewed_session();
-        session.entities.clear();
-        session.sanitized = session.original.clone();
-        let err =
-            check_export_payload(&session, &session.sanitized, None, "Documento").unwrap_err();
-        assert!(err.contains("entidades") || err.contains("idéntico"), "got: {err}");
-    }
-
-    #[test]
-    fn the_export_gate_refuses_html_that_renders_more_than_the_reviewed_text() {
-        // Rich formatting is fine, but any extra visible text — a heading, a
-        // repeated line, a hidden node — is content the lawyer never reviewed.
-        let session = reviewed_session();
-        for html in [
-            format!("<p>{}</p><h1>Demanda</h1>", session.sanitized),
-            format!("<p>{}</p><p style=\"display:none\">MARÍA PÉREZ</p>", session.sanitized),
-            format!("<p>{}</p><p>{}</p>", session.sanitized, session.sanitized),
-        ] {
-            let err =
-                check_export_payload(&session, &session.sanitized, Some(&html), "Documento")
-                    .unwrap_err();
-            assert!(err.contains("no coincide"), "got: {err} for {html}");
-        }
-    }
-
-    #[test]
-    fn the_export_gate_accepts_html_that_only_reformats_the_reviewed_text() {
-        let session = reviewed_session();
-        // Mismo texto, repartido en varios runs con estilo: es lo que produce
-        // el editor cuando el abogado aplica negrita o cursiva.
-        let html = "<p><b>PERSON_01</b> reclama a Banco Andino. Correo: <i>EMAIL_01</i>.</p>";
-        assert_eq!(
-            normalized_text(&crate::pdf::html_visible_text(html)),
-            normalized_text(&session.sanitized)
-        );
-        assert!(check_export_payload(&session, &session.sanitized, Some(html), "Documento").is_ok());
-    }
-
-    #[test]
-    fn the_export_gate_refuses_residual_leaks() {
-        // A map that missed an address still gets refused by the rules.
-        let mut session = reviewed_session();
-        session.entities.push(entity(Kind::Person, "Banco Andino", "COMPANY_01"));
-        session.sanitized = "María Pérez reclama a PERSON_01.".into();
-        let err = check_export_payload(&session, &session.sanitized, None, "Documento").unwrap_err();
-        assert!(err.contains("PDF bloqueado"), "got: {err}");
-    }
-
-    #[test]
-    fn the_export_gate_refuses_a_title_carrying_private_data() {
-        // The title lands in the page header and the PDF metadata, so it is
-        // exported content too. The renderer supplies it, so it is not trusted.
-        let session = reviewed_session();
-        let clean = check_export_payload(&session, &session.sanitized, None, "Documento sanitizado");
-        assert!(clean.is_ok());
-        for title in [
-            "Demanda de María Pérez",
-            "Reclamo maria@example.com",
-            "Cédula 0912345678",
-        ] {
-            let err =
-                check_export_payload(&session, &session.sanitized, None, title).unwrap_err();
-            assert!(err.contains("título"), "got: {err} for {title}");
-        }
-    }
-}
+mod tests;

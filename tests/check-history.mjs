@@ -6,6 +6,8 @@ try {
   for (const failedLoad of [true, false]) {
     const page = await browser.newPage();
     await page.addInitScript(({ failedLoad }) => {
+      localStorage.setItem("belegal-local-demo-welcome-seen", "true");
+      localStorage.setItem("belegal-local-demo-language", "es");
       window.__saveCalls = 0;
       window.__TAURI_INTERNALS__ = {
         invoke: async (cmd) => {

@@ -54,7 +54,10 @@ pub fn run() {
                     // llama.cpp scans the working directory for optional backends.
                     // Finder launches bundled apps with cwd=/, which can stall
                     // enumeration of system mounts before local inference starts.
-                    if executable.to_string_lossy().contains(".app/Contents/MacOS/") {
+                    if executable
+                        .to_string_lossy()
+                        .contains(".app/Contents/MacOS/")
+                    {
                         std::env::set_current_dir(directory)?;
                     }
                 }

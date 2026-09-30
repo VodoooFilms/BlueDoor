@@ -47,7 +47,7 @@ Aplicación de escritorio Tauri 2 con UI Svelte 5/TypeScript y backend Rust. Flu
 - Datos y modelos: `app_data_dir/transcripts.json` y `app_data_dir/models/`. En macOS el identificador principal es `com.belegal.localdemo`; en Windows se usa el directorio de datos de Tauri. Preferencias de tema, idioma, modelo Whisper y última edición viven en `localStorage`.
 - Tauri configura CSP y permisos de diálogo/sistema de archivos en `src-tauri/tauri.conf.json` y `capabilities/default.json`. El decoder se busca dentro del bundle, no en `PATH`.
 - Scripts de empaquetado: `pnpm release:mac`, `pnpm release:mac:dev`, `pnpm release:windows:arm64`, `pnpm release:windows:x64`. `pnpm prepare:runtime` prepara recursos ignorados por Git. Verificadores: `scripts/verify-bundle.py` y `scripts/verify-windows-bundle.py`.
-- **Estado comercial:** `DISTRIBUTION.md` describe entrega privada del instalador Windows ARM64 0.1.0 mediante Prompthea/PayPal. Esa documentación no prueba que la rama 0.2.0 esté publicada. Notarización y prueba en Mac limpio, Windows x64 y firma Authenticode siguen indicadas como pendientes en la documentación existente. `FIRST_SALE_STATUS.md` es histórico y contradice el mecanismo de entrega más reciente de `DISTRIBUTION.md`.
+- **Estado comercial:** `docs/archive/DISTRIBUTION.md` describe entrega privada del instalador Windows ARM64 0.1.0 mediante Prompthea/PayPal. Esa documentación no prueba que la rama 0.2.0 esté publicada. Notarización y prueba en Mac limpio, Windows x64 y firma Authenticode siguen indicadas como pendientes en la documentación existente. `docs/archive/FIRST_SALE_STATUS.md` es histórico y contradice el mecanismo de entrega más reciente de `docs/archive/DISTRIBUTION.md`.
 
 ## Verificación de este corte y próximos cuidados
 

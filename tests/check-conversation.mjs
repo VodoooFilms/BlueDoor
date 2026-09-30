@@ -51,7 +51,13 @@ await load({ ...fixture, corrected: 'Antonio: Hola, Sol.\nSol: Hola.',
   correctedHtml: '<div>Antonio: Hola, <i>Sol</i>.</div><div>Sol: Hola.</div>' });
 assert.equal(await editor.locator('i').textContent(), 'Sol');
 assert.equal(await editor.locator('strong').count(), 2);
-await page.locator('.head-btn', { hasText: 'Restablecer' }).click();
+const reset = page.locator('.head-btn', { hasText: 'Restablecer' });
+assert.equal(await reset.isDisabled(), true, 'loaded document has no manual edits');
+await editor.click();
+await page.keyboard.type(' Edición manual.');
+assert.equal(await reset.isEnabled(), true, 'manual editing enables reset');
+await reset.click();
+assert.equal(await reset.isDisabled(), true, 'reset establishes a clean baseline');
 assert.equal(await editor.locator('strong').count(), 2);
 assert.ok((await editor.textContent()).includes('Una segunda línea.'));
 await page.screenshot({ path: '/tmp/belegal-local-demo-conversation.png' });
