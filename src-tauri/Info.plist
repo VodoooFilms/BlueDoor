@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Belegal prepara el acceso a Documentos para importar y analizar archivos locales y exportar tus documentos.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>Belegal prepara el acceso al Escritorio para importar archivos locales y exportar tus documentos.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>Belegal prepara el acceso a Descargas para importar archivos locales y exportar tus documentos.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Belegal _ Local demo usa el micrófono para grabar tu voz y convertirla en un documento PDF. Todo el audio permanece en tu dispositivo.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>Belegal _ Local demo graba tu voz para transcribirla a un documento PDF. Todo el audio permanece en tu dispositivo.</string>
+</dict>
+</plist>

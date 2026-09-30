@@ -1,0 +1,4 @@
+genpdf 0.2.0
+Copyright 2020-2021 Robin Krahl <robin.krahl@ireas.org>
+Source: https://git.sr.ht/~ireas/genpdf-rs (commit 12fea24895b470ce9b7ff43487035cfaec234185)
+Selected license: Apache-2.0 from the upstream Apache-2.0 OR MIT grant.

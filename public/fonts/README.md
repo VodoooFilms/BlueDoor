@@ -1,0 +1,1 @@
+Newsreader regular 400 e italic 300, de Google Fonts. Fuente original del wordmark de https://blegalcorp.com/. Licencia SIL Open Font License 1.1; ver OFL.txt. Archivos locales para funcionamiento sin conexión.

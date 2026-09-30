@@ -1,0 +1,15 @@
+DOCUMENTO FICTICIO PARA DEMOSTRACIÓN — DATOS DE PRUEBA
+
+María Pérez comparece como actora frente a Banco Andino S.A.
+Identificación de la actora: cédula 0912345678.
+La empresa está identificada con RUC 1790012345001.
+El abogado patrocinador es Carlos Rivera.
+Email de contacto: maria.perez@example.com
+Teléfono: +593 99 123 4567
+Dirección: Av. Amazonas 123, Quito
+Proceso: 17230-2025-01234
+Cuenta bancaria: EC1234567890
+
+El contrato se firmó el 15 de marzo de 2025. El 30 de septiembre de 2026 la actora reclama USD 1500 por obligaciones pendientes. La demandada sostiene que el pago se realizó en la fecha acordada. Se invoca el artículo 195.1 del Código del Trabajo.
+
+La relación entre las partes, las fechas, el monto y el argumento jurídico deben permanecer en la versión sanitizada. María Pérez solicita que Banco Andino S.A. exhiba los comprobantes.
