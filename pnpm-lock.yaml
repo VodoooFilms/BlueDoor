@@ -120,7 +120,7 @@ importers:
         specifier: ^2.0.0
         version: 2.11.4
       playwright:
-        specifier: ^1.63.0
+        specifier: 1.63.0
         version: 1.63.0
       svelte:
         specifier: ^5.57.0

@@ -57,7 +57,10 @@ jobs:
 
   privacy-ui:
     name: Privacy UI (sin peticiones externas)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Match the pinned Playwright dependency; browsers and OS libraries are baked in.
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -68,7 +71,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps webkit
       - name: Servidor de la app (1420)
         run: pnpm dev > /tmp/vite.log 2>&1 &
       - name: Servidor del harness de editor (5198)
