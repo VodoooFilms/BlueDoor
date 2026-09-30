@@ -1,14 +1,80 @@
-# Belegal _ Local demo
+<p align="center">
+  <img src="src/assets/belegal-mark.png" alt="Logo de BeLegal" width="150" />
+</p>
 
-Base independiente de Voice to PDF, copiada del estado local del proyecto el 30 de septiembre de 2026 (commit de referencia `1dbcc88b2092b61e3e98d9c360affc1623cdca92`, incluyendo cambios locales).
+<h1 align="center">BeLegal</h1>
 
-Conserva grabación/importación, transcripción local, edición, modelos y exportación PDF. Private Legal añade importación local de documentos, OCR local de PDF escaneados e imágenes en macOS, análisis Qwen3, mapa privado editable, sanitización determinista y vista previa sin envíos externos. Ver [PRIVATE_AI.md](PRIVATE_AI.md) para arquitectura, límites y pruebas.
+<p align="center">
+  <strong>Prepara y protege documentos y audio localmente, de manera privada, antes de compartirlos.</strong>
+</p>
 
-## Instalador local para macOS
+BeLegal es una aplicación de escritorio para preparar documentos legales y transcripciones en tu propio equipo. Permite detectar información sensible, sustituirla por alias, revisar el resultado y editar una versión para compartir o exportar a PDF.
 
-El DMG para Apple Silicon incluye la app y un acceso a Aplicaciones. Abre el DMG y arrastra **Belegal _ Local demo.app** a **Aplicaciones**. Requiere macOS 13.4 o posterior. Los modelos se descargan desde Models / Modelos y se conservan en los datos locales de la app; no se incluyen en el instalador.
+El propósito es darte control sobre qué información sale de tu equipo antes de enviarla a un servidor, una herramienta de IA o un destinatario. **Esta versión procesa los documentos y el audio localmente; no integra envíos a servicios de IA ni sincronización en la nube.**
 
-La versión local está firmada ad hoc y **no está notarizada por Apple**. Para distribuir una versión notarizada, usa `pnpm release:mac` con un certificado Developer ID y credenciales de notarización.
+## Qué puedes hacer
+
+| Área | Función |
+| --- | --- |
+| **Private Legal** | Importar documentos o pegar texto, analizar entidades con Qwen local y sustituir datos detectados por alias. |
+| **OCR local** | Extraer texto de PDF escaneados e imágenes en macOS, con ajustes conservadores para algunos errores de reconocimiento. |
+| **Mapa privado** | Revisar y corregir valores, alias y categorías, y agrupar variantes de una misma entidad. |
+| **Record / Grabar** | Grabar o importar audio y transcribirlo con Whisper o Parakeet locales. |
+| **Edit / Editar** | Ajustar texto, formato y márgenes, y exportar un PDF con fecha y hora en el nombre del documento sanitizado. |
+| **Models / Modelos** | Elegir, descargar y eliminar modelos en el equipo. |
+
+La identificación de hablantes requiere el modelo de diarización y un motor compatible configurado; no está disponible solo con descargar el modelo.
+
+## Cómo funciona
+
+1. Importa un documento privado o pega su texto.
+2. Analiza el contenido con el modelo local.
+3. Revisa el mapa de entidades y la versión sanitizada.
+4. Abre el resultado en Edit, realiza tus ajustes y exporta a PDF.
+
+La exportación privada valida el contenido y el título contra la sesión revisada. La detección y el OCR pueden omitir o interpretar mal datos: **la revisión humana sigue siendo necesaria y la sanitización no garantiza anonimato**.
+
+## Privacidad y datos
+
+- El documento privado, el mapa y sus ediciones permanecen en memoria durante la sesión y no se añaden al historial de audio.
+- El archivo original permanece en su ubicación; el PDF exportado se guarda donde elijas.
+- Las transcripciones de audio se guardan en el historial local de la aplicación.
+- Los modelos se descargan de fuentes externas. Estas descargas no incluyen tus documentos ni tu audio.
+- El repositorio contiene código, recursos visuales y pruebas; los modelos, instaladores, cachés y datos locales de la app quedan fuera de Git.
+
+## Instalación en macOS
+
+**Versión actual: 0.2.0 · Apple Silicon · macOS 13.4 o posterior.**
+
+Abre el DMG y arrastra **Belegal _ Local demo.app** a **Aplicaciones**. En la primera apertura, el botón de bienvenida lleva a Models si faltan los modelos requeridos; si están instalados, permite comenzar.
+
+El instalador local ya se ha generado y verificado. Se conserva fuera del repositorio y todavía no hay una descarga publicada en GitHub Releases. La app está firmada ad hoc y **no está notarizada por Apple**; macOS puede mostrar avisos de seguridad al distribuirla. Los modelos no se incluyen en el DMG.
+
+## Desarrollo
+
+Stack: **Svelte 5 · TypeScript · Tauri 2 · Rust**. El OCR de macOS utiliza Vision y PDFKit; la inferencia de documentos utiliza Qwen3 con llama.cpp.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm tauri dev
+```
+
+`pnpm dev` inicia solo la interfaz web. Audio, OCR, modelos y persistencia requieren la app Tauri. Para construir y abrir la app local con sus recursos nativos:
+
+```sh
+pnpm demo:mac
+```
+
+Verificaciones de frontend:
+
+```sh
+pnpm typecheck
+pnpm build
+```
+
+Las pruebas de privacidad del backend están en `src-tauri/src/privacy.rs`. Las pruebas de interfaz están en `tests/`; el workflow de GitHub Actions configura sus servidores y ejecuta los controles de CI.
+
+### Crear un instalador
 
 Para empaquetar una app ya construida y verificada, sin recompilar dependencias:
 
@@ -18,23 +84,14 @@ python3 scripts/package-local-installer.py \
   --output "/ruta/BeLegal-local.dmg"
 ```
 
-El script verifica la app, genera el DMG, comprueba su integridad y escribe su SHA-256. El archivo de salida debe ser nuevo. Los instaladores, modelos, cachés y datos de usuario quedan fuera de Git.
+El script comprueba la firma y los recursos de la app, genera el DMG, verifica su integridad y escribe un archivo SHA-256. El archivo de salida debe ser nuevo.
 
-## Desarrollo
+`pnpm release:mac:dev` construye una versión local desde el código. `pnpm release:mac` prepara una versión con firma Developer ID y notarización; requiere las credenciales de Apple y superar los controles del script de release.
 
-```sh
-pnpm install --frozen-lockfile
-pnpm tauri dev
-# macOS: compilar y abrir la app local preparada
-pnpm demo:mac
-```
+## Documentación y origen
 
-`pnpm dev` inicia únicamente la interfaz web; audio, modelos y persistencia requieren Tauri. El empaquetado nativo requiere preparar los recursos de audio según los scripts existentes.
+- [Frontera de privacidad y arquitectura](PRIVATE_AI.md): detalles técnicos; algunas referencias de interfaz corresponden a etapas anteriores.
+- [Portabilidad de macOS](MACOS_PORTABILITY.md).
+- [Licencias y avisos de terceros](THIRD_PARTY_NOTICES.md).
 
-## Identidad visual
-
-Paleta marfil y blanco, bordes cálidos, acentos carbón, cuerpo sans serif de 15–16 px y títulos serif de 20–24 px. Fuentes de sistema locales aproximadas a la captura de Belegal, sin descargas externas.
-
-Los datos se guardan bajo `com.belegal.localdemo`, separados de la aplicación original. No se copiaron transcripciones, credenciales, modelos descargados ni cachés de compilación.
-
-Documentación heredada de la base en los demás archivos Markdown; no implica autorización para publicar este demo ni describe todavía su arquitectura futura.
+Este proyecto es una base independiente derivada de Voice to PDF, adaptada para BeLegal. Su identificador de aplicación es `com.belegal.localdemo`. Los documentos históricos conservados en el repositorio describen etapas de desarrollo y deben leerse con ese contexto.
