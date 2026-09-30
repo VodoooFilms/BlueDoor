@@ -208,7 +208,7 @@
 </section>
 
 <style>
-  .privacy-workflow { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; border:1px solid var(--line); border-top:0; border-radius:0 0 6px 6px; background:var(--background); padding:16px 22px; }
+  .privacy-workflow { --ai-border: linear-gradient(110deg, #a58de2 0%, #8b9cec 28%, #caa0de 56%, #e7aa98 82%, #e4b68a 100%); display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; border:1px solid var(--line); border-top:0; border-radius:0 0 6px 6px; background:var(--background); padding:16px 22px; }
   .intro { display:flex; justify-content:space-between; align-items:center; gap:20px; flex:none; min-height:76px; margin-bottom:8px; }
   .intro-status { flex:0 0 clamp(240px,30vw,420px); display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
   .status-slot { width:100%; height:34px; overflow:auto; text-align:right; }
@@ -224,7 +224,6 @@
   .primary { background:var(--button); border:1px solid var(--button); color:var(--button-text); } .primary:hover:not(:disabled) { background:var(--button-hover); }
   .secondary { background:var(--surface); border:1px solid var(--line-dark); color:var(--text); } .secondary:hover:not(:disabled) { background:var(--hover); }
   .secondary.analyze-button {
-    --ai-border: linear-gradient(110deg, #a58de2 0%, #8b9cec 28%, #caa0de 56%, #e7aa98 82%, #e4b68a 100%);
     border-color: transparent;
     background: linear-gradient(var(--surface), var(--surface)) padding-box, var(--ai-border) border-box;
   }
@@ -252,7 +251,7 @@
   @keyframes processing-dot { 0%,80%,100% { opacity:.25; } 40% { opacity:1; } }
   .processing-track { height:5px; overflow:hidden; border-radius:999px; background:var(--line); visibility:hidden; }
   .processing-track.processing { visibility:visible; }
-  .processing-track span { display:block; height:100%; width:38%; border-radius:inherit; background:#a45f32; animation:processing-slide 1.5s ease-in-out infinite; }
+  .processing-track span { display:block; height:100%; width:38%; border-radius:inherit; background:var(--ai-border); animation:processing-slide 1.5s ease-in-out infinite; }
   @keyframes processing-slide { from { transform:translateX(-110%); } to { transform:translateX(365%); } }
   @media(prefers-reduced-motion:reduce) { .processing-track span { animation:none; width:100%; opacity:.65; } .processing-dots span { animation:none; opacity:1; } }
   @media(max-width:760px) { .intro { align-items:flex-start; } .intro-status { flex-basis:200px; } }
