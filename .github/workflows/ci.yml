@@ -31,10 +31,13 @@ jobs:
       - run: pnpm build
 
   rust:
-    name: Rust (fmt + clippy + tests)
+    name: Rust (clippy + tests)
     # Apple Silicon: es la plataforma donde se ejecuta la inferencia real
     # (Metal) y la única documentada como soportada para el demo.
-    runs-on: macos-14
+    # Xcode 15.4 on macos-14 cannot compile ggml's Apple M4 SME variant.
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -47,10 +50,10 @@ jobs:
       # llm.rs), y reformatear todo mezclaria un cambio de estilo dentro de un
       # commit de privacidad. El estandar real del proyecto es clippy.
       - name: Clippy
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       # llama-cpp se compila desde el crate; no hay paso nativo manual.
       - name: Tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
 
   privacy-ui:
     name: Privacy UI (sin peticiones externas)
