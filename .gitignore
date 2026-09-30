@@ -48,3 +48,9 @@ artifacts/
 src-tauri/gen/
 coverage/
 *.log
+
+playwright-report/
+test-results/
+installers/
+*.dmg
+*.dmg.sha256
