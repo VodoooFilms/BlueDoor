@@ -155,7 +155,11 @@ const ENGLISH: Record<string, string> = {
   "Entidad no válida": "Invalid entity",
   "Volver a pantalla dividida": "Back to split view",
   "Ampliar documento original": "Expand original document",
-  "Abrir versión protegida en Edit": "Open protected version in Edit"
+  "Abrir versión protegida en Edit": "Open protected version in Edit",
+  "Leyendo con AI local · fragmento {0} de {1}": "Reading with local AI · fragment {0} of {1}",
+  "Corrigiendo OCR · fragmento {0} de {1}": "Fixing OCR · fragment {0} of {1}",
+  "Análisis incompleto · revisión bloqueada": "Incomplete analysis · review blocked",
+  "Qwen no pudo leer todo el documento. La versión protegida no está verificada en la parte no leída: vuelve a protegerlo o divide el archivo antes de aprobar.": "Qwen could not read the whole document. The protected version is unverified where it could not read: protect it again or split the file before approving."
 };
 
 // Localize interface copy and backend notices, never document contents.

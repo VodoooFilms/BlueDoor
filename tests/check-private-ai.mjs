@@ -149,7 +149,18 @@ try {
   await page.screenshot({path:`artifacts/private-legal-processing-${language}.png`,fullPage:true});
   await page.evaluate(()=>window.__emitAnalysisProgress(['stale-operation',0,'sanitizing']));
   assert.equal(await page.getByRole('status').filter({hasText:ui('Analizando con AI local')}).count(),1,'Ignore progress from another operation');
-  await page.evaluate(()=>{const {id,revision}=window.__analysisRequest;window.__emitAnalysisProgress([id,revision,'sanitizing']);});
+  const {id,revision}=await page.evaluate(()=>window.__analysisRequest);
+  // A token counter proves the model is advancing while a fragment is read.
+  // This is the regression the lawyer hit: one frozen label for minutes.
+  await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'reading:1/2:24']),[id,revision]);
+  const fragment=(n,total)=>ui('Leyendo con AI local · fragmento {0} de {1}').replace('{0}',n).replace('{1}',total);
+  await page.getByRole('status').filter({hasText:fragment(1,2)}).waitFor();
+  const midLabel=await page.getByRole('status').innerText();
+  assert(/24 tokens/.test(midLabel),`Progress shows running token count, saw: ${midLabel.replace(/\n/g,' ')}`);
+  await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'reading:2/2:96']),[id,revision]);
+  await page.getByRole('status').filter({hasText:fragment(2,2)}).waitFor();
+  await page.screenshot({path:`artifacts/private-legal-reading-${language}.png`,fullPage:true});
+  await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'sanitizing']),[id,revision]);
   await page.getByRole('status').filter({hasText:ui('Protegiendo el documento')}).waitFor();
   await page.screenshot({path:`artifacts/private-legal-sanitizing-${language}.png`,fullPage:true});
   await page.evaluate(()=>window.__finishAnalysis());

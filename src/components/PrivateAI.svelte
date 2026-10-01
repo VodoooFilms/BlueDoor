@@ -13,10 +13,25 @@
   let busy = $state("");
   const importingDocument = $derived(busy.startsWith("Importando"));
   let sanitizing = $state(false);
+  let analysisStep = $state("");
   let analysisId: string | null = null;
   let analysisRevision: number | null = null;
   let unlistenAnalysis: (() => void) | undefined;
   let disposed = false;
+  const stepLabel = $derived.by(() => {
+    const match = /^(reading|ocr):(\d+)\/(\d+)(?::(\d+))?$/.exec(analysisStep);
+    if (!match) return "";
+    const [, kind, done, total, tokens] = match;
+    // The dictionary key is the template itself, so translate first and fill
+    // the counts afterwards; interpolating before p() would never match.
+    const template = kind === "ocr"
+      ? p("Corrigiendo OCR · fragmento {0} de {1}")
+      : p("Leyendo con AI local · fragmento {0} de {1}");
+    // A running token count proves the model is advancing. Without it a
+    // fragment that spends its full budget shows one frozen label for minutes.
+    const filled = template.replace("{0}", done).replace("{1}", total);
+    return tokens ? `${filled} · ${tokens} tokens` : filled;
+  });
   const processingLabel = $derived(busy.startsWith("Analizando")
     ? p(sanitizing ? "Protegiendo el documento" : "Analizando con AI local")
     : p(busy).replace(/(?:…|\.{3})$/, ""));
@@ -43,7 +58,14 @@
   onMount(async () => {
     const stop = await listen<[string, number, string]>("private-analysis-progress", event => {
       const [id, revision, phase] = event.payload;
-      if (busy.startsWith("Analizando") && id === analysisId && revision === analysisRevision && phase === "sanitizing") sanitizing = true;
+      if (busy.startsWith("Analizando") && id === analysisId && revision === analysisRevision) {
+        // `reading:d/t` and `ocr:d/t` come from the Rust analysis loop so the
+        // lawyer sees which fragment is being read instead of a frozen label.
+        // Sanitizing is not a fragment step, so it must clear the step or the
+        // stale fragment label keeps masking the final phase.
+        if (phase === "sanitizing") { sanitizing = true; analysisStep = ""; }
+        else analysisStep = phase;
+      }
     });
     if (disposed) { stop(); return; }
     unlistenAnalysis = stop;
@@ -77,6 +99,7 @@
     analysisId = current.id;
     analysisRevision = current.revision;
     sanitizing = false;
+    analysisStep = "";
     await run("Analizando documento local…", async () => {
       const modelId = localStorage.getItem("belegal-privacy-model") || "qwen3-fast";
       adopt(await invoke<PrivacySession>("analyze_private_document", { id: current.id, revision: current.revision, modelId }));
@@ -112,7 +135,7 @@
 {#snippet processingIndicator()}
   <div class="processing-slot">
     <div class="processing-label" role="status" aria-live="polite">
-      <span class="processing-copy" title={processingLabel}>{processingLabel}</span><span class="processing-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+      <span class="processing-copy" title={stepLabel || processingLabel}>{stepLabel || processingLabel}</span><span class="processing-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
     </div>
     <div class="processing-track processing" role="progressbar" aria-label={p("Procesando documento")} aria-busy="true"><span></span></div>
   </div>
@@ -190,6 +213,7 @@
               <button class="view-toggle" onclick={() => { if (session) onEdit(session); }} disabled={!!busy || draftDirty} title={p("Abrir versión protegida en Edit")} aria-label={p("Abrir versión protegida en Edit")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M3 13v4h4M17 13v4h-4" /></svg></button>
               <pre class="document-text sanitized" data-testid="sanitized-document">{session.sanitized}</pre>
             </div>
+            {#if session.analyzed && !session.analysisComplete}<div class="leak-alert" role="alert" data-testid="incomplete-analysis"><strong>{p("Análisis incompleto · revisión bloqueada")}</strong><p>{p("Qwen no pudo leer todo el documento. La versión protegida no está verificada en la parte no leída: vuelve a protegerlo o divide el archivo antes de aprobar.")}</p></div>{/if}
             {#if session.warnings.length}<div class="leak-alert" role="alert"><strong>{p("Posibles filtraciones · vista previa bloqueada")}</strong>{#each session.warnings as warning}<p>{p(warning)}</p>{/each}</div>{/if}
             {#if session.advisories.length}<div class="advisory-box" data-testid="privacy-advisories"><strong>{p("Lo que esta revisión no puede comprobar")}</strong>{#each session.advisories as advisory}<p>{p(advisory)}</p>{/each}</div>{/if}
             {#if draftDirty}<p class="notice">{p("La salida aún corresponde al mapa anterior. Aplica los cambios para validarla de nuevo.")}</p>{/if}

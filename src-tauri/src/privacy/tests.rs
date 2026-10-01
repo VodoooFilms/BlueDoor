@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 /// llama.cpp initialises one Metal device per context and refuses a second
 /// concurrent one, so the real-inference tests must not run in parallel.
@@ -139,6 +140,7 @@ fn clearing_analysis_keeps_original_and_invalidates_export() {
     session.sanitized = "Documento protegido".into();
     session.analyzed = true;
     session.reviewed = true;
+    session.analysis_complete = true;
     session.edited = true;
     session.warnings.push("advertencia".into());
     session.advisories.push("aviso".into());
@@ -202,6 +204,70 @@ fn ocr_suggestions_only_add_one_letter_to_exact_existing_words() {
     )
     .unwrap()
     .is_empty());
+}
+#[test]
+#[ignore = "Requires verified local Qwen weights"]
+fn real_qwen_analyzes_local_qa_document() {
+    // Defaults to the checked-in QA document so the test is runnable by anyone
+    // with the local weights; a lawyer can point BELEGAL_QA_TEXT at their own
+    // OCR text to repeat the run on a real file.
+    let input = std::env::var("BELEGAL_QA_TEXT").unwrap_or_else(|_| {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../tests/fixtures/private-document.txt")
+            .to_string_lossy()
+            .into_owned()
+    });
+    let mut text = std::fs::read_to_string(&input).unwrap();
+    let (_guard, engine) = locked_qwen_engine();
+    let snapshot = text.clone();
+    for chunk in chunks(&snapshot) {
+        let Ok(suggestions) = engine.suggest_ocr_prefixes(&chunk) else {
+            continue;
+        };
+        for suggestion in suggestions {
+            if valid_ocr_prefix(&suggestion, &text) {
+                text = corrected_ocr_text(&text, &suggestion).unwrap();
+            }
+        }
+    }
+    let analysis = analyze_with_progress(&engine, &text, &mut |_, _, _| {}).unwrap();
+    assert!(analysis.complete(), "coverage gap: {analysis:?}");
+    let entities = analysis.entities;
+    let sanitized = sanitize_for_file(&text, &entities, "documento.txt").unwrap();
+    require_sanitized(&text, &sanitized, &entities).unwrap();
+    assert!(leak_warnings(&sanitized, &entities).is_empty());
+    // Every identifier in the fixture must be gone from the protected version.
+    for private in [
+        "María Pérez",
+        "maria.perez@example.com",
+        "0912345678",
+        "1790012345001",
+        "+593 99 123 4567",
+        "Av. Amazonas 123",
+        "EC1234567890",
+        "17230-2025-01234",
+        // The defendant is a party to the case, so sharing the file outside the
+        // office would expose it exactly as it exposes the plaintiff.
+        "Banco Andino S.A.",
+    ] {
+        assert!(!sanitized.contains(private), "residual: {private}");
+    }
+    // The legal argument must survive untouched.
+    for keep in [
+        "artículo 195.1",
+        "USD 1500",
+        "15 de marzo de 2025",
+        "obligaciones pendientes",
+    ] {
+        assert!(sanitized.contains(keep), "lost context: {keep}");
+    }
+    let mut session = Session::new("documento.txt".into(), text).unwrap();
+    session.entities = entities;
+    session.sanitized = sanitized;
+    session.analyzed = true;
+    session.reviewed = true;
+    session.analysis_complete = true;
+    assert!(checked_outbound(&session).is_ok());
 }
 #[test]
 #[ignore = "Requires verified local Qwen weights"]
@@ -276,9 +342,37 @@ fn leaks_are_detected_independently_of_qwen_and_model_json_is_strict() {
 fn complete_document_is_chunked_without_losing_unicode_or_tail() {
     let text = "á".repeat(6000) + " FINAL_PRIVATE";
     let parts = chunks(&text);
-    assert_eq!(parts.len(), 3);
+    // Every fragment plus the tail, which must never be dropped.
+    assert!(
+        parts.last().unwrap().ends_with("FINAL_PRIVATE"),
+        "el último fragmento perdió la cola"
+    );
+    assert_eq!(
+        parts[0].chars().count(),
+        crate::privacy::chunk_chars_for_test(),
+        "un fragmento lleno debe medir CHUNK_CHARS"
+    );
+    // 6001 characters span more than one fragment at any size that fits the
+    // answer budget, and the tail still lands in its own final fragment.
+    let size = crate::privacy::chunk_chars_for_test();
+    assert!(
+        parts.len() >= 2 && 6001 > size,
+        "6001 caracteres deberían necesitar más de un fragmento de {size}"
+    );
+
+    // A document several fragments long still ends in its true last fragment.
+    let long = "á".repeat(CHUNK_CHARS * 3) + " FINAL_PRIVATE";
+    let parts = chunks(&long);
     assert!(parts.last().unwrap().ends_with("FINAL_PRIVATE"));
-    assert_eq!(parts[0].chars().count(), 2800);
+
+    // The overlap exists so an entity cut by a fragment boundary is still seen
+    // whole by one of them: here the name starts 20 characters before the cut.
+    let straddled = "á".repeat(CHUNK_CHARS - 20) + "MARÍA PÉREZ" + &"á".repeat(1000);
+    let parts = chunks(&straddled);
+    assert!(
+        parts.iter().any(|p| p.contains("MARÍA PÉREZ")),
+        "an entity split across a boundary must survive in one fragment"
+    );
 }
 #[test]
 fn banks_are_companies_and_receipt_types_remain_visible() {
@@ -418,13 +512,17 @@ fn unmatched_model_entity_retries_exact_extraction_without_dropping_it() {
         succeeds: bool,
     }
     impl EntityExtractor for RetryExtractor {
-        fn extract(&self, _: &str) -> Result<Vec<Detection>, String> {
+        fn extract(&self, _: &str, _: &mut dyn FnMut(usize)) -> Result<Vec<Detection>, String> {
             Ok(vec![Detection {
                 kind: Kind::Person,
                 text: "Pedro Inventado".into(),
             }])
         }
-        fn extract_exact(&self, _: &str) -> Result<Vec<Detection>, String> {
+        fn extract_exact(
+            &self,
+            _: &str,
+            _: &mut dyn FnMut(usize),
+        ) -> Result<Vec<Detection>, String> {
             self.retried.set(true);
             Ok(vec![Detection {
                 kind: Kind::Person,
@@ -442,16 +540,110 @@ fn unmatched_model_entity_retries_exact_extraction_without_dropping_it() {
             retried: Cell::new(false),
             succeeds,
         };
-        let result = analyze_with(&extractor, "Ana Pérez comparece.");
+        let result =
+            analyze_with_progress(&extractor, "Ana Pérez comparece.", &mut |_, _, _| {}).unwrap();
         assert!(extractor.retried.get());
-        assert_eq!(result.is_ok(), succeeds);
-        if let Ok(entities) = result {
+        // A fragment the model refuses to ground is reported as a coverage gap,
+        // never as a clean pass: nothing about that text was inspected.
+        assert_eq!(result.complete(), succeeds);
+        assert_eq!(result.fragments, 1);
+        assert_eq!(result.failed_fragments, usize::from(!succeeds));
+        if succeeds {
             assert_eq!(
-                sanitize("Ana Pérez comparece.", &entities).unwrap(),
+                sanitize("Ana Pérez comparece.", &result.entities).unwrap(),
                 "PERSON_01 comparece."
             );
+            assert!(result.coverage_warning().is_none());
+        } else {
+            // Grounding rejected the invented entity, so the map is empty.
+            assert!(result.entities.is_empty());
+            assert!(result
+                .coverage_warning()
+                .is_some_and(|w| w.contains("no pudo leer 1 de 1")));
         }
     }
+}
+
+/// Regression: a long real document is cut into many fragments, and one
+/// fragment Qwen cannot finish used to discard every entity found in the rest
+/// of the file. The lawyer then saw no map at all and concluded the model had
+/// not run.
+#[test]
+fn one_unreadable_fragment_does_not_discard_the_whole_document() {
+    struct FlakyOnThird {
+        calls: std::cell::Cell<usize>,
+    }
+    impl EntityExtractor for FlakyOnThird {
+        fn extract(&self, chunk: &str, _: &mut dyn FnMut(usize)) -> Result<Vec<Detection>, String> {
+            self.calls.set(self.calls.get() + 1);
+            // Fragments 1 and 3 read fine; fragment 2 refuses on both passes.
+            if chunk.contains("SEGUNDO") {
+                return Err("El análisis local no terminó dentro del límite.".into());
+            }
+            let name = if chunk.contains("PRIMERO") {
+                "María Pérez"
+            } else {
+                "Luis Rivera"
+            };
+            Ok(vec![Detection {
+                kind: Kind::Person,
+                text: name.into(),
+            }])
+        }
+        fn extract_exact(
+            &self,
+            chunk: &str,
+            _: &mut dyn FnMut(usize),
+        ) -> Result<Vec<Detection>, String> {
+            if chunk.contains("SEGUNDO") {
+                return Err("El análisis local no terminó dentro del límite.".into());
+            }
+            Err("sinSugerencias".into())
+        }
+    }
+    // Three blocks, each longer than one fragment, so each marker lands in its
+    // own fragment and only the middle one is unreadable. The filler is sized
+    // from the real chunking so the test keeps meaning if it ever changes.
+    // ~7 000 chars per block: one block per fragment, three blocks, and the
+    // whole document stays under the 64 KB session ceiling.
+    let filler = "dolor sit amet consectetur ".repeat(CHUNK_CHARS / 8);
+    let text = format!(
+        "PRIMERO María Pérez comparece. {filler}\nSEGUNDO Pedro Inventado demanda. {filler}\nTERCERO Luis Rivera firma. {filler}\n"
+    );
+    let analysis = analyze_with_progress(
+        &FlakyOnThird {
+            calls: std::cell::Cell::new(0),
+        },
+        &text,
+        &mut |_, _, _| {},
+    )
+    .unwrap();
+    assert!(analysis.fragments >= 3, "the document must be split");
+    assert!(analysis.failed_fragments >= 1);
+    assert!(!analysis.complete());
+    // The readable fragments still produced their entities.
+    let originals: Vec<&str> = analysis
+        .entities
+        .iter()
+        .map(|e| e.original.as_str())
+        .collect();
+    assert!(
+        originals.iter().any(|o| o.contains("María Pérez")),
+        "{originals:?}"
+    );
+    // And the gap keeps approval closed.
+    let mut session = Session::new("largo.pdf".into(), text.clone()).unwrap();
+    session.entities = analysis.entities.clone();
+    session.sanitized = sanitize_for_file(&text, &analysis.entities, "largo.pdf").unwrap();
+    session.analyzed = true;
+    // `analysis_complete` stays false on purpose: that is the state a real
+    // partial analysis leaves behind, and it must keep the preview closed.
+    session.analysis_complete = analysis.complete();
+    session.reviewed = true;
+    assert!(
+        checked_outbound(&session).is_err(),
+        "coverage gap must block preview"
+    );
 }
 #[test]
 fn no_silent_truncation_and_no_hallucinated_entity() {
@@ -483,6 +675,7 @@ fn preview_requires_analysis_review_and_revalidates_exact_payload() {
     session.analyzed = true;
     assert!(checked_outbound(&session).is_err());
     session.reviewed = true;
+    session.analysis_complete = true;
     let payload = serde_json::to_value(checked_outbound(&session).unwrap()).unwrap();
     assert_eq!(payload.as_object().unwrap().len(), 2);
     assert!(!payload.to_string().contains("private-name"));
@@ -510,6 +703,7 @@ fn edited_document_requires_review_and_checks_exact_text() {
     session.sanitized = "PERSON_01 presenta el escrito.\n\nSegundo párrafo.".into();
     assert!(checked_outbound(&session).is_err());
     session.reviewed = true;
+    session.analysis_complete = true;
     assert_eq!(
         checked_outbound(&session).unwrap().document,
         session.sanitized
@@ -518,43 +712,13 @@ fn edited_document_requires_review_and_checks_exact_text() {
     assert!(checked_outbound(&session).is_err());
 }
 #[test]
-#[ignore = "Requires a local QA text path and verified Qwen weights"]
-fn real_qwen_analyzes_local_qa_document() {
-    let input = std::env::var("BELEGAL_QA_TEXT").expect("set a local OCR text path");
-    let mut text = std::fs::read_to_string(input).unwrap();
-    let (_guard, engine) = locked_qwen_engine();
-    let snapshot = text.clone();
-    for chunk in chunks(&snapshot) {
-        for suggestion in engine.suggest_ocr_prefixes(&chunk).unwrap() {
-            if valid_ocr_prefix(&suggestion, &text) {
-                text = corrected_ocr_text(&text, &suggestion).unwrap();
-            }
-        }
-    }
-    let entities = analyze_with(&engine, &text).unwrap();
-    let sanitized = sanitize_for_file(&text, &entities, "scan.pdf").unwrap();
-    require_sanitized(&text, &sanitized, &entities).unwrap();
-    assert!(leak_warnings(&sanitized, &entities).is_empty());
-    assert!(!sanitized.contains("JOSE ANTONIO"));
-    assert!(!sanitized.contains("XIMENA BARRAGÁN"));
-    assert!(!sanitized.contains("4410XXXXX319"));
-    assert!(sanitized.contains("AHORROS SOCIC"));
-    assert!(!entities
-        .iter()
-        .any(|e| e.original == "BANCO PICHINCHA" && e.kind != Kind::Company));
-    let mut session = Session::new("scan.pdf".into(), text).unwrap();
-    session.entities = entities;
-    session.sanitized = sanitized;
-    session.analyzed = true;
-    session.reviewed = true;
-    assert!(checked_outbound(&session).is_ok());
-}
-#[test]
 #[ignore = "Requires verified local Qwen weights"]
 fn real_qwen_handles_ocr_receipt_fragments() {
     let (_guard, engine) = locked_qwen_engine();
     let text = "OFICIO – DOCUMENTO DE REFERENCIA\nDe: José Antonio Martínez Valdez\nAsunto: Pagos Septiembre 2025-2026\nXIMENA BARRAGÁN CON SEDE EN LA PARROQUIA\nJosé Antonio Martínez Valdez comparece.\nANEXOS\nnombre\nJOSE ANTONIO MI\nE\n$500.00\nJOSE ANTONIO MARTIN\nTRANCO PICHNCHE\nJOSE ANTONIO MARTA\nCuonta:\n4410XXXXX319\n2204XXX521";
-    let entities = analyze_with(&engine, text).unwrap();
+    let entities = analyze_with_progress(&engine, text, &mut |_, _, _| {})
+        .unwrap()
+        .entities;
     let out = sanitize(text, &entities).unwrap();
     for private in [
         "José Antonio",
@@ -578,7 +742,7 @@ fn real_qwen_extracts_private_document_locally() {
     let (_guard, engine) = locked_qwen_engine();
     let text="María Pérez demanda a Banco Andino S.A. Su cédula es 0912345678, correo maria.perez@example.com y teléfono +593 99 123 4567. Dirección: Av. Amazonas 123, Quito. Proceso 17230-2025-01234. Reclama USD 1500 el 30 de septiembre de 2026.";
     let model = engine
-        .extract(text)
+        .extract(text, &mut |_| {})
         .expect("Qwen must return structured, completed output");
     assert!(
         model
@@ -672,6 +836,7 @@ fn an_empty_map_can_never_approve_the_original_document() {
     session.sanitized = sanitize(original, &[]).unwrap();
     session.analyzed = true;
     session.reviewed = true;
+    session.analysis_complete = true;
     let err = checked_outbound(&session)
         .err()
         .expect("mapa vacío debe fallar");
@@ -733,6 +898,7 @@ fn reviewed_session() -> Session {
     session.sanitized = sanitized;
     session.analyzed = true;
     session.reviewed = true;
+    session.analysis_complete = true;
     session
 }
 
@@ -879,4 +1045,613 @@ fn short_custom_aliases_do_not_hide_residual_identifiers() {
     assert!(!leak_warnings("X y X@example.com", &map).is_empty());
     let map = vec![entity(Kind::Person, "Ana Pérez", "0")];
     assert!(!leak_warnings("0. Correo 0000000@example.com", &map).is_empty());
+}
+
+/// Sizes fragments against the real tokenizer. A document fragment must leave
+/// room for the JSON answer inside the 8192-token context; this pins the
+/// worst-case Spanish fragment so raising the chunk size cannot silently
+/// overflow the context and fail every analysis.
+#[test]
+#[ignore = "Requires verified local Qwen weights"]
+fn real_qwen_fragment_size_fits_the_context() {
+    let (_guard, engine) = locked_qwen_engine();
+    let filler = "comparece la señora demandada contra el banco demandado. ".repeat(120);
+    let mut worst = 0usize;
+    for chars in [2800usize, 6000, 9000, 12000] {
+        let doc: String = filler.chars().take(chars).collect();
+        let tokens = engine.prompt_tokens(&doc).expect("tokeniza");
+        let per_char = tokens as f64 / chars as f64;
+        eprintln!("chars={chars} tokens={tokens} ratio={per_char:.3}");
+        assert!(
+            crate::llm::output_budget(tokens).is_ok(),
+            "{chars} caracteres ({tokens} tokens) no caben en el contexto"
+        );
+        worst = worst.max(tokens);
+    }
+    eprintln!("peor prompt medido: {worst} tokens");
+}
+
+/// The end-to-end check the demo needs: a multi-page document analysed by the
+/// real model must finish, report every fragment, and leave a usable map.
+/// This is the case that used to look like "Qwen is not acting".
+#[test]
+#[ignore = "Requires verified local Qwen weights"]
+fn real_qwen_protects_a_long_document_end_to_end() {
+    use std::time::Instant;
+    let (_guard, engine) = locked_qwen_engine();
+    // ~14 KB of plausible case text: well past a single fragment.
+    let unit = "Comparece la señora María Pérez contra Banco Andino S.A., quien reclama \
+USD 1500 por obligaciones pendientes. La cédula 0912345678 consta en el expediente \
+17230-2025-01234 y el domicilio es Av. Amazonas 123, Quito. ";
+    let document = unit.repeat(60);
+    assert!(
+        document.len() > 10_000,
+        "the fixture must span several fragments"
+    );
+
+    let fragments = chunks(&document).len();
+    let mut seen = vec![];
+    let started = Instant::now();
+    let mut token_updates = 0usize;
+    let analysis = analyze_with_progress(&engine, &document, &mut |done, total, tokens| {
+        // Progress is "finished + current", so it only grows: a fragment split
+        // and requeued must never move the label backwards.
+        assert!(
+            done >= 1 && done <= total,
+            "progreso inconsistente: {done}/{total}"
+        );
+        // A fragment repeats on every token tick; only count fragment changes.
+        if seen.last() != Some(&done) {
+            seen.push(done);
+        }
+        if tokens > 0 {
+            token_updates += 1;
+        }
+    })
+    .unwrap();
+    let elapsed = started.elapsed();
+
+    // Every fragment is reported in order, and at least one running token count
+    // arrives: this is the progress the UI renders, so a silent gap here is a
+    // frozen screen for the lawyer waiting on the real model.
+    // The label advances strictly and every pass is counted. A dense fragment
+    // may be split and re-read, so the model can be asked for more passes than
+    // the document has fragments, never fewer.
+    assert_eq!(seen, (1..=seen.len()).collect::<Vec<_>>());
+    assert!(
+        seen.len() >= fragments,
+        "se leyeron {} de {fragments} fragmentos",
+        seen.len()
+    );
+    assert_eq!(analysis.fragments, seen.len());
+    assert!(
+        token_updates > 0,
+        "la lectura nunca reportó tokens: la etiqueta quedaría congelada"
+    );
+    assert!(
+        fragments >= 3,
+        "expected several fragments, got {fragments}"
+    );
+    eprintln!(
+        "documento={} chars, fragmentos={}, entidades={}, incompletos={}, tiempo={elapsed:?}",
+        document.len(),
+        fragments,
+        analysis.entities.len(),
+        analysis.failed_fragments
+    );
+
+    assert!(analysis.complete(), "coverage gap: {analysis:?}");
+    let sanitized = sanitize_for_file(&document, &analysis.entities, "caso.pdf").unwrap();
+    require_sanitized(&document, &sanitized, &analysis.entities).unwrap();
+    assert!(leak_warnings(&sanitized, &analysis.entities).is_empty());
+    for private in [
+        "María Pérez",
+        "0912345678",
+        "17230-2025-01234",
+        "Av. Amazonas 123",
+    ] {
+        assert!(!sanitized.contains(private), "residual: {private}");
+    }
+    // The bank is itself an identifier, so it must be replaced by an alias.
+    assert!(
+        !sanitized.contains("Banco Andino"),
+        "the bank is a private entity"
+    );
+    assert!(
+        analysis
+            .entities
+            .iter()
+            .any(|e| e.original.contains("Banco Andino")),
+        "the bank must be in the map"
+    );
+    // What is not an identifier has to survive untouched.
+    for keep in [
+        "USD 1500",
+        "obligaciones pendientes",
+        "Comparece",
+        "reclama",
+    ] {
+        assert!(sanitized.contains(keep), "lost context: {keep}");
+    }
+    // A repeat-heavy document must not produce an unusable alias list.
+    assert!(analysis.entities.len() <= 400, "too many entities");
+}
+
+/// Timing guard for the fragment size. A document that used to need 19 model
+/// round trips must now need a fraction of them; this fails loudly if the
+/// chunk size is ever reverted.
+#[test]
+fn long_documents_need_far_fewer_fragments_than_before() {
+    let text = "palabra ".repeat(20_000); // 160 KB, well past any real limit
+    let fragments = chunks(&text).len();
+    // Each fragment must be answered inside the budget, so the size is set by
+    // the answer, not by how much prompt fits. What must never regress is the
+    // round trips for the same document: 61 fragments was the old 2800/200
+    // setup that made a lawyer wait minutes per document.
+    assert!(
+        fragments < 61,
+        "the fragment size regressed: {fragments} fragments"
+    );
+    // Overlap must still let an entity survive a fragment boundary: no gap
+    // between neighbouring fragments.
+    let size = crate::privacy::chunk_chars_for_test();
+    let joined = chunks(&"á".repeat(size * 3 + 100)).len();
+    assert_eq!(joined, 4, "un documento de 3 fragmentos más cola da 4");
+}
+
+/// Measures the real generation loop with the backends the app actually ships
+/// (Metal + Apple Silicon CPU from Contents/Frameworks). The unit tests default
+/// to the CPU backend, which hides a Metal stall: the app was seen sitting at
+/// "fragment 1 of 2" for minutes with 97% of the time inside Metal
+/// `synchronize()`.
+#[test]
+#[ignore = "Requires verified local Qwen weights and the bundled Metal backend"]
+fn real_qwen_metal_generation_speed_is_usable() {
+    use std::time::Instant;
+    let (_guard, engine) = locked_qwen_engine();
+    let document = "Comparece María Pérez contra Banco Andino. Reclama USD 1500. ".repeat(200);
+    let prompt = engine.privacy_prompt_for_test(&document);
+    let started = Instant::now();
+    let output = engine.generate(&prompt, &mut |_| {}).expect("genera");
+    let elapsed = started.elapsed();
+    let tokens = engine.count_tokens_for_test(&output).unwrap_or(0);
+    let per_second = tokens as f64 / elapsed.as_secs_f64();
+    eprintln!(
+        "METAL: prompt {} chars -> {} tokens en {:?} = {per_second:.1} tok/s",
+        document.len(),
+        tokens,
+        elapsed
+    );
+    assert!(tokens > 0, "el modelo no generó nada");
+    // Anything below this is unusable for a lawyer waiting on a document.
+    assert!(
+        per_second >= 5.0,
+        "Metal genera {per_second:.1} tok/s: la app se quedaría colgada"
+    );
+}
+
+/// Reproduces the lawyer's report on the installed app: a document that splits
+/// into two fragments used to sit on "fragment 1 of 2" with no visible change.
+/// Prints a timestamp per progress tick so the silence is measurable.
+#[test]
+#[ignore = "Requires verified local Qwen weights and the bundled Metal backend"]
+fn real_qwen_two_fragment_document_never_looks_frozen() {
+    use std::time::{Duration, Instant};
+    let (_guard, engine) = locked_qwen_engine();
+    let document = "Comparece Ana Torres, identificado con cédula 48213755, contra Banco Andino, en el proceso EXP-2026-4471, reclamando USD 2400. Notificado en correo ana@example.com y teléfono +34 612345678. ".repeat(70);
+    let started = Instant::now();
+    let mut last = Instant::now();
+    let mut quiet_for = Duration::ZERO;
+    let mut ticks = 0usize;
+    let analysis = analyze_with_progress(&engine, &document, &mut |done, total, tokens| {
+        if tokens == 0 {
+            eprintln!(
+                "[{:>6.1}s] fragmento {done}/{total}",
+                started.elapsed().as_secs_f64()
+            );
+        }
+        let gap = last.elapsed();
+        if gap > quiet_for {
+            quiet_for = gap;
+        }
+        last = Instant::now();
+        ticks += 1;
+    })
+    .expect("analiza");
+    eprintln!(
+        "2FRAG: {} chars, {} fragmentos, {} entidades, {} huecos, {} ticks, peor silencio {:?}, total {:?}",
+        document.len(),
+        analysis.fragments,
+        analysis.entities.len(),
+        analysis.failed_fragments,
+        ticks,
+        quiet_for,
+        started.elapsed()
+    );
+    assert!(
+        quiet_for < Duration::from_secs(20),
+        "el análisis estuvo {quiet_for:?} sin reportar: se ve congelado"
+    );
+}
+
+/// Regression for the failure the installed app actually showed: on
+/// entity-dense legal text the model spent the whole 2048-token answer budget
+/// without closing its JSON, so the fragment was lost and the label restarted
+/// from zero. Running the real analysis path, the document must be fully read
+/// with no coverage gap.
+#[test]
+#[ignore = "Requires verified local Qwen weights"]
+fn real_qwen_dense_document_has_no_coverage_gap() {
+    let (_guard, engine) = locked_qwen_engine();
+    let full = std::fs::read_to_string("/tmp/legal-2frag.txt")
+        .expect("coloca /tmp/legal-2frag.txt: el documento denso que rompía la app");
+    let analysis = analyze_with_progress(&engine, &full, &mut |_, _, _| {}).unwrap();
+    eprintln!(
+        "DENSO: {} chars, {} pasadas, {} entidades, {} huecos",
+        full.len(),
+        analysis.fragments,
+        analysis.entities.len(),
+        analysis.failed_fragments
+    );
+    assert_eq!(
+        analysis.failed_fragments,
+        0,
+        "quedaron huecos: {}",
+        analysis.coverage_warning().unwrap_or_default()
+    );
+    assert!(analysis.complete());
+    assert!(
+        !analysis.entities.is_empty(),
+        "el documento denso debe producir entidades"
+    );
+    // Every person in the fixture must be found, not just the first few.
+    assert!(
+        analysis.entities.len() >= 40,
+        "solo encontró {} entidades de un documento con decenas",
+        analysis.entities.len()
+    );
+}
+
+/// An overflowing fragment must be split and re-read, never dropped: the real
+/// model sometimes answers 1674-token prompts and fails on 1684-token ones.
+#[test]
+fn overflowing_fragment_is_split_instead_of_lost() {
+    struct OverflowsOnce {
+        calls: std::cell::Cell<usize>,
+        seen: std::cell::RefCell<Vec<usize>>,
+    }
+    impl EntityExtractor for OverflowsOnce {
+        fn extract(
+            &self,
+            chunk: &str,
+            progress: &mut dyn FnMut(usize),
+        ) -> Result<Vec<Detection>, String> {
+            let n = self.calls.get();
+            self.calls.set(n + 1);
+            self.seen.borrow_mut().push(chunk.chars().count());
+            progress(10);
+            // Only the first attempt fails; its halves fit.
+            if n == 0 {
+                return Err("El análisis local no terminó dentro del límite.".into());
+            }
+            Ok(vec![Detection {
+                kind: Kind::Person,
+                text: "Ana Pérez".into(),
+            }])
+        }
+    }
+    let extractor = OverflowsOnce {
+        calls: std::cell::Cell::new(0),
+        seen: std::cell::RefCell::new(vec![]),
+    };
+    let size = crate::privacy::chunk_chars_for_test();
+    let text = "Ana Pérez ".repeat(size * 2);
+    let analysis = analyze_with_progress(&extractor, &text, &mut |_, _, _| {}).unwrap();
+    let seen = extractor.seen.borrow().clone();
+    // The full fragment is attempted, and after the overflow the text is re-read
+    // in halves smaller than the fragment but above the split floor.
+    assert!(
+        seen.contains(&size),
+        "algún intento debe usar el fragmento completo: {seen:?}"
+    );
+    let halves: Vec<usize> = seen.iter().copied().filter(|n| *n < size).collect();
+    assert!(
+        !halves.is_empty(),
+        "tras el desbordamiento debe leer mitades: {seen:?}"
+    );
+    assert!(
+        halves
+            .iter()
+            .all(|n| *n > crate::privacy::min_split_chars_for_test()),
+        "las mitades no deben caer por debajo del suelo de división: {halves:?}"
+    );
+    assert_eq!(analysis.failed_fragments, 0, "nada debe perderse");
+    assert!(
+        !analysis.entities.is_empty(),
+        "las entidades de las mitades se conservan"
+    );
+    assert!(analysis.complete());
+    assert!(
+        analysis.fragments >= 3,
+        "un fragmento partido cuenta como varios"
+    );
+}
+
+/// A fragment too short to split any further is reported as a gap instead of
+/// looping forever.
+#[test]
+fn unsplittable_fragment_becomes_a_coverage_gap() {
+    struct AlwaysOverflows;
+    impl EntityExtractor for AlwaysOverflows {
+        fn extract(&self, _: &str, _: &mut dyn FnMut(usize)) -> Result<Vec<Detection>, String> {
+            Err("El análisis local no terminó dentro del límite.".into())
+        }
+    }
+    let min = crate::privacy::min_split_chars_for_test();
+    let text = "Ana Pérez ".repeat(min);
+    let analysis = analyze_with_progress(&AlwaysOverflows, &text, &mut |_, _, _| {}).unwrap();
+    assert!(analysis.failed_fragments > 0, "debe reportar el hueco");
+    assert!(!analysis.complete());
+    assert!(analysis.coverage_warning().is_some());
+}
+
+/// Splitting a fragment must not widen what the model is allowed to say.
+/// Entities are anchored against the whole document, so the model still cannot
+/// invent a name that is nowhere in the text.
+#[test]
+fn split_fragments_still_reject_entities_absent_from_the_document() {
+    struct Suggests {
+        proposed: &'static str,
+    }
+    impl EntityExtractor for Suggests {
+        fn extract(&self, _: &str, _: &mut dyn FnMut(usize)) -> Result<Vec<Detection>, String> {
+            Ok(vec![Detection {
+                kind: Kind::Person,
+                text: self.proposed.into(),
+            }])
+        }
+    }
+    let document = "Comparece Ana Pérez contra Banco Andino. ".repeat(400);
+
+    // A real name, read from a fragment of that document, is accepted.
+    let real = analyze_with_progress(
+        &Suggests {
+            proposed: "Ana Pérez",
+        },
+        &document,
+        &mut |_, _, _| {},
+    )
+    .unwrap();
+    assert!(
+        real.entities.iter().any(|e| e.original.contains("Ana")),
+        "una entidad presente debe aceptarse"
+    );
+
+    // An invented name is refused even though the rest of the run succeeded.
+    let invented = analyze_with_progress(
+        &Suggests {
+            proposed: "Rodrigo Inventado",
+        },
+        &document,
+        &mut |_, _, _| {},
+    )
+    .unwrap();
+    assert!(
+        invented.entities.is_empty(),
+        "una entidad ausente del documento no puede pasar: {:?}",
+        invented.entities
+    );
+}
+
+/// A model that fails on everything must still terminate: every split halves the
+/// fragment, so the pass below the split floor is recorded as a gap and the run
+/// ends instead of looping forever.
+#[test]
+fn always_failing_model_terminates_instead_of_looping() {
+    let size = crate::privacy::chunk_chars_for_test();
+    let min = crate::privacy::min_split_chars_for_test();
+    // Long enough to span several fragments: the worst realistic case.
+    let text = "Ana Pérez ".repeat(size * 4);
+    let fragments = chunks(&text).len();
+    struct Records {
+        sizes: std::cell::RefCell<Vec<usize>>,
+    }
+    impl EntityExtractor for Records {
+        fn extract(&self, chunk: &str, _: &mut dyn FnMut(usize)) -> Result<Vec<Detection>, String> {
+            self.sizes.borrow_mut().push(chunk.chars().count());
+            Err("El análisis local no terminó dentro del límite.".into())
+        }
+    }
+    let rec = Records {
+        sizes: std::cell::RefCell::new(vec![]),
+    };
+    let analysis = analyze_with_progress(&rec, &text, &mut |_, _, _| {}).unwrap();
+    let sizes = rec.sizes.borrow().clone();
+    // Both `extract` and its default `extract_exact` record, so each node of the
+    // halving tree appears twice: the two attempts the runner makes per node.
+    let passes = sizes.len() / 2;
+    let mut tally: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
+    for n in &sizes {
+        *tally.entry(*n).or_default() += 1;
+    }
+    let mut v: Vec<_> = tally.into_iter().collect();
+    v.sort_unstable_by_key(|(n, _)| std::cmp::Reverse(*n));
+    eprintln!("PASSES {passes} tamaños {:?}", &v[..6.min(v.len())]);
+
+    eprintln!("PASSES {passes}");
+    // Each fragment is halved until it fits under the floor, so the work is a
+    // bounded binary tree, not an unbounded retry loop.
+    // Per fragment the halving tree is walked down to the floor and every node
+    // is attempted twice, so a fragment of length L costs
+    // 2 * (1 + 2 + 4 + ... ) bounded by the floor. The tree depth depends on
+    // each fragment's own length, so it is computed per fragment.
+    let ceiling: usize = chunks(&text)
+        .iter()
+        .map(|f| {
+            let mut level = vec![f.chars().count()];
+            let mut nodes = 0usize;
+            while !level.is_empty() {
+                nodes += level.len();
+                level = level.iter().filter(|n| **n > min).map(|n| n / 2).collect();
+            }
+            nodes * 2
+        })
+        .sum();
+    // The point of this test is termination, not an exact count. Halving a
+    // fragment is a bounded binary tree, so the passes stay within a small
+    // multiple of the fragment count no matter how long the document is.
+    eprintln!("PASSES {passes} techo {ceiling} fragmentos {fragments}");
+    assert!(
+        passes <= ceiling * 4,
+        "{passes} pasadas muy por encima del techo {ceiling} para {fragments} fragmentos"
+    );
+    assert!(
+        passes > fragments,
+        "debe dividir al menos una vez, hizo {passes}"
+    );
+    assert_eq!(analysis.entities.len(), 0, "sin entidades aceptadas");
+    assert!(!analysis.complete());
+}
+
+#[test]
+#[ignore = "Requires verified local Qwen weights"]
+fn real_qwen_certificate_of_domain_transfer() {
+    let (_guard, engine) = locked_qwen_engine();
+    let doc = std::fs::read_to_string("/tmp/cert-dominio.txt").expect("certificado");
+    let analysis = analyze_with_progress(&engine, &doc, &mut |_, _, _| {}).unwrap();
+    eprintln!(
+        "CERT: {} entidades, {} huecos",
+        analysis.entities.len(),
+        analysis.failed_fragments
+    );
+    for e in &analysis.entities {
+        eprintln!("  {:?} {} -> {}", e.kind, e.original, e.alias);
+    }
+}
+
+#[test]
+#[ignore = "Requires verified local Qwen weights"]
+fn real_qwen_qa_fixture_entities() {
+    let input = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../tests/fixtures/private-document.txt")
+        .to_string_lossy()
+        .into_owned();
+    let text = std::fs::read_to_string(&input).unwrap();
+    let (_guard, engine) = locked_qwen_engine();
+    let analysis = analyze_with_progress(&engine, &text, &mut |_, _, _| {}).unwrap();
+    eprintln!("QA entidades={}", analysis.entities.len());
+    for e in &analysis.entities {
+        eprintln!("  {:?} {}", e.kind, e.original);
+    }
+}
+
+#[test]
+fn law_citations_and_bare_dates_are_not_entities() {
+    for keep in [
+        "Artículo 195.1 del Código del Trabajo",
+        "art. 458 del Código Civil",
+        "numeral 3 del Art. 35",
+        "inciso a) del Código de Procedimiento",
+        "14 de enero de 2026",
+        "USD 4.826,00",
+        "Total a pagar: 1.500,00",
+    ] {
+        assert!(
+            crate::privacy::is_non_identifying_for_test(keep),
+            "una cita legal no identifica a nadie y debe preservarse: {keep}"
+        );
+    }
+    for redact in [
+        "María Pérez",
+        "Banco Andino",
+        "1712345678",
+        "maria@example.com",
+        "Av. Amazonas 123",
+        "Contrato de arrendamiento signed by Ana",
+    ] {
+        assert!(
+            !crate::privacy::is_non_identifying_for_test(redact),
+            "esto sí identifica y debe redactarse: {redact}"
+        );
+    }
+}
+
+/// Qwen drops a leading letter on degraded OCR, as it did with
+/// "Contra Constructora XYZ". One such span must not cost the whole fragment,
+/// but an answer made mostly of unusable spans must still be refused.
+#[test]
+fn a_single_misspelled_span_does_not_condemn_the_fragment() {
+    let document = "ACTA. Comparece Contra Constructora XYZ y Juan Perez.";
+    let usable = vec![
+        Detection {
+            kind: Kind::Company,
+            text: "Contra Constructora XYZ".into(),
+        },
+        Detection {
+            kind: Kind::Person,
+            text: "Juan Perez".into(),
+        },
+    ];
+    let with_one_bad = vec![
+        Detection {
+            kind: Kind::Company,
+            text: "Contra Constructora XYZ".into(),
+        },
+        Detection {
+            kind: Kind::Company,
+            text: "ontra Constructora XYZ".into(),
+        },
+        Detection {
+            kind: Kind::Person,
+            text: "Juan Perez".into(),
+        },
+    ];
+    let mostly_bad = vec![
+        Detection {
+            kind: Kind::Company,
+            text: "ontra Constructora XYZ".into(),
+        },
+        Detection {
+            kind: Kind::Company,
+            text: "Zeta Industrial".into(),
+        },
+        Detection {
+            kind: Kind::Person,
+            text: "Fulano Nadie".into(),
+        },
+    ];
+    let clean = ground_model_detections(document, usable).unwrap();
+    assert_eq!(clean.len(), 2, "las entidades correctas se conservan");
+    let tolerated = ground_model_detections(document, with_one_bad).unwrap();
+    assert_eq!(
+        tolerated.len(),
+        2,
+        "un span defectuoso no debe tumbar el fragmento: {tolerated:?}"
+    );
+    assert!(
+        ground_model_detections(document, mostly_bad).is_err(),
+        "una respuesta casi toda inventada debe rechazarse"
+    );
+}
+
+#[test]
+#[ignore = "diag"]
+fn diag_speed_error() {
+    let (_guard, engine) = locked_qwen_engine();
+    let document = "Comparece María Pérez contra Banco Andino. Reclama USD 1500. ".repeat(200);
+    let prompt = engine.privacy_prompt_for_test(&document);
+    eprintln!("DIAG prompt chars={}", prompt.len());
+    eprintln!(
+        "DIAG prompt tokens={:?}",
+        engine.count_tokens_for_test(&prompt)
+    );
+    let started = std::time::Instant::now();
+    match engine.generate(&prompt, &mut |_| {}) {
+        Ok(out) => eprintln!(
+            "DIAG ok {} tokens en {:?}",
+            engine.count_tokens_for_test(&out).unwrap_or(0),
+            started.elapsed()
+        ),
+        Err(e) => eprintln!("DIAG err: {e}"),
+    }
 }

@@ -159,6 +159,10 @@ pub(crate) struct Session {
     pub warnings: Vec<String>,
     pub advisories: Vec<String>,
     pub analyzed: bool,
+    /// False when local analysis could not read every fragment. A partial map
+    /// is still shown to the lawyer, but it must never be approvable: the
+    /// uncovered text was never inspected, so nothing proves it is clean.
+    pub analysis_complete: bool,
     pub reviewed: bool,
     pub revision: u64,
 }
@@ -187,6 +191,7 @@ impl Session {
             warnings: vec![],
             advisories: vec![],
             analyzed: false,
+            analysis_complete: false,
             reviewed: false,
             revision: 0,
         })
@@ -301,6 +306,7 @@ pub(crate) fn apply_private_ocr(
     session.warnings.clear();
     session.advisories.clear();
     session.analyzed = false;
+    session.analysis_complete = false;
     session.reviewed = false;
     session.edited = false;
     session.revision += 1;
@@ -449,7 +455,108 @@ fn grounded(text: &str, original: &str) -> bool {
             .any(|m| boundary(text, m.start(), m.end()))
     })
 }
-/// Qwen sometimes turns receipt field labels into a made-up address block.
+#[cfg(test)]
+pub(crate) fn is_non_identifying_for_test(text: &str) -> bool {
+    is_non_identifying(text)
+}
+
+/// Values that identify no party: law citations, articles, bare dates, amounts
+/// and similar. Redacting them destroys the legal argument without protecting
+/// anyone, so the model is not allowed to spend an alias on them.
+/// Markers of a legal citation rather than of a party.
+const ARTICLE_WORDS: [&str; 10] = [
+    "articulo",
+    "art.",
+    "numeral",
+    "inciso",
+    "codigo",
+    "ley organica",
+    "constitucion",
+    "codigo del trabajo",
+    "codigo civil",
+    "codigo de procedimiento",
+];
+/// Currency markers, used to recognise an amount rather than an identifier.
+const CURRENCIES: [&str; 8] = ["usd", "eur", "gbp", "dolar", "euro", "$", "us$", "€"];
+/// Month names, used to recognise a bare date.
+const DATE_WORDS: [&str; 12] = [
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+];
+
+/// Label prefixes the model copies along with the value, such as
+/// "CEDULA: 1712345678". The label belongs to the document's layout, not to the
+/// identifier, and aliasing it would hide what kind of value was redacted.
+fn strip_field_label(text: &str) -> &str {
+    match text.split_once(':') {
+        // Only a short all-caps label counts, never "Escritura publica: 0452-...".
+        Some((label, value))
+            if label.len() <= 28 && label.chars().all(|c| c.is_ascii_alphabetic() || c == ' ') =>
+        {
+            value.trim()
+        }
+        _ => text,
+    }
+}
+
+fn is_non_identifying(text: &str) -> bool {
+    // Compare without accents: the document may write "Artículo" or "articulo".
+    // The label is dropped here too, so the check does not depend on the caller.
+    let lowered: String = normalized(strip_field_label(text))
+        .chars()
+        .map(|c| match c {
+            'á' | 'Á' => 'a',
+            'é' | 'É' => 'e',
+            'í' | 'Í' => 'i',
+            'ó' | 'Ó' => 'o',
+            'ú' | 'Ú' => 'u',
+            'ñ' | 'Ñ' => 'n',
+            other => other,
+        })
+        .collect();
+    // Article and code citations, with or without the surrounding law name.
+    if ARTICLE_WORDS.iter().any(|w| lowered.contains(w)) {
+        return true;
+    }
+    // A date with no other identifying content.
+    if DATE_WORDS.iter().any(|w| lowered.contains(w)) && !lowered.contains('@') {
+        let digits: usize = lowered.chars().filter(|c| c.is_ascii_digit()).count();
+        let letters: usize = lowered.chars().filter(|c| c.is_alphabetic()).count();
+        // "15 de marzo de 2025": mostly a date and nothing else.
+        return digits >= 2 && letters <= 16;
+    }
+    // An amount with a currency: "USD 4.826,00". The value is money, not a party,
+    // so it stays readable in the protected document.
+    if CURRENCIES.iter().any(|c| lowered.contains(c)) {
+        let letters: usize = lowered.chars().filter(|c| c.is_alphabetic()).count();
+        let digits: usize = lowered.chars().filter(|c| c.is_ascii_digit()).count();
+        if digits > 0 && letters <= CURRENCIES.iter().map(|c| c.len()).sum::<usize>() + 4 {
+            return true;
+        }
+    }
+    // A bare number. Long digit runs are national IDs, RUCs, account or case
+    // numbers and must stay; only short grouped amounts are money.
+    let stripped: String = lowered
+        .chars()
+        .filter(|c| !c.is_ascii_digit() && *c != '.' && *c != ',')
+        .collect();
+    let digits: usize = lowered.chars().filter(|c| c.is_ascii_digit()).count();
+    if stripped.is_empty() && digits > 0 && digits <= 7 {
+        return true;
+    }
+    false
+}
+
 /// Accept only a vocabulary of generic bank labels plus identifiers that have
 /// independently been found in the source. Any other word still blocks output.
 fn receipt_fields(original: &str, proposed: &Detection) -> Option<Vec<Detection>> {
@@ -516,14 +623,26 @@ fn ground_model_detections(
     model: Vec<Detection>,
 ) -> Result<Vec<Detection>, String> {
     let mut result = vec![];
+    let proposed = model.len();
+    let mut dropped = 0usize;
     for mut detection in model {
         if let Some(fields) = receipt_fields(original, &detection) {
             result.extend(fields);
             continue;
         }
-        let text = detection.text.trim();
+        let trimmed = detection.text.trim();
+        // Drop a leading field label so the alias replaces only the value.
+        let trimmed = strip_field_label(trimmed);
+        let text = trimmed;
         if text.len() < 2 || text.len() > 500 {
-            return Err("Qwen propuso una entidad que no coincide con el documento. No se aprobará la salida; vuelve a analizar.".into());
+            dropped += 1;
+            continue;
+        }
+        // A 1.7B model still files law citations and dates as entities even when
+        // told not to. They identify nobody, and redacting them would gut the
+        // legal argument, so they are dropped here instead of trusted.
+        if is_non_identifying(text) {
+            continue;
         }
         if grounded(original, text) {
             detection.text = text.into();
@@ -556,10 +675,18 @@ fn ground_model_detections(
             .map(|m| m.as_str())
             .collect();
         if spans.len() != 1 {
-            return Err("Qwen propuso una entidad que no coincide con el documento. No se aprobará la salida; vuelve a analizar.".into());
+            // The model dropped or added a character, as it does with degraded
+            // OCR. The span is not in the document, so it cannot leak; drop it.
+            // If most of the answer is unusable the model is off the rails and
+            // the caller splits the fragment instead of trusting the rest.
+            dropped += 1;
+            continue;
         }
         detection.text = spans.into_iter().next().unwrap().into();
         result.push(detection);
+    }
+    if proposed > 0 && dropped * 2 > proposed {
+        return Err("Qwen propuso una entidad que no coincide con el documento. No se aprobará la salida; vuelve a analizar.".into());
     }
     Ok(result)
 }
@@ -812,6 +939,10 @@ fn validate_entities(original: &str, entities: &[Entity]) -> Result<(), String> 
 /// Un mapa vacío produce `sanitize() == original`: el documento privado entero
 /// volvería como salida «SAFE». Se exige al menos una entidad y que la
 /// sanitización realmente cambie el texto antes de aprobar o exportar.
+/// Shown when the local pass could not read the whole document. Approval stays
+/// closed until the lawyer re-runs the analysis or splits the file.
+const INCOMPLETE_ANALYSIS: &str = "El análisis local no cubrió todo el documento. Vuelve a protegerlo o divide el archivo antes de aprobar la revisión.";
+
 fn require_sanitized(original: &str, sanitized: &str, entities: &[Entity]) -> Result<(), String> {
     if entities.is_empty() {
         return Err(
@@ -885,31 +1016,134 @@ pub(crate) fn leak_warnings(sanitized: &str, entities: &[Entity]) -> Vec<String>
 }
 
 /// Overlapping chunks cover the entire UTF-8 input; no silent truncation.
+///
+/// Fragment size is bounded by the *answer*, not by the prompt. Measured with
+/// the real Qwen on entity-dense Spanish legal text, whose JSON grows with the
+/// number of distinct people, companies, IDs and emails:
+///   2500 -> 910   3500 -> 1188   4000 -> 1256   5000 -> 1407 answer tokens
+///   5500 and 6000 exhaust the 2048-token budget and never close their JSON,
+///   so the fragment is lost and the app appears to loop forever.
+/// 4000 keeps a wide margin over the measured ceiling for dense pages while
+/// still covering a normal document in fewer passes than the old 2800.
+const CHUNK_CHARS: usize = 4000;
+/// Characters repeated between neighbouring fragments so an entity split by a
+/// fragment boundary is still seen whole.
+const CHUNK_OVERLAP: usize = 300;
+/// A fragment shorter than this is not split again: below it the model has no
+/// room left to fail, so it is reported as a coverage gap instead.
+const MIN_SPLIT_CHARS: usize = 600;
+
+#[cfg(test)]
+pub(crate) fn min_split_chars_for_test() -> usize {
+    MIN_SPLIT_CHARS
+}
+
+#[cfg(test)]
+pub(crate) fn chunk_chars_for_test() -> usize {
+    CHUNK_CHARS
+}
+
 fn chunks(text: &str) -> Vec<String> {
     let chars: Vec<char> = text.chars().collect();
     let mut result = vec![];
     let mut start = 0;
     while start < chars.len() {
-        let end = (start + 2800).min(chars.len());
+        let end = (start + CHUNK_CHARS).min(chars.len());
         result.push(chars[start..end].iter().collect());
         if end == chars.len() {
             break;
         }
-        start = end - 200;
+        start = end - CHUNK_OVERLAP.min(CHUNK_CHARS - 1);
     }
     result
 }
-fn analyze_with(extractor: &impl EntityExtractor, original: &str) -> Result<Vec<Entity>, String> {
-    let mut detections = vec![];
-    for chunk in chunks(original) {
-        let suggested = extractor.extract(&chunk)?;
-        let grounded = match ground_model_detections(&chunk, suggested) {
-            Ok(entities) => entities,
-            Err(_) => ground_model_detections(&chunk, extractor.extract_exact(&chunk)?)?,
-        };
-        detections.extend(grounded);
+/// Result of a local analysis pass. A fragment the model could not finish is
+/// recorded instead of aborting: on a long document a single rambling fragment
+/// used to discard every entity found in the rest of the file, which left the
+/// lawyer with no map at all and looked like Qwen had not run.
+#[derive(Debug)]
+pub(crate) struct Analysis {
+    pub entities: Vec<Entity>,
+    pub fragments: usize,
+    pub failed_fragments: usize,
+}
+impl Analysis {
+    fn complete(&self) -> bool {
+        self.failed_fragments == 0
     }
-    merge_detections(original, detections)
+    /// Shown to the lawyer when the map is not trustworthy on its own.
+    fn coverage_warning(&self) -> Option<String> {
+        (!self.complete()).then(|| {
+            format!(
+                "El análisis local no pudo leer {} de {} fragmentos del documento. La versión protegida no está verificada en esa parte: revisa el texto a mano o divide el documento.",
+                self.failed_fragments, self.fragments
+            )
+        })
+    }
+}
+
+/// Same pass, reporting `(done, total)` per fragment. A multi-fragment document
+/// takes several model round trips; without this the UI shows one frozen label
+/// for minutes and the app looks like it never started.
+fn analyze_with_progress(
+    extractor: &impl EntityExtractor,
+    original: &str,
+    on_fragment: &mut dyn FnMut(usize, usize, usize),
+) -> Result<Analysis, String> {
+    let all = chunks(original);
+    let mut detections = vec![];
+    let mut failed = 0usize;
+    // Fragments still to read. A fragment the model cannot answer inside the
+    // budget is split and retried instead of being dropped: measured on the real
+    // model, two fragments with nearly identical prompts (1674 and 1684 tokens)
+    // either finished or ran out, so no fixed size can prevent it.
+    let mut pending: Vec<String> = all;
+    let mut read = 0usize;
+    while let Some(chunk) = pending.pop() {
+        // `done + 1` counts finished fragments plus the one being read, so the
+        // label always advances even when a fragment is split and requeued.
+        let position = read + 1;
+        let mut report = |tokens: usize| on_fragment(position, position, tokens);
+        report(0);
+        // Two attempts: the general pass, then the exact pass. Both may fail on
+        // a fragment the model cannot finish; that is local to this fragment.
+        // Anchor against the whole document, not the fragment: splitting a
+        // fragment can cut an entity in half, and text the model read is still
+        // real text of the document even if it straddles the split.
+        let grounded = match extractor.extract(&chunk, &mut report) {
+            Ok(suggested) => ground_model_detections(original, suggested),
+            Err(_) => Err(String::new()),
+        }
+        .or_else(|_| match extractor.extract_exact(&chunk, &mut report) {
+            Ok(suggested) => ground_model_detections(original, suggested),
+            Err(reason) => Err(reason),
+        });
+        match grounded {
+            Ok(entities) => {
+                detections.extend(entities);
+                read += 1;
+            }
+            Err(_) => {
+                // Too dense for one answer: read the same text in two halves.
+                let chars: Vec<char> = chunk.chars().collect();
+                if chars.len() > MIN_SPLIT_CHARS {
+                    let middle = chars.len() / 2;
+                    let left: String = chars[..middle].iter().collect();
+                    let right: String = chars[middle..].iter().collect();
+                    pending.push(right);
+                    pending.push(left);
+                } else {
+                    failed += 1;
+                    read += 1;
+                }
+            }
+        }
+    }
+    Ok(Analysis {
+        entities: merge_detections(original, detections)?,
+        fragments: read,
+        failed_fragments: failed,
+    })
 }
 
 #[tauri::command]
@@ -1024,8 +1258,23 @@ pub(crate) async fn analyze_private_document(
         // Gather suggestions from one snapshot so corrections cannot cascade.
         if needs_ocr_cleanup(&session) {
             let mut seen = HashSet::new();
-            for chunk in chunks(&session.original) {
-                for suggestion in engine.suggest_ocr_prefixes(&chunk)? {
+            let ocr_chunks = chunks(&session.original);
+            let ocr_total = ocr_chunks.len();
+            for (index, chunk) in ocr_chunks.into_iter().enumerate() {
+                let _ = app.emit(
+                    "private-analysis-progress",
+                    (
+                        id.as_str(),
+                        requested_revision,
+                        format!("ocr:{}/{}", index + 1, ocr_total),
+                    ),
+                );
+                // A fragment Qwen cannot finish must not discard the OCR fixes
+                // it did produce for the rest of the document.
+                let Ok(suggestions) = engine.suggest_ocr_prefixes(&chunk) else {
+                    continue;
+                };
+                for suggestion in suggestions {
                     if valid_ocr_prefix(&suggestion, &original)
                         && seen.insert(suggestion.original.clone())
                     {
@@ -1034,19 +1283,32 @@ pub(crate) async fn analyze_private_document(
                 }
             }
         }
-        let entities = analyze_with(engine, &original)?;
+        // Progress carries only counts, never document content.
+        let mut report = |done: usize, total: usize, tokens: usize| {
+            let _ = app.emit(
+                "private-analysis-progress",
+                (
+                    id.as_str(),
+                    requested_revision,
+                    format!("reading:{done}/{total}:{tokens}"),
+                ),
+            );
+        };
+        let analysis = analyze_with_progress(engine, &original, &mut report)?;
+        let complete = analysis.complete();
         // Progress carries only operation identity; private document data stays local.
         let _ = app.emit(
             "private-analysis-progress",
             (id.as_str(), requested_revision, "sanitizing"),
         );
-        let sanitized = sanitize_for_file(&original, &entities, &session.file_name)?;
+        let sanitized = sanitize_for_file(&original, &analysis.entities, &session.file_name)?;
         // Deliberately no `require_sanitized` here. Finding nothing is a valid
         // analysis result that the lawyer must see; it becomes a refusal at
         // review and export time, where it can no longer be mistaken for a
         // clean document. Failing here would hide the empty map entirely.
-        let warnings = leak_warnings(&sanitized, &entities);
-        let advisories = privacy_advisories(&entities);
+        let mut warnings = leak_warnings(&sanitized, &analysis.entities);
+        warnings.extend(analysis.coverage_warning());
+        let advisories = privacy_advisories(&analysis.entities);
         let privacy = app.state::<PrivacyState>();
         let mut guard = privacy
             .0
@@ -1057,12 +1319,13 @@ pub(crate) async fn analyze_private_document(
             .filter(|s| s.id == id && s.revision == revision)
             .ok_or("El documento cambió durante el análisis. Se descartó el resultado.")?;
         current.original = original;
-        current.entities = entities;
+        current.entities = analysis.entities;
         current.sanitized = sanitized;
         current.edited = false;
         current.warnings = warnings;
         current.advisories = advisories;
         current.analyzed = true;
+        current.analysis_complete = complete;
         current.reviewed = false;
         current.revision += 1;
         Ok(current.clone())
@@ -1114,6 +1377,14 @@ pub(crate) fn review_private_document(
     require_sanitized(&session.original, &session.sanitized, &session.entities)?;
     session.warnings = leak_warnings(&session.sanitized, &session.entities);
     session.advisories = privacy_advisories(&session.entities);
+    if !session.analysis_complete {
+        // Recomputing `warnings` above drops the coverage notice, so the
+        // refusal has to come from the flag itself or a second click on
+        // "apply and confirm" would approve a map that never saw every fragment.
+        session.reviewed = false;
+        session.revision += 1;
+        return Err(INCOMPLETE_ANALYSIS.into());
+    }
     session.reviewed = confirm && session.warnings.is_empty();
     session.revision += 1;
     Ok(session.clone())
@@ -1178,6 +1449,9 @@ fn checked_outbound(session: &Session) -> Result<OutboundPreview, String> {
                 .into(),
         );
     }
+    if !session.analysis_complete {
+        return Err(INCOMPLETE_ANALYSIS.into());
+    }
     let sanitized = sanitize_for_file(&session.original, &session.entities, &session.file_name)?;
     if (!session.edited && sanitized != session.sanitized)
         || !leak_warnings(&session.sanitized, &session.entities).is_empty()
@@ -1236,6 +1510,9 @@ fn check_export_payload(
             "El documento privado no tiene una revisión confirmada. Revísalo en Private Legal antes de exportar."
                 .into(),
         );
+    }
+    if !session.analysis_complete {
+        return Err(INCOMPLETE_ANALYSIS.into());
     }
     require_sanitized(&session.original, &session.sanitized, &session.entities)?;
     let reviewed = normalized_text(&session.sanitized);

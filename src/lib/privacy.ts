@@ -3,7 +3,7 @@ export interface PrivateEntity { kind: EntityKind; original: string; alias: stri
 export interface OcrSuggestion { original: string; replacement: string; }
 export interface PrivacySession {
   id: string; fileName: string; original: string; entities: PrivateEntity[]; sanitized: string;
-  warnings: string[]; advisories: string[]; analyzed: boolean; reviewed: boolean; edited: boolean; revision: number;
+  warnings: string[]; advisories: string[]; analyzed: boolean; analysisComplete: boolean; reviewed: boolean; edited: boolean; revision: number;
 }
 export interface OutboundPreview { schemaVersion: number; document: string; }
 export const ENTITY_KINDS: { value: EntityKind; label: string }[] = [
