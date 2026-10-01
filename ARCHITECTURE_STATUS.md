@@ -38,9 +38,9 @@ Aplicación de escritorio Tauri 2 con UI Svelte 5/TypeScript y backend Rust. Flu
 
 ## IPC registrado en `lib.rs`
 
-`check_installation`; `diarization_available`; `get_model_path`, `check_model_exists`, `list_models`, `download_model`, `cancel_model_download`, `delete_model`; `download_diarization_model`, `delete_diarization_model`; `transcribe_file`, `transcribe_blob`; `generate_pdf`; `load_transcripts`, `save_transcripts`.
+El backend expone 37 comandos Tauri agrupados por dominio (instalación, modelos Whisper/Parakeet/Diarization/Qwen, transcripción, privacidad, PDF, historial). Ver `src-tauri/src/lib.rs:32-99` para el registro completo y `PRIVATE_AI.md` para los comandos de privacidad (`import_private_document`, `paste_private_document`, `analyze_private_document`, `review_private_document`, `update_private_document`, `reset_private_analysis`, `clear_privacy_session`, `preview_private_outbound`, `get_private_extraction`, `get_privacy_session`, `suggest_private_ocr`, `apply_private_ocr`, `validate_private_export`).
 
-`list_models` devuelve `{ whisper: ModelEntry[], diarization: ModelEntry[] }`. El catálogo Rust tiene ocho variantes Whisper (tiny, base, small, medium, large-v3-turbo, large-v3, large-v3-q5, latam-turbo-q5) y Nemotron 3 opcional. La UI omite tiny/base de sus opciones recomendadas. Revisar los nombres camelCase de `WhisperConfig`/`StoredTranscript` al modificar llamadas `invoke`.
+`list_models` devuelve `{ whisper: ModelEntry[], parakeet: ModelEntry[], diarization: ModelEntry[], privacy: ModelEntry[] }`. El catálogo Rust tiene las variantes Whisper/Parakeet usadas en la demo y el modelo Qwen3 local para Private Legal. Revisar los nombres camelCase de `WhisperConfig`/`StoredTranscript` al modificar llamadas `invoke`.
 
 ## Datos, límites de plataforma y distribución
 

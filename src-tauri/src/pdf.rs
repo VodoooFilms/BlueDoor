@@ -90,17 +90,28 @@ pub(crate) async fn generate_pdf(
 ) -> Result<String, String> {
     let destination = validate_pdf_destination(Path::new(&dest_path))?;
     let destination = state.consume_pdf_path(&destination)?;
-    // A private document is gated here, in the writer, not in the renderer: the
-    // payload must match the reviewed session and the map must be non-empty.
+    // A private document is gated here, in the writer, not in the renderer.
+    //
+    // The gate runs when EITHER the renderer says so OR the payload itself
+    // looks like private content. Relying on the `private` argument alone would
+    // mean a compromised WebView could export the private document by simply
+    // passing `null`, so the writer decides from the text as well.
+    let payload_text = text.as_deref().unwrap_or_default();
+    let looks_private = crate::privacy::payload_is_private(&app, payload_text);
     if let Some(private) = private.as_ref() {
         crate::privacy::gate_private_export(
             &app,
             &private.id,
             private.revision,
-            text.as_deref().unwrap_or_default(),
+            payload_text,
             html.as_deref(),
             &title,
         )?;
+    } else if looks_private {
+        return Err(
+            "Este archivo contiene el documento privado. Solo se puede exportar desde la sesión revisada en Private Legal."
+                .into(),
+        );
     }
     generate_pdf_at_path(
         title,

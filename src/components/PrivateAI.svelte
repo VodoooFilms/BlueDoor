@@ -3,22 +3,36 @@
   import { onMount, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { ENTITY_KINDS, type EntityKind, type PrivateEntity, type PrivacySession } from "../lib/privacy";
+  import { ENTITY_KINDS, type EntityKind, type OcrSuggestion, type OutboundPreview, type PrivateEntity, type PrivacySession } from "../lib/privacy";
   import belegalMark from "../assets/belegal-mark.png";
 
   let { onBusyChange, onSessionChange, onEdit, externalSession, comparisonRequest }: { onBusyChange: (busy: boolean) => void; onSessionChange: (session: PrivacySession | null) => void; onEdit: (session: PrivacySession) => void; externalSession: PrivacySession | null; comparisonRequest: number } = $props();
+  const BUSY_LABELS: Record<string, string> = {
+    import: "Importando documento local…",
+    paste: "Preparando texto local…",
+    analyze: "Protegiendo…",
+    applyMap: "Validando el mapa local…",
+    reset: "Borrando resultado local…",
+    ocrSuggest: "Revisando OCR localmente…",
+    ocrApply: "Aplicando corrección OCR…",
+    preview: "Componiendo la vista previa…",
+    clear: "Cerrando documento…",
+  };
   let session = $state<PrivacySession | null>(null);
   let entities = $state<PrivateEntity[]>([]);
   let draftDirty = $state(false);
+  /** Stable task key, not display copy: the label is translated for display. */
   let busy = $state("");
   let sanitizing = $state(false);
   let analysisId: string | null = null;
   let analysisRevision: number | null = null;
   let unlistenAnalysis: (() => void) | undefined;
   let disposed = false;
-  const processingLabel = $derived(busy.startsWith("Analizando")
-    ? p(sanitizing ? "Sanitizando el documento" : "Analizando con AI local")
-    : p(busy).replace(/(?:…|\.{3})$/, ""));
+  const processingLabel = $derived(
+    busy === "analyze"
+      ? p(sanitizing ? "Sanitizando el documento" : "Protegiendo")
+      : busy ? p(BUSY_LABELS[busy] ?? busy).replace(/(?:…|\.{3})$/, "") : ""
+  );
   let error = $state("");
   let pasteOpen = $state(false);
   let pasteText = $state("");
@@ -26,6 +40,9 @@
   let addKind = $state<EntityKind>("PERSON");
   let mapOpen = $state(false);
   let originalExpanded = $state(false);
+  let ocrSuggestions = $state<OcrSuggestion[]>([]);
+  let preview = $state<OutboundPreview | null>(null);
+  let previewOpen = $state(false);
   $effect(() => {
     void comparisonRequest;
     originalExpanded = false;
@@ -45,7 +62,7 @@
   onMount(async () => {
     const stop = await listen<[string, number, string]>("private-analysis-progress", event => {
       const [id, revision, phase] = event.payload;
-      if (busy.startsWith("Analizando") && id === analysisId && revision === analysisRevision && phase === "sanitizing") sanitizing = true;
+      if (busy === "analyze" && id === analysisId && revision === analysisRevision && phase === "sanitizing") sanitizing = true;
     });
     if (disposed) { stop(); return; }
     unlistenAnalysis = stop;
@@ -55,26 +72,26 @@
   });
   onDestroy(() => { disposed = true; unlistenAnalysis?.(); });
 
-  async function run(label: string, action: () => Promise<void>) {
+  async function run(task: string, action: () => Promise<void>) {
     if (busy) return;
-    busy = label; error = ""; onBusyChange(true);
+    busy = task; error = ""; onBusyChange(true);
     try { await action(); }
     catch (e) {
       error = String(e);
-      if (label.startsWith("Analizando")) {
+      if (task === "analyze") {
         try { adopt(await invoke<PrivacySession | null>("get_privacy_session")); } catch { }
       }
     }
     finally { busy = ""; sanitizing = false; analysisId = null; analysisRevision = null; onBusyChange(false); }
   }
   async function importDocument() {
-    await run("Importando documento local…", async () => {
+    await run("import", async () => {
       const next = await invoke<PrivacySession | null>("import_private_document");
       if (next) { adopt(next); pasteOpen = false; pasteText = ""; }
     });
   }
   async function pasteDocument() {
-    await run("Preparando texto local…", async () => {
+    await run("paste", async () => {
       adopt(await invoke<PrivacySession>("paste_private_document", { text: pasteText }));
       pasteOpen = false; pasteText = "";
     });
@@ -85,7 +102,7 @@
     analysisId = current.id;
     analysisRevision = current.revision;
     sanitizing = false;
-    await run("Analizando documento local…", async () => {
+    await run("analyze", async () => {
       const modelId = localStorage.getItem("belegal-privacy-model") || "qwen3-fast";
       adopt(await invoke<PrivacySession>("analyze_private_document", { id: current.id, revision: current.revision, modelId }));
     });
@@ -101,28 +118,54 @@
   async function applyMap(confirm = false) {
     if (!session) return;
     const current = session;
-    await run("Validando el mapa local…", async () => {
+    await run("applyMap", async () => {
       adopt(await invoke<PrivacySession>("review_private_document", { id: current.id, revision: current.revision, entities: $state.snapshot(entities), confirm }));
     });
   }
   async function clearResult() {
     if (!session) return;
     const current = session;
-    await run("Borrando resultado local…", async () => {
+    await run("reset", async () => {
       adopt(await invoke<PrivacySession>("reset_private_analysis", { id: current.id, revision: current.revision }));
     });
   }
+  // --- OCR: suggestions from the local model, applied one at a time ---
+  async function suggestOcr() {
+    if (!session) return;
+    const current = session;
+    await run("ocrSuggest", async () => {
+      const modelId = localStorage.getItem("belegal-privacy-model") || "qwen3-fast";
+      ocrSuggestions = await invoke<OcrSuggestion[]>("suggest_private_ocr", { id: current.id, revision: current.revision, modelId });
+    });
+  }
+  async function applyOcr(suggestion: OcrSuggestion) {
+    if (!session) return;
+    const current = session;
+    await run("ocrApply", async () => {
+      adopt(await invoke<PrivacySession>("apply_private_ocr", { id: current.id, revision: current.revision, suggestion }));
+      ocrSuggestions = ocrSuggestions.filter(s => s.original !== suggestion.original);
+    });
+  }
+  // --- What would actually leave this computer ---
+  async function openPreview() {
+    if (!session) return;
+    const current = session;
+    previewOpen = true;
+    await run("preview", async () => {
+      preview = await invoke<OutboundPreview>("preview_private_outbound", { id: current.id, revision: current.revision });
+    });
+  }
   async function clear() {
-    await run("Cerrando documento…", async () => { await invoke("clear_privacy_session"); adopt(null); pasteText = ""; });
+    await run("clear", async () => { await invoke("clear_privacy_session"); adopt(null); pasteText = ""; });
   }
 </script>
 
 <section class="privacy-workflow" aria-label="Private Legal">
   <div class="intro">
-    <div><p class="eyebrow">{p("PRIVATE LEGAL · MOTOR LOCAL")}</p><h1>{#each p("Lo privado permanece aquí.").split(/\b(privado|private)\b/) as part}{#if part === "privado" || part === "private"}<em>{part}</em>{:else}{part}{/if}{/each}</h1></div>
+    <div><p class="eyebrow">{p("PRIVATE LEGAL · MOTOR LOCAL")}</p><h1>{#each p("Lo privado permanece aquí.").split(/\b(privado|private)\b/) as part}{#if part === "privado" || part === "private"}<em>{part}</em>{:else}{part}{/if}{/each}</h1><p class="intro-helper">{p("Detecta y reemplaza información sensible antes de usar IA.")}</p></div>
     <div class="intro-status">
       <div class="status-slot">
-        {#if error}<p class="error" role="alert">{p(error)}</p>{/if}
+        {#if error && !mapOpen}<p class="error" role="alert">{p(error)}</p>{/if}
       </div>
     </div>
   </div>
@@ -130,7 +173,7 @@
     <div class="document-actions">
       <button class="primary" onclick={importDocument} disabled={!!busy}>{p("Importar documento")}</button>
       <button class="secondary" onclick={() => pasteOpen = !pasteOpen} disabled={!!busy}>{p("Pegar texto")}</button>
-      <button class="secondary analyze-button" onclick={analyze} disabled={!!busy || !session}>{session?.analyzed ? p("Volver a analizar") : p("Analizar documento")}</button>
+      <button class="secondary analyze-button" onclick={analyze} disabled={!!busy || !session}>{busy === "analyze" ? p("Protegiendo…") : session?.analyzed ? p("Documento protegido ✓") : p("Proteger documento")}</button>
       <button class="secondary" class:active-page={mapOpen} onclick={() => { mapOpen = true; pasteOpen = false; }} disabled={!!busy || !session?.analyzed || !session.entities.length} aria-pressed={mapOpen}>{p("Mapa privado")}</button>
       <button class="secondary" onclick={() => { if (session) onEdit(session); }} disabled={!!busy || !session?.analyzed || draftDirty}>{p("Abrir en Edit")}</button>
       <div class="processing-slot">
@@ -140,9 +183,36 @@
         <div class="processing-track" class:processing={!!busy} role={busy ? "progressbar" : undefined} aria-label={busy ? p("Procesando documento") : undefined} aria-busy={!!busy}><span></span></div>
       </div>
       <span class="format-note">TXT · MD · DOCX · PDF · PNG · JPG · TIFF · HEIC</span>
+      <div class="document-actions-secondary">
+        <button class="secondary" onclick={suggestOcr} disabled={!!busy || !session?.analyzed}>{p("Revisar OCR")}</button>
+        <button class="secondary" data-testid="private-preview" onclick={openPreview} disabled={!!busy || !session?.reviewed}>{p("Ver qué sale de este equipo")}</button>
+      </div>
     </div>
     {#if pasteOpen}
       <div class="paste-panel"><div class="paste-heading"><label for="private-paste">{p("Texto privado · solo en esta sesión")}</label><button class="paste-close" aria-label={p("Cerrar pegar texto")} onclick={() => { pasteOpen = false; pasteText = ""; }}>×</button></div><textarea id="private-paste" bind:value={pasteText} disabled={!!busy} placeholder={p("Pega el contenido del documento…")}></textarea><button class="primary" disabled={!!busy || !pasteText.trim()} onclick={pasteDocument}>{p("Usar texto local")}</button></div>
+    {/if}
+    {#if ocrSuggestions.length}
+      <div class="ocr-panel">
+        <p class="map-help">{p("El OCR local puede haber perdido la primera letra de alguna palabra. Esto no toca nombres, cifras ni fechas.")}</p>
+        {#each ocrSuggestions as suggestion}
+          <div class="ocr-row">
+            <code>{suggestion.original}</code><span aria-hidden="true">→</span><code>{suggestion.replacement}</code>
+            <button class="secondary" disabled={!!busy} onclick={() => applyOcr(suggestion)}>{p("Aplicar")}</button>
+          </div>
+        {/each}
+        <button class="secondary" onclick={() => ocrSuggestions = []} disabled={!!busy}>{p("Descartar sugerencias OCR")}</button>
+      </div>
+    {/if}
+    {#if previewOpen}
+      <div class="preview-panel">
+        <div class="paste-heading"><span class="panel-label">{p("VISTA PREVIA · LO QUE SALE DE ESTE EQUIPO")}</span><button class="paste-close" aria-label={p("Cerrar vista previa")} onclick={() => { previewOpen = false; preview = null; }}>×</button></div>
+        {#if preview}
+          <p class="map-help">{p("Este es el contenido exacto que se enviaría. No incluye nombre de archivo ni mapa de entidades, y no se envía a ningún sitio al abrirlo.")}</p>
+          <pre class="document-text" data-testid="private-outbound">{preview.document}</pre>
+        {:else}
+          <p class="map-help">{processingLabel}</p>
+        {/if}
+      </div>
     {/if}
     {#if session}
       {#if mapOpen}
@@ -151,6 +221,7 @@
           <div class="map-heading"><h2>{p("Mapa privado")}</h2><span>{entities.length} {p("entradas · solo local")}</span></div>
           {#if session.analyzed}
             <p class="map-help">{p("Corrige detecciones y aliases. Para unir variantes de una persona usa el mismo alias. Eliminar una entrada restaura ese dato en la salida: revisa con cuidado.")}</p>
+            <p class="map-help">{p("Puedes usar alias personalizados como Luna o CLIENTE_01. Usa nombres ficticios que no aparezcan en el original (2–80 caracteres).")}</p>
             <div class="entity-list">
               {#each entities as entity, i}
                 <div class="entity-row">
@@ -162,7 +233,11 @@
               {/each}
             </div>
             <div class="add-entity"><select aria-label={p("Tipo de nueva entidad")} bind:value={addKind} disabled={!!busy}>{#each ENTITY_KINDS as kind}<option value={kind.value}>{p(kind.label)}</option>{/each}</select><input aria-label={p("Nueva entidad privada")} bind:value={addText} placeholder={p("Texto exacto del original")} disabled={!!busy}/><button class="secondary" onclick={addEntity} disabled={!!busy || !addText.trim()}>{p("Añadir entidad")}</button></div>
-            <button class="secondary apply-map" onclick={() => applyMap()} disabled={!!busy || !draftDirty}>{p("Aplicar cambios al mapa")}</button>
+            {#if error}<p class="error map-error" role="alert">{p(error)}</p>{/if}
+            <div class="map-confirm-row">
+              <button class="secondary apply-map" onclick={() => applyMap(false)} disabled={!!busy || !draftDirty}>{p("Aplicar cambios al mapa")}</button>
+              <button class="primary" onclick={() => applyMap(true)} disabled={!!busy || !draftDirty}>{p("Aplicar y confirmar revisión")}</button>
+            </div>
           {:else}<p class="empty-note">{p("Analiza el documento con Qwen para detectar entidades y construir el mapa.")}</p>{/if}
           {#if draftDirty}<p class="notice">{p("Aplica los cambios al mapa antes de abrir el documento en Edit.")}</p>{/if}
         </section>
@@ -210,10 +285,12 @@
 <style>
   .privacy-workflow { --ai-border: linear-gradient(110deg, #a58de2 0%, #8b9cec 28%, #caa0de 56%, #e7aa98 82%, #e4b68a 100%); display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; border:1px solid var(--line); border-top:0; border-radius:0 0 6px 6px; background:var(--background); padding:16px 22px; }
   .intro { display:flex; justify-content:space-between; align-items:center; gap:20px; flex:none; min-height:76px; margin-bottom:8px; }
+  .intro-helper { margin:0; font-size:13px; line-height:1.5; color:var(--muted); }
   .intro-status { flex:0 0 clamp(240px,30vw,420px); display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
   .status-slot { width:100%; height:34px; overflow:auto; text-align:right; }
   .status-slot p { margin:0; font-size:12px; line-height:1.5; }
   .error { color:var(--error); }
+  .map-error { font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
 
   .eyebrow { margin:0 0 8px; font-size:11px; font-weight:500; letter-spacing:.12em; color:var(--muted); }
   h1,h2 { font-family:var(--font-heading); font-weight:400; color:var(--text); }
@@ -241,6 +318,8 @@
   @media(max-width:650px) { .map-page { padding:16px; } .map-page .entity-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr) 26px; gap:8px; } .map-page .entity-row label:first-child { grid-column:1 / -1; } }
   .paste-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; } .paste-heading label { margin:0; } .paste-close { border:0; background:transparent; color:var(--muted); font-size:24px; line-height:1; padding:2px 6px; }
   .document-actions { flex:none; display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin:8px 0 14px; } .format-note { font-size:12px; color:var(--muted); white-space:nowrap; }
+  .map-confirm-row { display:flex; gap:9px; flex-wrap:wrap; margin-top:10px; }
+  .document-actions-secondary { display:flex; gap:9px; flex-wrap:wrap; flex-basis:100%; }
   .processing-slot { flex:1 1 90px; min-width:90px; padding:0 6px; align-self:stretch; display:flex; flex-direction:column; justify-content:flex-end; gap:4px; }
   .processing-label { display:flex; align-items:center; justify-content:center; min-height:15px; font-size:11px; line-height:15px; color:var(--muted); min-width:0; }
   .processing-copy { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -298,4 +377,8 @@
   .boundary-grid.original-expanded { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); }
   .original-expanded .private-panel { border:0; }
   .sanitized-panel.panel-hidden { display:none; }
+  .ocr-panel, .preview-panel { flex:none; padding:12px; background:var(--panel); border:1px solid var(--line); margin:15px 0; }
+  .ocr-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .ocr-row code { background:var(--background); border:1px solid var(--line); padding:3px 7px; font-size:13px; }
+  .preview-panel pre { max-height:220px; overflow:auto; }
 </style>

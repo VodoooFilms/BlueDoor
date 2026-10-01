@@ -97,7 +97,7 @@ try {
       }
       throw new Error('Unexpected command: '+cmd);
       function assertRevision(args){if(args.id!==session.id || args.revision!==session.revision)throw new Error('Stale revision');}
-      function advisories(entities){return entities.some(e=>e.kind==='PERSON')?[]:['El mapa no contiene ninguna persona. Los nombres no tienen un detector determinista: Qwen puede omitirlos y las reglas no los comprueban. Revísalos tú.'];}
+      function advisories(entities){return entities.some(e=>e.kind==='PERSON')?[]:['El mapa no contiene ninguna persona. La revisión local y las reglas de nombres pueden omitir casos: comprueba los nombres del documento.'];}
     }};
   });
   await page.goto('http://localhost:1420');
@@ -121,7 +121,9 @@ try {
   assert.equal(await page.locator('.document-actions').getByRole('button',{name:ui('Cerrar documento')}).count(),0);
   const actionsBefore = await page.locator('.document-actions').boundingBox();
   const documentBefore = await page.locator('.boundary-grid').boundingBox();
-  await page.getByRole('button',{name:ui('Analizar documento'),exact:true}).click();
+  await page.getByText(ui('Detecta y reemplaza información sensible antes de usar IA.'),{exact:true}).waitFor();
+  await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).click();
+  await page.getByRole('button',{name:ui('Protegiendo…'),exact:true}).waitFor();
   await page.getByRole('progressbar',{name:ui('Procesando documento')}).waitFor();
   const actionsDuring = await page.locator('.document-actions').boundingBox();
   const documentDuring = await page.locator('.boundary-grid').boundingBox();
@@ -130,7 +132,7 @@ try {
   const editBounds = await page.locator('.document-actions').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).boundingBox();
   const loaderBounds = await page.getByRole('progressbar').boundingBox();
   assert(Math.abs(loaderBounds.y+loaderBounds.height-editBounds.y-editBounds.height)<1,'Loader aligns with the bottom of the buttons');
-  await page.getByRole('status').filter({hasText:ui('Analizando con AI local')}).waitFor();
+  await page.getByRole('status').filter({hasText:ui('Protegiendo')}).waitFor();
   const labelBounds=await page.locator('.processing-label').boundingBox();
   assert(labelBounds.y+labelBounds.height<loaderBounds.y,'Small status text sits above the loader');
   const formatBounds = await page.locator('.format-note').boundingBox();
@@ -138,11 +140,12 @@ try {
   assert(loaderBounds.x + loaderBounds.width < formatBounds.x,'Loader ends before the formats');
   await page.screenshot({path:`artifacts/private-legal-processing-${language}.png`,fullPage:true});
   await page.evaluate(()=>window.__emitAnalysisProgress(['stale-operation',0,'sanitizing']));
-  assert.equal(await page.getByRole('status').filter({hasText:ui('Analizando con AI local')}).count(),1,'Ignore progress from another operation');
+  assert.equal(await page.getByRole('status').filter({hasText:ui('Protegiendo')}).count(),1,'Ignore progress from another operation');
   await page.evaluate(()=>{const {id,revision}=window.__analysisRequest;window.__emitAnalysisProgress([id,revision,'sanitizing']);});
   await page.getByRole('status').filter({hasText:ui('Sanitizando el documento')}).waitFor();
   await page.screenshot({path:`artifacts/private-legal-sanitizing-${language}.png`,fullPage:true});
   await page.evaluate(()=>window.__finishAnalysis());
+  await page.getByRole('button',{name:ui('Documento protegido ✓'),exact:true}).waitFor();
   await page.waitForFunction(()=>!document.querySelector('.analyze-button').disabled);
 
   assert.equal(await page.locator('.private-panel .entity-list').count(),0);
@@ -162,9 +165,11 @@ try {
   assert.equal(await previewButton.count(),0,'Map has its own internal page');
   await page.getByLabel('Alias 1',{exact:true}).fill('CLIENTE_01');
   assert(await page.locator('.document-actions').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).isDisabled(),'Unapplied map blocks Edit');
-  await page.getByRole('button',{name:ui('Aplicar cambios al mapa')}).click();
+  // Applying and confirming in one step is what makes the review (and therefore
+  // the outbound preview) reachable. `applyMap(true)` existed in Rust but no UI
+  // ever called it, so `session.reviewed` stayed false.
+  await page.getByRole('button',{name:ui('Aplicar y confirmar revisión')}).click();
   await page.getByRole('button',{name:ui('← Volver al documento'),exact:true}).click();
-  assert.equal(await page.getByRole('button',{name:ui('Confirmar revisión local')}).count(),0);
   await page.locator('.privacy-workflow').evaluate(el => el.scrollTop = 0);
   const layout = await page.locator('.privacy-workflow').evaluate(root => {
     const panel = root.querySelector('.sanitized-panel');
@@ -181,8 +186,21 @@ try {
   await page.screenshot({path:`artifacts/private-legal-expanded-${language}.png`,fullPage:true});
   await page.getByRole('button',{name:ui('Volver a pantalla dividida'),exact:true}).click();
   assert(await page.locator('.sanitized-panel').isVisible(),'Back arrow restores the split view');
+  // The preview is the only place that shows exactly what would be sent.
+  await page.getByTestId('private-preview').click();
+  await page.getByTestId('private-outbound').waitFor();
+  const outbound=(await page.getByTestId('private-outbound').textContent())||'';
+  assert(outbound.includes('CLIENTE_01'),'Preview shows the custom alias');
+  assert(!outbound.includes('@'),'Preview has no residual email');
+  await page.getByRole('button',{name:ui('Cerrar vista previa'),exact:true}).click();
+
   await page.getByRole('button',{name:ui('Abrir versión sanitizada en Edit'),exact:true}).click();
   await page.locator('.private-document').waitFor();
+  // Regression: a custom alias applied in the map must reach the editor and the
+  // PDF. The editor used to keep the HTML captured before the map change.
+  const editorAlias = (await page.locator('.rich-editor').textContent()) || '';
+  assert(editorAlias.includes('CLIENTE_01'), 'Custom alias reaches the Edit tab');
+  assert(!editorAlias.includes('PERSON_01'), 'Previous alias is gone from the Edit tab');
   await page.getByRole('button',{name:ui('Volver a pantalla dividida'),exact:true}).click();
   await page.locator('.boundary-grid').waitFor();
   await page.getByRole('button',{name:ui('Abrir versión sanitizada en Edit'),exact:true}).click();
@@ -208,6 +226,8 @@ try {
   // El título se sella en el encabezado y en los metadatos del PDF, así que
   // también viaja como contenido exportado.
   assert(!/@/.test(exported.args.title||''),'Private PDF title is not private data');
+  assert(exported.args.text.includes('CLIENTE_01'), 'PDF carries the custom alias, not the default one');
+  assert(!exported.args.text.includes('PERSON_01'), 'PDF does not carry the stale default alias');
   // Export saves and revalidates an edited document in one click.
   await page.waitForFunction(()=>!document.querySelector('.head-btn.primary').disabled);
   await page.locator('.rich-editor').fill(exported.args.text + ' Texto añadido.');
@@ -246,7 +266,7 @@ try {
   assert.equal(await page.getByTestId('sanitized-document').count(),0);
   assert((await page.getByTestId('private-original').textContent()).includes('María Pérez'));
   assert(await page.locator('.document-actions').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).isDisabled());
-  assert(!(await page.getByRole('button',{name:ui('Analizar documento'),exact:true}).isDisabled()));
+  assert(!(await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).isDisabled()));
   await page.getByRole('button',{name:ui('Borrar documento original'),exact:true}).click();
   await page.getByRole('heading',{name:ui('Primero, importa un documento privado.')}).waitFor();
   assert.equal(await page.getByTestId('private-original').count(),0);

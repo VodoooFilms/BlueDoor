@@ -163,14 +163,19 @@ impl AppState {
         let canonical = canonical_destination_path(path)?;
         self.authorized_pdf_paths
             .lock()
-            .unwrap()
+            .map_err(|_| "Rutas autorizadas no disponibles.".to_string())?
             .insert(canonical.clone());
         Ok(canonical)
     }
 
     pub fn consume_pdf_path(&self, path: &Path) -> Result<PathBuf, String> {
         let canonical = canonical_destination_path(path)?;
-        if self.authorized_pdf_paths.lock().unwrap().remove(&canonical) {
+        if self
+            .authorized_pdf_paths
+            .lock()
+            .map_err(|_| "Rutas autorizadas no disponibles.".to_string())?
+            .remove(&canonical)
+        {
             Ok(canonical)
         } else {
             Err("Selecciona el destino mediante el diálogo de Belegal _ Local demo.".into())
@@ -179,17 +184,18 @@ impl AppState {
 
     pub fn store_blob_config(&self, config: WhisperConfig) -> String {
         let token = uuid::Uuid::new_v4().to_string();
-        self.pending_blob_configs
-            .lock()
-            .unwrap()
-            .insert(token.clone(), config);
+        // A poisoned lock here only means an earlier panic; keep the pending
+        // config usable rather than panicking inside a Tauri command.
+        if let Ok(mut guard) = self.pending_blob_configs.lock() {
+            guard.insert(token.clone(), config);
+        }
         token
     }
 
     pub fn consume_blob_config(&self, token: &str) -> Result<WhisperConfig, String> {
         self.pending_blob_configs
             .lock()
-            .unwrap()
+            .map_err(|_| "La configuración de audio no está disponible.".to_string())?
             .remove(token)
             .ok_or_else(|| "La configuración de audio no está disponible.".into())
     }
@@ -198,7 +204,10 @@ impl AppState {
         if !model_path.trim().is_empty() {
             return model_path.to_string();
         }
-        self.config.lock().unwrap().model_path.clone()
+        self.config
+            .lock()
+            .map(|c| c.model_path.clone())
+            .unwrap_or_default()
     }
 
     /// Completa la config que llega del frontend: ruta definitiva y diarización
@@ -235,7 +244,10 @@ impl AppState {
         // threads == 0 => automático, con el mismo tope que usaba whisper-rs.
         let n_threads = if threads > 0 { threads } else { auto_threads() };
         {
-            let guard = self.stt.lock().unwrap();
+            let guard = self
+                .stt
+                .lock()
+                .map_err(|_| "El motor de transcripción no está disponible.".to_string())?;
             if let Some(entry) = guard.as_ref() {
                 if entry.matches(&path, n_threads) {
                     return Ok(entry.session());
@@ -252,7 +264,10 @@ impl AppState {
             })
             .map_err(|e| format!("No se pudo iniciar el motor de transcripción: {}", e))?;
         let session = Arc::new(Mutex::new(session));
-        let mut guard = self.stt.lock().unwrap();
+        let mut guard = self
+            .stt
+            .lock()
+            .map_err(|_| "El motor de transcripción no está disponible.".to_string())?;
         *guard = Some(SttCacheEntry {
             model_path: path,
             n_threads,
