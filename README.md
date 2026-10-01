@@ -48,7 +48,7 @@ La exportación privada valida el contenido y el título contra la sesión revis
 
 Abre el DMG y arrastra **Belegal _ Local demo.app** a **Aplicaciones**. En la primera apertura, el botón de bienvenida lleva a Models si faltan los modelos requeridos; si están instalados, permite comenzar.
 
-El instalador local verificado se publica como versión de prueba en [GitHub Releases](https://github.com/VodoooFilms/belegal/releases/tag/v0.2.0-cleanup.2). Los archivos de instalación permanecen fuera del árbol de código. La app está firmada ad hoc y **no está notarizada por Apple**; macOS puede mostrar avisos de seguridad al distribuirla. Los modelos no se incluyen en el DMG.
+El instalador local verificado se publica como versión de prueba en [GitHub Releases](https://github.com/VodoooFilms/belegal/releases/tag/v0.2.0-cleanup.4). Los archivos de instalación permanecen fuera del árbol de código. La app está firmada ad hoc y **no está notarizada por Apple**; macOS puede mostrar avisos de seguridad al distribuirla. Los modelos no se incluyen en el DMG.
 
 ## Desarrollo
 

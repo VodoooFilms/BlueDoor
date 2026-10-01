@@ -121,7 +121,7 @@ try {
   assert.equal(await page.locator('.document-actions').getByRole('button',{name:ui('Cerrar documento')}).count(),0);
   const actionsBefore = await page.locator('.document-actions').boundingBox();
   const documentBefore = await page.locator('.boundary-grid').boundingBox();
-  await page.getByRole('button',{name:ui('Analizar documento'),exact:true}).click();
+  await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).click();
   await page.getByRole('progressbar',{name:ui('Procesando documento')}).waitFor();
   const actionsDuring = await page.locator('.document-actions').boundingBox();
   const documentDuring = await page.locator('.boundary-grid').boundingBox();
@@ -246,7 +246,7 @@ try {
   assert.equal(await page.getByTestId('sanitized-document').count(),0);
   assert((await page.getByTestId('private-original').textContent()).includes('María Pérez'));
   assert(await page.locator('.document-actions').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).isDisabled());
-  assert(!(await page.getByRole('button',{name:ui('Analizar documento'),exact:true}).isDisabled()));
+  assert(!(await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).isDisabled()));
   await page.getByRole('button',{name:ui('Borrar documento original'),exact:true}).click();
   await page.getByRole('heading',{name:ui('Primero, importa un documento privado.')}).waitFor();
   assert.equal(await page.getByTestId('private-original').count(),0);

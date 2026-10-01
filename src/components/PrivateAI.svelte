@@ -130,7 +130,7 @@
     <div class="document-actions">
       <button class="primary" onclick={importDocument} disabled={!!busy}>{p("Importar documento")}</button>
       <button class="secondary" onclick={() => pasteOpen = !pasteOpen} disabled={!!busy}>{p("Pegar texto")}</button>
-      <button class="secondary analyze-button" onclick={analyze} disabled={!!busy || !session}>{session?.analyzed ? p("Volver a analizar") : p("Analizar documento")}</button>
+      <button class="secondary analyze-button" onclick={analyze} disabled={!!busy || !session}>{session?.analyzed ? p("Volver a analizar") : p("Proteger documento")}</button>
       <button class="secondary" class:active-page={mapOpen} onclick={() => { mapOpen = true; pasteOpen = false; }} disabled={!!busy || !session?.analyzed || !session.entities.length} aria-pressed={mapOpen}>{p("Mapa privado")}</button>
       <button class="secondary" onclick={() => { if (session) onEdit(session); }} disabled={!!busy || !session?.analyzed || draftDirty}>{p("Abrir en Edit")}</button>
       <div class="processing-slot">

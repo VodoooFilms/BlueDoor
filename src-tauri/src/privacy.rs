@@ -770,8 +770,6 @@ fn validate_entities(original: &str, entities: &[Entity]) -> Result<(), String> 
         return Err("Demasiadas entidades.".into());
     }
     let mut seen = HashSet::new();
-    static ALIAS: OnceLock<Regex> = OnceLock::new();
-    let re = ALIAS.get_or_init(|| Regex::new(r"^(?:PERSON|COMPANY|ID|EMAIL|PHONE|ADDRESS|CASE|OTHER|CLIENTE|ACTOR|DEMANDADO|TESTIGO|ENTITY)_[0-9]{2,4}$").unwrap());
     for e in entities {
         if e.original.trim().len() < 2 || e.original.len() > 500 || !grounded(original, &e.original)
         {
@@ -780,8 +778,11 @@ fn validate_entities(original: &str, entities: &[Entity]) -> Result<(), String> 
         if !seen.insert(normalized(&e.original)) {
             return Err("Una misma entidad no puede tener dos entradas.".into());
         }
-        if !re.is_match(&e.alias) {
-            return Err("Usa un alias simbólico como PERSON_01 o CLIENTE_01 (prefijo PERSON, COMPANY, ID, EMAIL, PHONE, ADDRESS, CASE, OTHER, CLIENTE, ACTOR, DEMANDADO, TESTIGO o ENTITY y 2–4 dígitos).".into());
+        if e.alias.trim().is_empty()
+            || e.alias.chars().count() > 120
+            || e.alias.chars().any(char::is_control)
+        {
+            return Err("Escribe un alias de 1 a 120 caracteres, sin saltos de línea.".into());
         }
         // No private value may be smuggled into an alias, nor alias already exist in source.
         if grounded(original, &e.alias)
@@ -843,7 +844,22 @@ pub(crate) fn leak_warnings(sanitized: &str, entities: &[Entity]) -> Vec<String>
     // identifier with alias-like syntax is not automatically trusted.
     let mut scanned = sanitized.to_string();
     for entity in entities {
-        scanned = scanned.replace(&entity.alias, " ");
+        let pattern = Regex::new(&regex::escape(&entity.alias)).unwrap();
+        let mut next = String::new();
+        let mut cursor = 0;
+        for hit in pattern.find_iter(&scanned) {
+            if !boundary(&scanned, hit.start(), hit.end())
+                || scanned[..hit.start()].ends_with('@')
+                || scanned[hit.end()..].starts_with('@')
+            {
+                continue;
+            }
+            next.push_str(&scanned[cursor..hit.start()]);
+            next.push(' ');
+            cursor = hit.end();
+        }
+        next.push_str(&scanned[cursor..]);
+        scanned = next;
     }
     for detection in deterministic_detections(&scanned) {
         let warning = format!(

@@ -840,3 +840,47 @@ fn the_export_gate_refuses_a_title_carrying_private_data() {
         assert!(err.contains("título"), "got: {err} for {title}");
     }
 }
+
+#[test]
+fn free_custom_aliases_survive_map_application_and_session_round_trip() {
+    let original = "Ana Pérez. Correo ana@example.com.";
+    for alias in [
+        "EMAIL_xxxx",
+        "Cliente principal",
+        "correo privado",
+        "Señora A",
+        "X",
+        "[correo oculto]",
+    ] {
+        let map = vec![
+            entity(Kind::Person, "Ana Pérez", "Persona A"),
+            entity(Kind::Email, "ana@example.com", alias),
+        ];
+        let sanitized = sanitize(original, &map).unwrap();
+        assert_eq!(sanitized, format!("Persona A. Correo {alias}."));
+        assert!(leak_warnings(&sanitized, &map).is_empty());
+        let mut session = Session::new("fixture.txt".into(), original.into()).unwrap();
+        session.entities = map;
+        session.sanitized = sanitized;
+        session.analyzed = true;
+        let response = serde_json::to_value(&session).unwrap();
+        assert_eq!(response["entities"][1]["alias"], alias);
+        let restored: Vec<Entity> = serde_json::from_value(response["entities"].clone()).unwrap();
+        assert_eq!(
+            sanitize(&session.original, &restored).unwrap(),
+            session.sanitized
+        );
+    }
+    for alias in ["", "   ", "correo\nprivado", "ana@example.com", "Ana Pérez"] {
+        assert!(sanitize(original, &[entity(Kind::Email, "ana@example.com", alias)]).is_err());
+    }
+}
+
+#[test]
+fn short_custom_aliases_do_not_hide_residual_identifiers() {
+    let map = vec![entity(Kind::Person, "Ana Pérez", "X")];
+    assert!(leak_warnings("X comparece.", &map).is_empty());
+    assert!(!leak_warnings("X y X@example.com", &map).is_empty());
+    let map = vec![entity(Kind::Person, "Ana Pérez", "0")];
+    assert!(!leak_warnings("0. Correo 0000000@example.com", &map).is_empty());
+}
