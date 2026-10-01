@@ -273,6 +273,7 @@ dependencies = [
  "fs2",
  "genpdf",
  "hound",
+ "libloading 0.8.9",
  "llama-cpp-2",
  "llama-cpp-sys-2",
  "pdf-extract",

@@ -1,5 +1,9 @@
 # Auditoría local de Belegal — 1 de octubre de 2026
 
+## Verificación adicional desde Aplicaciones
+
+Al preparar la entrega `v0.2.0-cleanup.3`, una prueba real desde `/Applications` detectó que `ggml_backend_load` se resolvía al motor estático de transcripción, dejando vacío el registro de llama.cpp y activando su búsqueda de rutas de desarrollo. Se corrigió la carga de módulos en macOS resolviendo el símbolo en la biblioteca dinámica de llama mediante libloading. El prompt original se conserva. La app instalada completó protección, revisión del mapa, vista previa local y exportación PDF verificada; una fecha detectada como identificador se corrigió manualmente en el mapa, lo que confirma la necesidad de revisión humana. Las cuatro pruebas de Qwen real y 84 pruebas Rust pasaron de nuevo.
+
 ## Dictamen de portabilidad
 
 El `.app` examinado está preparado para ejecutarse en otra Mac Apple Silicon con macOS 13.4 o superior. No depende del nombre de usuario de Antoine, ni de Homebrew, Node, Rust, Python u Ollama instalados en el equipo receptor para las funciones principales. FFmpeg, OCR y las bibliotecas de IA están incluidos. Los datos se guardan en las rutas del usuario resueltas por Tauri.

@@ -121,6 +121,22 @@ fn owned_backends_dir() -> Result<PathBuf, String> {
 fn load_one_backend(file: &Path) -> Result<(), String> {
     let path = std::ffi::CString::new(file.to_string_lossy().as_bytes())
         .map_err(|_| "Ruta de aplicación no válida")?;
+    // transcribe.cpp also exports ggml_backend_load from its static ggml.
+    // Resolve llama's loader in its own linked library so the modules enter
+    // llama's registry instead of the transcription engine's registry.
+    #[cfg(target_os = "macos")]
+    let backend = {
+        let library = unsafe { libloading::Library::new("@rpath/libggml.0.dylib") }
+            .map_err(|_| "No se pudo cargar la biblioteca de IA. Reinstala BLegal Local Demo.")?;
+        let loader = unsafe {
+            library.get::<unsafe extern "C" fn(
+                *const std::ffi::c_char,
+            ) -> llama_cpp_sys_2::ggml_backend_reg_t>(b"ggml_backend_load\0")
+        }
+        .map_err(|_| "No se pudo iniciar la biblioteca de IA. Reinstala BLegal Local Demo.")?;
+        unsafe { loader(path.as_ptr()) }
+    };
+    #[cfg(not(target_os = "macos"))]
     let backend = unsafe { llama_cpp_sys_2::ggml_backend_load(path.as_ptr()) };
     if backend.is_null() {
         return Err("No se pudo cargar un componente de IA. Reinstala BLegal Local Demo.".into());

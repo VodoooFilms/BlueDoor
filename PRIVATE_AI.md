@@ -36,7 +36,7 @@ Referencia: repositorio local Voice to PDF, versión anterior a `1e203da` (elimi
 
 Se reutilizaron llama-cpp-2/llama-cpp-sys-2 0.1.156, carga de backends CPU/Metal propios, inicialización/contexto/batches, `AddBos::Never` para Qwen3, sampler `top_k(20) → top_p(0.8) → temp(0.25) → dist(42)`, comprobación de fin de generación y asset Qwen3 fijado por hash. La limpieza de marcadores de pensamiento se corrigió para usar longitudes reales de los tags. El prompt y el comando de corrección de transcripciones no se restauraron.
 
-El código usa bibliotecas nativas dinámicas para evitar el conflicto de ggml con el motor STT. `package-local-ai.py` empaqueta las bibliotecas del build y sus módulos, y elimina rpaths absolutos. `demo:mac` genera y abre un `.app` local firmado ad hoc; no distribuye ni publica. La ruta comercial existente reutiliza el mismo empaquetado de IA.
+El código usa bibliotecas nativas dinámicas para evitar el conflicto de ggml con el motor STT. En macOS, el cargador de módulos se resuelve dentro de la biblioteca dinámica de llama para evitar que el símbolo homónimo del motor STT registre los módulos en su propia copia de ggml. `package-local-ai.py` empaqueta las bibliotecas del build y sus módulos, y elimina rpaths absolutos. `demo:mac` genera y abre un `.app` local firmado ad hoc; no distribuye ni publica. La ruta comercial existente reutiliza el mismo empaquetado de IA.
 
 ## Modelo y recursos
 
