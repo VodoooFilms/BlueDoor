@@ -119,9 +119,13 @@
   </div>
 
     <div class="document-actions">
-      <button class="primary import-button" onclick={importDocument} disabled={!!busy}>{p("Importar documento")}</button>
+      {#if !mapOpen}
+        <button class="primary import-button" onclick={importDocument} disabled={!!busy}>{p("Importar documento")}</button>
+      {/if}
       <div class="document-actions-right">
-        <button class="secondary analyze-button" onclick={analyze} disabled={!!busy || !session}>{p("Proteger documento")}</button>
+        {#if session && !mapOpen}
+          <button class="secondary analyze-button" onclick={analyze} disabled={!!busy}>{p("Proteger documento")}</button>
+        {/if}
         {#if busy}
           <div class="processing-slot">
             <div class="processing-label" role="status" aria-live="polite">
@@ -234,7 +238,7 @@
   @media(max-width:650px) { .map-page { padding:16px; } .map-page .entity-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr) 26px; gap:8px; } .map-page .entity-row label:first-child { grid-column:1 / -1; } }
   .document-actions { flex:none; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:center; min-height:38px; margin:8px 0 14px; }
   .import-button { justify-self:start; }
-  .document-actions-right { display:flex; align-items:center; gap:14px; min-width:0; padding-left:1px; }
+  .document-actions-right { grid-column:2; display:flex; align-items:center; gap:14px; min-width:0; padding-left:1px; }
   .result-actions { display:flex; align-items:center; gap:9px; margin-left:auto; }
   .processing-slot { flex:1; min-width:0; padding:0 6px; align-self:stretch; display:flex; flex-direction:column; justify-content:flex-end; gap:4px; }
   .processing-label { display:flex; align-items:center; justify-content:center; min-height:15px; font-size:11px; line-height:15px; color:var(--muted); min-width:0; }
@@ -295,7 +299,7 @@
   }
   @media(max-width:760px) {
     .document-actions { grid-template-columns:1fr; gap:10px; }
-    .document-actions-right { padding-left:0; }
+    .document-actions-right { grid-column:1; padding-left:0; }
     .boundary-grid { grid-template-columns:1fr; grid-template-rows:repeat(2,minmax(0,1fr)); }
     .private-panel,.sanitized-panel { overflow:auto; }
     .private-panel { border-right:0; border-bottom:1px solid var(--line); }

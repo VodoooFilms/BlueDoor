@@ -108,6 +108,9 @@ try {
     await page.getByText('Local detection of private entities in documents',{exact:true}).waitFor();
     await page.locator('.nav-models').filter({hasText:'Private Legal'}).click();
   }
+  assert.equal(await page.locator('.document-actions').getByRole('button',{name:ui('Proteger documento'),exact:true}).count(),0,'No Protect button without a document');
+  assert.equal(await page.locator('.document-actions').getByRole('button').count(),1,'Only Import is visible before loading a document');
+  await page.screenshot({path:`artifacts/private-legal-empty-${language}.png`,fullPage:true});
   assert.equal(await page.getByRole('button',{name:ui('Pegar texto'),exact:true}).count(),0);
   assert.equal(await page.locator('.paste-panel').count(),0);
   assert.equal(await page.locator('.processing-slot').count(),0);
@@ -163,9 +166,14 @@ try {
   assert.equal(await page.locator('.private-panel .entity-list').count(),0);
   await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).click();
   await page.getByLabel('Alias 1',{exact:true}).waitFor();
+  assert.equal(await page.locator('.document-actions .import-button').count(),0,'Import is hidden inside the map');
+  assert.equal(await page.locator('.document-actions .analyze-button').count(),0,'Protect is hidden inside the map');
+  await page.screenshot({path:`artifacts/private-legal-map-${language}.png`,fullPage:true});
   await page.locator('.nav-models').filter({hasText:ui('Private Legal')}).click();
   await page.locator('.boundary-grid').waitFor();
   assert.equal(await page.locator('.map-page').count(),0,'Private Legal tab leaves the map');
+  assert.equal(await page.locator('.document-actions .import-button').count(),1,'Import returns on the document');
+  assert.equal(await page.locator('.document-actions .analyze-button').count(),1,'Protect returns on the document');
   await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).click();
   await page.getByLabel('Alias 1',{exact:true}).waitFor();
   const columnWidths = await page.locator('.entity-row').first().evaluate(row => {
