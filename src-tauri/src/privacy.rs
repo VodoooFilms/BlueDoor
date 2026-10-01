@@ -815,12 +815,12 @@ fn validate_entities(original: &str, entities: &[Entity]) -> Result<(), String> 
 fn require_sanitized(original: &str, sanitized: &str, entities: &[Entity]) -> Result<(), String> {
     if entities.is_empty() {
         return Err(
-            "El mapa no tiene entidades: la versión sanitizada sería el documento original. Detecta con Qwen o añade las entidades a mano en «Mapa privado» antes de aprobar.".into(),
+            "El mapa no tiene entidades: la versión protegida sería el documento original. Detecta con Qwen o añade las entidades a mano en «Mapa privado» antes de aprobar.".into(),
         );
     }
     if sanitized.trim() == original.trim() {
         return Err(
-            "La versión sanitizada es idéntica al original. Revisa el mapa: no se ha pseudonymizado nada.".into(),
+            "La versión protegida es idéntica al original. Revisa el mapa: no se ha pseudonymizado nada.".into(),
         );
     }
     Ok(())

@@ -11,13 +11,14 @@
   let entities = $state<PrivateEntity[]>([]);
   let draftDirty = $state(false);
   let busy = $state("");
+  const importingDocument = $derived(busy.startsWith("Importando"));
   let sanitizing = $state(false);
   let analysisId: string | null = null;
   let analysisRevision: number | null = null;
   let unlistenAnalysis: (() => void) | undefined;
   let disposed = false;
   const processingLabel = $derived(busy.startsWith("Analizando")
-    ? p(sanitizing ? "Sanitizando el documento" : "Analizando con AI local")
+    ? p(sanitizing ? "Protegiendo el documento" : "Analizando con AI local")
     : p(busy).replace(/(?:…|\.{3})$/, ""));
   let error = $state("");
   let addText = $state("");
@@ -108,6 +109,15 @@
   }
 </script>
 
+{#snippet processingIndicator()}
+  <div class="processing-slot">
+    <div class="processing-label" role="status" aria-live="polite">
+      <span class="processing-copy" title={processingLabel}>{processingLabel}</span><span class="processing-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+    </div>
+    <div class="processing-track processing" role="progressbar" aria-label={p("Procesando documento")} aria-busy="true"><span></span></div>
+  </div>
+{/snippet}
+
 <section class="privacy-workflow" aria-label="Private Legal">
   <div class="intro">
     <div><p class="eyebrow">{p("PRIVATE LEGAL · MOTOR LOCAL")}</p><h1>{#each p("Lo privado permanece aquí.").split(/\b(privado|private)\b/) as part}{#if part === "privado" || part === "private"}<em>{part}</em>{:else}{part}{/if}{/each}</h1></div>
@@ -119,21 +129,21 @@
   </div>
 
     <div class="document-actions">
-      {#if !mapOpen}
-        <button class="primary import-button" onclick={importDocument} disabled={!!busy}>{p("Importar documento")}</button>
-      {/if}
+      <div class="document-actions-left">
+        {#if !mapOpen}
+          <button class="primary import-button" onclick={importDocument} disabled={!!busy}>{p("Importar documento")}</button>
+        {/if}
+        {#if importingDocument}
+          {@render processingIndicator()}
+        {/if}
+      </div>
       <div class="document-actions-right">
         {#if session && !mapOpen}
           <button class="secondary analyze-button" onclick={analyze} disabled={!!busy}>{p("Proteger documento")}</button>
         {/if}
-        {#if busy}
-          <div class="processing-slot">
-            <div class="processing-label" role="status" aria-live="polite">
-              <span class="processing-copy" title={processingLabel}>{processingLabel}</span><span class="processing-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
-            </div>
-            <div class="processing-track processing" role="progressbar" aria-label={p("Procesando documento")} aria-busy="true"><span></span></div>
-          </div>
-        {:else if session?.analyzed}
+        {#if busy && !importingDocument}
+          {@render processingIndicator()}
+        {:else if !busy && session?.analyzed}
           <div class="result-actions">
             <button class="secondary" class:active-page={mapOpen} onclick={() => { mapOpen = true; }} disabled={!session.entities.length} aria-pressed={mapOpen}>{p("Mapa privado")}</button>
             <button class="secondary" onclick={() => { if (session) onEdit(session); }} disabled={draftDirty}>{p("Abrir en Edit")}</button>
@@ -174,10 +184,10 @@
           <div class="panel-footer" aria-hidden="true"></div>
         </section>
         <section class="sanitized-panel" class:panel-hidden={originalExpanded}>
-          <div class="panel-heading"><div><p class="eyebrow">SAFE — SANITIZED</p><h2>{p("Versión para compartir")}</h2></div><div class="panel-meta"><button class="trash-button" onclick={clearResult} disabled={!!busy || !session.analyzed} title={p("Borrar versión sanitizada para repetir el análisis")} aria-label={p("Borrar versión sanitizada")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11"></path><path d="M6.5 6v10a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V6"></path><path d="M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6"></path><path d="M10 9v5"></path></svg></button></div></div>
+          <div class="panel-heading"><div><p class="eyebrow">SAFE — PROTECTED</p><h2>{p("Versión para compartir")}</h2></div><div class="panel-meta"><button class="trash-button" onclick={clearResult} disabled={!!busy || !session.analyzed} title={p("Borrar versión protegida para repetir el análisis")} aria-label={p("Borrar versión protegida")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11"></path><path d="M6.5 6v10a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V6"></path><path d="M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6"></path><path d="M10 9v5"></path></svg></button></div></div>
           {#if session.analyzed}
             <div class="text-window">
-              <button class="view-toggle" onclick={() => { if (session) onEdit(session); }} disabled={!!busy || draftDirty} title={p("Abrir versión sanitizada en Edit")} aria-label={p("Abrir versión sanitizada en Edit")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M3 13v4h4M17 13v4h-4" /></svg></button>
+              <button class="view-toggle" onclick={() => { if (session) onEdit(session); }} disabled={!!busy || draftDirty} title={p("Abrir versión protegida en Edit")} aria-label={p("Abrir versión protegida en Edit")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M3 13v4h4M17 13v4h-4" /></svg></button>
               <pre class="document-text sanitized" data-testid="sanitized-document">{session.sanitized}</pre>
             </div>
             {#if session.warnings.length}<div class="leak-alert" role="alert"><strong>{p("Posibles filtraciones · vista previa bloqueada")}</strong>{#each session.warnings as warning}<p>{p(warning)}</p>{/each}</div>{/if}
@@ -186,7 +196,7 @@
             <div class="review-controls panel-footer">
               <button class="secondary" onclick={() => { if (session) onEdit(session); }} disabled={!!busy || draftDirty}>{p("Abrir en Edit")}</button>
             </div>
-          {:else}<div class="empty-sanitized"><span aria-hidden="true">◇</span><p>{p("La versión sanitizada aparecerá aquí después del análisis local.")}</p></div>{/if}
+          {:else}<div class="empty-sanitized"><span aria-hidden="true">◇</span><p>{p("La versión protegida aparecerá aquí después del análisis local.")}</p></div>{/if}
         </section>
       </div>
       {/if}
@@ -238,6 +248,8 @@
   @media(max-width:650px) { .map-page { padding:16px; } .map-page .entity-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr) 26px; gap:8px; } .map-page .entity-row label:first-child { grid-column:1 / -1; } }
   .document-actions { flex:none; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:center; min-height:38px; margin:8px 0 14px; }
   .import-button { justify-self:start; }
+  .document-actions-left { display:flex; align-items:center; gap:14px; min-width:0; }
+  .document-actions-left .processing-slot { padding-right:0; }
   .document-actions-right { grid-column:2; display:flex; align-items:center; gap:14px; min-width:0; padding-left:1px; }
   .result-actions { display:flex; align-items:center; gap:9px; margin-left:auto; }
   .processing-slot { flex:1; min-width:0; padding:0 6px; align-self:stretch; display:flex; flex-direction:column; justify-content:flex-end; gap:4px; }

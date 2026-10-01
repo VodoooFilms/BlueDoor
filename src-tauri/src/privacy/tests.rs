@@ -136,7 +136,7 @@ fn compact_judicial_numbers_are_redacted_and_residuals_block_review() {
 fn clearing_analysis_keeps_original_and_invalidates_export() {
     let mut session =
         Session::new("original.pdf".into(), "Documento original privado".into()).unwrap();
-    session.sanitized = "Documento sanitizado".into();
+    session.sanitized = "Documento protegido".into();
     session.analyzed = true;
     session.reviewed = true;
     session.edited = true;
@@ -153,9 +153,9 @@ fn clearing_analysis_keeps_original_and_invalidates_export() {
     assert!(session.warnings.is_empty() && session.advisories.is_empty());
     assert!(check_export_payload(
         &session,
-        "Documento sanitizado",
+        "Documento protegido",
         None,
-        "Documento sanitizado"
+        "Documento protegido"
     )
     .is_err());
 }
@@ -340,13 +340,13 @@ fn cleaned_ocr_output_keeps_the_export_gate_exact() {
     assert!(session.sanitized.contains("[Fragmento OCR ilegible]"));
     assert!(checked_outbound(&session).is_ok());
     assert!(
-        check_export_payload(&session, &session.sanitized, None, "Documento sanitizado").is_ok()
+        check_export_payload(&session, &session.sanitized, None, "Documento protegido").is_ok()
     );
     assert!(check_export_payload(
         &session,
         &(session.sanitized.clone() + " nuevo texto"),
         None,
-        "Documento sanitizado"
+        "Documento protegido"
     )
     .is_err());
 }
@@ -744,7 +744,7 @@ fn reviewed_session() -> Session {
 fn the_export_gate_approves_only_the_reviewed_document() {
     let session = reviewed_session();
     assert!(
-        check_export_payload(&session, &session.sanitized, None, "Documento sanitizado").is_ok()
+        check_export_payload(&session, &session.sanitized, None, "Documento protegido").is_ok()
     );
 }
 
@@ -829,7 +829,7 @@ fn the_export_gate_refuses_a_title_carrying_private_data() {
     // The title lands in the page header and the PDF metadata, so it is
     // exported content too. The renderer supplies it, so it is not trusted.
     let session = reviewed_session();
-    let clean = check_export_payload(&session, &session.sanitized, None, "Documento sanitizado");
+    let clean = check_export_payload(&session, &session.sanitized, None, "Documento protegido");
     assert!(clean.is_ok());
     for title in [
         "Demanda de María Pérez",

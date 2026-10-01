@@ -29,7 +29,7 @@
   let privateEditHtml = $state<string | null>(null);
   let privateEditFormat = $state<DocFormat>(DEFAULT_FORMAT);
   const privateTranscript = $derived(privateSession?.analyzed ? {
-    id: privateSession.id, title: "Documento sanitizado", text: privateSession.sanitized,
+    id: privateSession.id, title: "Documento protegido", text: privateSession.sanitized,
     corrected: privateSession.sanitized, correctedHtml: privateEditHtml ?? undefined,
     format: privateEditFormat, segments: [], createdAt: new Date(), duration: 0,
     language: "es", model: "local", audioSource: "file" as const,
@@ -530,7 +530,7 @@
     </section>
   {:else if showModels}
     <ModelsView
-      onClose={() => (showModels = false)}
+      onClose={goPrivate}
       onDone={() => {
         firstRun = false;
         showModels = false;
