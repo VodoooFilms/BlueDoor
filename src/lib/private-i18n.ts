@@ -13,6 +13,7 @@ const ENGLISH: Record<string, string> = {
   "Revisa una versión sanitizada antes de compartir información.": "Review a sanitized version before sharing information.",
   "Sin envíos externos": "No external transfers",
   "Importar documento": "Import document",
+  "Importa un archivo. Qwen detectará entidades en este equipo; tú revisarás qué información puede formar parte de una futura solicitud.": "Import a file. Qwen will detect entities on this device; you review what may form part of a future request.",
   "Pegar texto": "Paste text",
   "Volver a analizar": "Analyze again",
   "Analizar documento": "Analyze document",

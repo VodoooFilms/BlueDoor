@@ -20,8 +20,6 @@
     ? p(sanitizing ? "Sanitizando el documento" : "Analizando con AI local")
     : p(busy).replace(/(?:…|\.{3})$/, ""));
   let error = $state("");
-  let pasteOpen = $state(false);
-  let pasteText = $state("");
   let addText = $state("");
   let addKind = $state<EntityKind>("PERSON");
   let mapOpen = $state(false);
@@ -30,7 +28,6 @@
     void comparisonRequest;
     originalExpanded = false;
     mapOpen = false;
-    pasteOpen = false;
   });
   function adopt(next: PrivacySession | null) {
     if (next?.id !== session?.id) originalExpanded = false;
@@ -70,13 +67,7 @@
   async function importDocument() {
     await run("Importando documento local…", async () => {
       const next = await invoke<PrivacySession | null>("import_private_document");
-      if (next) { adopt(next); pasteOpen = false; pasteText = ""; }
-    });
-  }
-  async function pasteDocument() {
-    await run("Preparando texto local…", async () => {
-      adopt(await invoke<PrivacySession>("paste_private_document", { text: pasteText }));
-      pasteOpen = false; pasteText = "";
+      if (next) adopt(next);
     });
   }
   async function analyze() {
@@ -113,7 +104,7 @@
     });
   }
   async function clear() {
-    await run("Cerrando documento…", async () => { await invoke("clear_privacy_session"); adopt(null); pasteText = ""; });
+    await run("Cerrando documento…", async () => { await invoke("clear_privacy_session"); adopt(null); });
   }
 </script>
 
@@ -128,22 +119,24 @@
   </div>
 
     <div class="document-actions">
-      <button class="primary" onclick={importDocument} disabled={!!busy}>{p("Importar documento")}</button>
-      <button class="secondary" onclick={() => pasteOpen = !pasteOpen} disabled={!!busy}>{p("Pegar texto")}</button>
-      <button class="secondary analyze-button" onclick={analyze} disabled={!!busy || !session}>{session?.analyzed ? p("Volver a analizar") : p("Proteger documento")}</button>
-      <button class="secondary" class:active-page={mapOpen} onclick={() => { mapOpen = true; pasteOpen = false; }} disabled={!!busy || !session?.analyzed || !session.entities.length} aria-pressed={mapOpen}>{p("Mapa privado")}</button>
-      <button class="secondary" onclick={() => { if (session) onEdit(session); }} disabled={!!busy || !session?.analyzed || draftDirty}>{p("Abrir en Edit")}</button>
-      <div class="processing-slot">
-        <div class="processing-label" role={busy ? "status" : undefined} aria-live="polite">
-          {#if busy}<span class="processing-copy" title={processingLabel}>{processingLabel}</span><span class="processing-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>{/if}
-        </div>
-        <div class="processing-track" class:processing={!!busy} role={busy ? "progressbar" : undefined} aria-label={busy ? p("Procesando documento") : undefined} aria-busy={!!busy}><span></span></div>
+      <button class="primary import-button" onclick={importDocument} disabled={!!busy}>{p("Importar documento")}</button>
+      <div class="document-actions-right">
+        <button class="secondary analyze-button" onclick={analyze} disabled={!!busy || !session}>{p("Proteger documento")}</button>
+        {#if busy}
+          <div class="processing-slot">
+            <div class="processing-label" role="status" aria-live="polite">
+              <span class="processing-copy" title={processingLabel}>{processingLabel}</span><span class="processing-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+            </div>
+            <div class="processing-track processing" role="progressbar" aria-label={p("Procesando documento")} aria-busy="true"><span></span></div>
+          </div>
+        {:else if session?.analyzed}
+          <div class="result-actions">
+            <button class="secondary" class:active-page={mapOpen} onclick={() => { mapOpen = true; }} disabled={!session.entities.length} aria-pressed={mapOpen}>{p("Mapa privado")}</button>
+            <button class="secondary" onclick={() => { if (session) onEdit(session); }} disabled={draftDirty}>{p("Abrir en Edit")}</button>
+          </div>
+        {/if}
       </div>
-      <span class="format-note">TXT · MD · DOCX · PDF · PNG · JPG · TIFF · HEIC</span>
     </div>
-    {#if pasteOpen}
-      <div class="paste-panel"><div class="paste-heading"><label for="private-paste">{p("Texto privado · solo en esta sesión")}</label><button class="paste-close" aria-label={p("Cerrar pegar texto")} onclick={() => { pasteOpen = false; pasteText = ""; }}>×</button></div><textarea id="private-paste" bind:value={pasteText} disabled={!!busy} placeholder={p("Pega el contenido del documento…")}></textarea><button class="primary" disabled={!!busy || !pasteText.trim()} onclick={pasteDocument}>{p("Usar texto local")}</button></div>
-    {/if}
     {#if session}
       {#if mapOpen}
         <section class="map-page" aria-label={p("Mapa privado")}>
@@ -197,7 +190,7 @@
       <div class="welcome">
         <img class="welcome-mark" src={belegalMark} alt="" />
         <h2>{p("Primero, importa un documento privado.")}</h2>
-        <p>{p("Importa un archivo o pega texto. Qwen detectará entidades en este equipo; tú revisarás qué información puede formar parte de una futura solicitud.")}</p>
+        <p>{p("Importa un archivo. Qwen detectará entidades en este equipo; tú revisarás qué información puede formar parte de una futura solicitud.")}</p>
         <button class="welcome-import" onclick={importDocument} disabled={!!busy}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" /></svg>
           <span>{p("Importa un documento")}</span>
@@ -239,9 +232,11 @@
   .map-page .entity-row input { text-align:center; }
   .map-page .entity-list { gap:14px; margin:22px 0; }
   @media(max-width:650px) { .map-page { padding:16px; } .map-page .entity-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr) 26px; gap:8px; } .map-page .entity-row label:first-child { grid-column:1 / -1; } }
-  .paste-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; } .paste-heading label { margin:0; } .paste-close { border:0; background:transparent; color:var(--muted); font-size:24px; line-height:1; padding:2px 6px; }
-  .document-actions { flex:none; display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin:8px 0 14px; } .format-note { font-size:12px; color:var(--muted); white-space:nowrap; }
-  .processing-slot { flex:1 1 90px; min-width:90px; padding:0 6px; align-self:stretch; display:flex; flex-direction:column; justify-content:flex-end; gap:4px; }
+  .document-actions { flex:none; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:center; min-height:38px; margin:8px 0 14px; }
+  .import-button { justify-self:start; }
+  .document-actions-right { display:flex; align-items:center; gap:14px; min-width:0; padding-left:1px; }
+  .result-actions { display:flex; align-items:center; gap:9px; margin-left:auto; }
+  .processing-slot { flex:1; min-width:0; padding:0 6px; align-self:stretch; display:flex; flex-direction:column; justify-content:flex-end; gap:4px; }
   .processing-label { display:flex; align-items:center; justify-content:center; min-height:15px; font-size:11px; line-height:15px; color:var(--muted); min-width:0; }
   .processing-copy { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .processing-dots { display:inline-flex; flex:none; width:12px; margin-left:1px; }
@@ -278,7 +273,7 @@
   .entity-list { margin:14px 0; display:flex; flex-direction:column; gap:9px; }
   .entity-row { display:grid; grid-template-columns:96px minmax(0,1fr) minmax(0,.85fr) 22px; gap:6px; align-items:end; }
   .entity-row label { min-width:0; } .entity-row label span { display:block; font-size:10px; color:var(--muted); margin-bottom:3px; }
-  input,select,textarea { border:1px solid var(--line-dark); border-radius:3px; background:var(--surface); color:var(--text); padding:7px 8px; font-size:12px; min-width:0; width:100%; }
+  input,select { border:1px solid var(--line-dark); border-radius:3px; background:var(--surface); color:var(--text); padding:7px 8px; font-size:12px; min-width:0; width:100%; }
   .entity-row input { padding:7px 6px; } .entity-row select { padding:7px 3px; } .remove { padding:5px 0; background:transparent; border:0; color:var(--muted); font-size:20px; }
   .add-entity { display:flex; flex-wrap:wrap; gap:7px; } .add-entity select { width:110px; } .add-entity input { flex:1; min-width:110px; } .apply-map { margin-top:12px; }
   .leak-alert { font-size:12px; padding:12px; border:1px solid var(--error); color:var(--error); background:var(--error-background); } .leak-alert p { margin:6px 0 0; }
@@ -293,8 +288,19 @@
   .welcome-import:focus-visible { outline:2px solid var(--text); outline-offset:4px; }
   .welcome-import:disabled { opacity:.5; cursor:wait; }
   .welcome { text-align:center; max-width:680px; margin:20px auto; } .welcome-mark { display:block; width:94px; height:94px; object-fit:contain; margin:0 auto 20px; filter:drop-shadow(0 4px 9px rgba(55,55,49,.16)); } .welcome h2 { font-size:27px; } .welcome p { font-size:15px; color:var(--muted); line-height:1.7; }
-  .paste-panel { flex:none; padding:12px; background:var(--panel); border:1px solid var(--line); margin:15px 0; } .paste-panel label { display:block; font-size:13px; margin-bottom:8px; } .paste-panel textarea { height:100px; min-height:70px; max-height:120px; resize:vertical; font-size:15px; margin-bottom:10px; }
-  @media(max-width:1000px) { .boundary-grid { grid-template-columns:1fr; grid-template-rows:repeat(2,minmax(0,1fr)); } .private-panel,.sanitized-panel { overflow:auto; } .private-panel { border-right:0; border-bottom:1px solid var(--line); } .format-note { margin-left:0; } .intro { align-items:flex-start; } }
+  @media(min-width:761px) and (max-width:900px) {
+    .document-actions button { font-size:12px; padding:7px 8px; }
+    .document-actions-right { gap:9px; }
+    .result-actions { gap:7px; }
+  }
+  @media(max-width:760px) {
+    .document-actions { grid-template-columns:1fr; gap:10px; }
+    .document-actions-right { padding-left:0; }
+    .boundary-grid { grid-template-columns:1fr; grid-template-rows:repeat(2,minmax(0,1fr)); }
+    .private-panel,.sanitized-panel { overflow:auto; }
+    .private-panel { border-right:0; border-bottom:1px solid var(--line); }
+    .intro { align-items:flex-start; }
+  }
   .boundary-grid.original-expanded { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); }
   .original-expanded .private-panel { border:0; }
   .sanitized-panel.panel-hidden { display:none; }
