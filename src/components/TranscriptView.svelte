@@ -46,8 +46,6 @@
   let savedSnapshot = $state("");
   let resetSnapshot = $state("");
   let resetTranscriptId: string | null = null;
-  /** Identity of the content the editor was seeded with; see the $effect below. */
-  let lastContentKey: string | null = null;
   const speakerIds = $derived(
     [...new Set(transcript.segments.flatMap((segment) => segment.speaker == null ? [] : [segment.speaker]))]
       .sort((a, b) => a - b)
@@ -95,26 +93,14 @@
   let curPR = $state(0);
   const RULER_LABELS = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20];
 
-  // Cuando se cambia de transcripción, se restaura el estado guardado (o el original).
+  // Al cambiar de transcripción, se restaura el estado guardado (o el original).
   // OJO: NO debe leer `correctedText` ni `rich` (serían dependencias implícitas
   // que re-ejecutarían este efecto en cada tecleo, revirtiendo la edición).
-  //
-  // `transcript.corrected` IS a dependency on purpose: for a private document the
-  // source text is regenerated whenever the entity map changes, so custom aliases
-  // must land in the editor. `privateEditHtml` is reset by App on those changes,
-  // and the revision tiebreaker below covers a map edit that leaves the
-  // sanitized text identical (for example renaming a variant to the same alias).
   $effect(() => {
     const names = { ...(transcript.speakerNames ?? {}) };
     const savedHtml = transcript.correctedHtml ?? null;
     const saved = transcript.corrected !== null && transcript.corrected !== undefined;
     const base = saved ? transcript.corrected! : normalizeSpeakerText(transcript.text, transcript.segments, names);
-    // Guard against a re-run that would discard work already in the editor.
-    // Speaker renames and format changes have their own rebuild paths, so they
-    // must not re-seed the whole editor through this effect.
-    const contentKey = `${transcript.id} ${transcript.corrected ?? ""} ${savedHtml ?? ""}`;
-    if (contentKey === lastContentKey) return;
-    lastContentKey = contentKey;
     const format = transcript.format ?? DEFAULT_FORMAT;
     const sourceHtml = sanitizeRichHtml(savedHtml || textToHtml(base));
     const initialRich = conversationHtml(sourceHtml, names, hasSpeakers);

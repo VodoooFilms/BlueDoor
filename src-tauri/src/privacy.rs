@@ -88,21 +88,6 @@ impl Kind {
 }
 
 pub(crate) fn parse_detections(raw: &str) -> Result<Vec<Detection>, String> {
-    parse_detections_inner(raw, false)
-}
-
-pub(crate) fn parse_person_detections(raw: &str) -> Result<Vec<Detection>, String> {
-    let detections = parse_detections_inner(raw, true)?;
-    if detections.iter().any(|d| d.kind != Kind::Person) {
-        return Err(
-            "La revisión local de nombres devolvió una categoría inválida. Vuelve a analizar."
-                .into(),
-        );
-    }
-    Ok(detections)
-}
-
-fn parse_detections_inner(raw: &str, allow_empty: bool) -> Result<Vec<Detection>, String> {
     let raw = raw.trim();
     let raw = raw
         .strip_prefix("```json")
@@ -122,7 +107,6 @@ fn parse_detections_inner(raw: &str, allow_empty: bool) -> Result<Vec<Detection>
                     .to_string()
             })?
     };
-    let empty_response = items.is_empty();
     let mut entities = vec![];
     for item in items {
         let Ok(raw_detection) = serde_json::from_value::<RawDetection>(item) else {
@@ -140,7 +124,7 @@ fn parse_detections_inner(raw: &str, allow_empty: bool) -> Result<Vec<Detection>
             text,
         });
     }
-    if entities.is_empty() && (!allow_empty || !empty_response) {
+    if entities.is_empty() {
         return Err("Qwen no devolvió entidades JSON válidas. No se aprobará ninguna salida; vuelve a analizar.".into());
     }
     if entities.len() > MAX_ENTITIES {
@@ -385,11 +369,9 @@ fn looks_like_date_or_amount(text: &str) -> bool {
     DATE.get_or_init(|| Regex::new(r"^\d{4}[ \t]*[-–—/][ \t]*\d{4}$|^\d{4}[-./ ]\d{1,2}[-./ ]\d{1,2}$|^\d{1,2}[-./ ]\d{1,2}[-./ ]\d{2,4}$|^\d{1,3}(?:\.\d{3})+(?:,\d{2})?$").unwrap()).is_match(text.trim())
 }
 fn is_public_fact(text: &str) -> bool {
-    static CALENDAR: OnceLock<Regex> = OnceLock::new();
-    let calendar = CALENDAR.get_or_init(|| Regex::new(r"(?i)^(?:(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|january|february|march|april|may|june|july|august|september|october|november|december)[ \t]+(?:de[ \t]+)?)?(?:19|20)[0-9]{2}$").unwrap());
     static MONEY: OnceLock<Regex> = OnceLock::new();
     let money = MONEY.get_or_init(|| Regex::new(r"(?i)^(?:USD|EUR|US\$|\$|€)\s*[0-9][0-9.,]*$|^[0-9][0-9.,]*\s*(?:USD|EUR|euros|dólares)$").unwrap());
-    looks_like_date_or_amount(text) || money.is_match(text.trim()) || calendar.is_match(text.trim())
+    looks_like_date_or_amount(text) || money.is_match(text.trim())
 }
 pub(crate) fn deterministic_detections(text: &str) -> Vec<Detection> {
     static MONEY_BEFORE: OnceLock<Regex> = OnceLock::new();
@@ -435,96 +417,7 @@ pub(crate) fn deterministic_detections(text: &str) -> Vec<Detection> {
             });
         }
     }
-    result.extend(name_year_detections(text));
     result
-}
-
-/// Isolated uppercase names beside a year occur in annexes and family notes.
-/// Preserve the year; exclude common document labels and calendar headings.
-fn name_year_detections(text: &str) -> Vec<Detection> {
-    static NAME_YEAR: OnceLock<Regex> = OnceLock::new();
-    let pattern = NAME_YEAR.get_or_init(|| Regex::new(r"(?m)^[ \t]*([\p{Lu}][\p{Lu}\p{M}]{2,}(?:[ \t]+[\p{Lu}][\p{Lu}\p{M}]{1,}){0,3})[ \t]+(?:19|20)[0-9]{2}[ \t]*\r?$").unwrap());
-    pattern
-        .captures_iter(text)
-        .filter_map(|captures| {
-            let name = captures.get(1)?.as_str();
-            let heading = name.split_whitespace().any(is_public_name_label);
-            (!heading).then(|| Detection {
-                kind: Kind::Person,
-                text: name.into(),
-            })
-        })
-        .collect()
-}
-/// Common heading tokens are not evidence of a personal name by themselves.
-pub(crate) fn is_public_name_label(word: &str) -> bool {
-    matches!(
-        word,
-        "ENERO"
-            | "FEBRERO"
-            | "MARZO"
-            | "ABRIL"
-            | "MAYO"
-            | "JUNIO"
-            | "JULIO"
-            | "AGOSTO"
-            | "SEPTIEMBRE"
-            | "OCTUBRE"
-            | "NOVIEMBRE"
-            | "DICIEMBRE"
-            | "JANUARY"
-            | "FEBRUARY"
-            | "MARCH"
-            | "APRIL"
-            | "MAY"
-            | "JUNE"
-            | "JULY"
-            | "AUGUST"
-            | "SEPTEMBER"
-            | "OCTOBER"
-            | "NOVEMBER"
-            | "DECEMBER"
-            | "AÑO"
-            | "ANO"
-            | "YEAR"
-            | "EJERCICIO"
-            | "PERIODO"
-            | "PERÍODO"
-            | "GESTIÓN"
-            | "GESTION"
-            | "INFORME"
-            | "ANEXO"
-            | "CONTRATO"
-            | "FACTURA"
-            | "RECIBO"
-            | "PRESUPUESTO"
-            | "BALANCE"
-            | "ESTADO"
-            | "CUENTA"
-            | "RESOLUCIÓN"
-            | "RESOLUCION"
-            | "LEY"
-            | "EXPEDIENTE"
-            | "PROCESO"
-            | "CAUSA"
-            | "JUICIO"
-            | "VACACIONES"
-            | "CALENDARIO"
-            | "REPORT"
-            | "INVOICE"
-            | "BUDGET"
-            | "CONTRACT"
-            | "ANUAL"
-            | "USD"
-            | "EUR"
-            | "IVA"
-            | "PERSON"
-            | "COMPANY"
-            | "EMAIL"
-            | "PHONE"
-            | "ADDRESS"
-            | "OTHER"
-    )
 }
 fn normalized(s: &str) -> String {
     s.split_whitespace()
@@ -878,7 +771,7 @@ fn validate_entities(original: &str, entities: &[Entity]) -> Result<(), String> 
     }
     let mut seen = HashSet::new();
     static ALIAS: OnceLock<Regex> = OnceLock::new();
-    let re = ALIAS.get_or_init(|| Regex::new(r"^[\p{L}][\p{L}\p{M}\p{N} _.-]*$").unwrap());
+    let re = ALIAS.get_or_init(|| Regex::new(r"^(?:PERSON|COMPANY|ID|EMAIL|PHONE|ADDRESS|CASE|OTHER|CLIENTE|ACTOR|DEMANDADO|TESTIGO|ENTITY)_[0-9]{2,4}$").unwrap());
     for e in entities {
         if e.original.trim().len() < 2 || e.original.len() > 500 || !grounded(original, &e.original)
         {
@@ -887,16 +780,8 @@ fn validate_entities(original: &str, entities: &[Entity]) -> Result<(), String> 
         if !seen.insert(normalized(&e.original)) {
             return Err("Una misma entidad no puede tener dos entradas.".into());
         }
-        if !(2..=80).contains(&e.alias.chars().count())
-            || e.alias.trim() != e.alias
-            || !re.is_match(&e.alias)
-        {
-            return Err("Usa un alias de 2 a 80 caracteres que empiece con una letra. Puedes incluir números, espacios, guiones, puntos o guiones bajos, sin espacios al inicio o al final.".into());
-        }
-        // Reviewed aliases are exempted from leak scanning, so do not allow a
-        // custom alias to introduce an identifier that the scanner would flag.
-        if !deterministic_detections(&e.alias).is_empty() {
-            return Err("El alias contiene un posible dato privado. Usa un nombre ficticio o un código como CLIENTE_01.".into());
+        if !re.is_match(&e.alias) {
+            return Err("Usa un alias simbólico como PERSON_01 o CLIENTE_01 (prefijo PERSON, COMPANY, ID, EMAIL, PHONE, ADDRESS, CASE, OTHER, CLIENTE, ACTOR, DEMANDADO, TESTIGO o ENTITY y 2–4 dígitos).".into());
         }
         // No private value may be smuggled into an alias, nor alias already exist in source.
         if grounded(original, &e.alias)
@@ -946,7 +831,7 @@ pub(crate) fn privacy_advisories(entities: &[Entity]) -> Vec<String> {
     let mut advisories = vec![];
     if !entities.iter().any(|e| e.kind == Kind::Person) {
         advisories.push(
-            "El mapa no contiene ninguna persona. La revisión local y las reglas de nombres pueden omitir casos: comprueba los nombres del documento.".into(),
+            "El mapa no contiene ninguna persona. Los nombres no tienen un detector determinista: Qwen puede omitirlos y las reglas no los comprueban. Revísalos tú.".into(),
         );
     }
     advisories
@@ -958,24 +843,7 @@ pub(crate) fn leak_warnings(sanitized: &str, entities: &[Entity]) -> Vec<String>
     // identifier with alias-like syntax is not automatically trusted.
     let mut scanned = sanitized.to_string();
     for entity in entities {
-        let pattern = Regex::new(&regex::escape(&entity.alias)).unwrap();
-        let mut next = String::new();
-        let mut cursor = 0;
-        for hit in pattern.find_iter(&scanned) {
-            // A custom alias inside an email or another identifier is not an
-            // alias occurrence: retain it so the residual detector can see it.
-            if !boundary(&scanned, hit.start(), hit.end())
-                || scanned[..hit.start()].ends_with('@')
-                || scanned[hit.end()..].starts_with('@')
-            {
-                continue;
-            }
-            next.push_str(&scanned[cursor..hit.start()]);
-            next.push(' ');
-            cursor = hit.end();
-        }
-        next.push_str(&scanned[cursor..]);
-        scanned = next;
+        scanned = scanned.replace(&entity.alias, " ");
     }
     for detection in deterministic_detections(&scanned) {
         let warning = format!(
@@ -1024,10 +892,6 @@ fn analyze_with(extractor: &impl EntityExtractor, original: &str) -> Result<Vec<
             Err(_) => ground_model_detections(&chunk, extractor.extract_exact(&chunk)?)?,
         };
         detections.extend(grounded);
-        // A separate names-only pass covers single given names and annexes
-        // omitted by the general extraction. Every returned span is grounded.
-        let names = ground_model_detections(&chunk, extractor.extract_person_names(&chunk)?)?;
-        detections.extend(names);
     }
     merge_detections(original, detections)
 }
@@ -1321,61 +1185,6 @@ fn normalized_text(text: &str) -> String {
 /// Authoritative export gate, called by the PDF writer itself rather than by
 /// the renderer. The reviewed session text must match the payload, the map must
 /// be non-empty and the sanitized text must differ from the original.
-/// Length of the probe windows used to recognise private content in an export.
-const OVERLAP_PROBE: usize = 32;
-
-/// True when `text` carries content from the active private session.
-///
-/// The renderer supplies `private: Option<PrivateExport>`, so trusting that
-/// field alone would let a compromised WebView write the private document to a
-/// PDF just by omitting it. This is decided by the writer from content the
-/// renderer cannot cheaply fake: the private text is in this process either
-/// way, and a payload sharing a distinctive run of words with the private
-/// document is treated as private and must be gated.
-pub(crate) fn payload_is_private(app: &tauri::AppHandle, text: &str) -> bool {
-    let state = app.state::<PrivacyState>();
-    let Ok(guard) = state.0.lock() else {
-        // Fail safe: if we cannot see the session, assume it is private.
-        return true;
-    };
-    let Some(session) = guard.as_ref().filter(|s| s.analyzed) else {
-        return false;
-    };
-    text_overlaps_private(text, &session.original)
-}
-
-/// Pure form of [`payload_is_private`], testable without Tauri state.
-///
-/// Sampling several windows instead of comparing the whole document keeps an
-/// ordinary transcript from matching, while still catching a payload that
-/// reproduces any substantial part of the private document.
-fn text_overlaps_private(text: &str, original: &str) -> bool {
-    let haystack = normalized_text(text);
-    let source = normalized_text(original);
-    if haystack.is_empty() || source.is_empty() {
-        return false;
-    }
-    if haystack == source {
-        return true;
-    }
-    if source.len() <= OVERLAP_PROBE {
-        return haystack.contains(&source);
-    }
-    // Sample non-overlapping windows across the source so a match cannot hide
-    // in an unsampled region.
-    let step = OVERLAP_PROBE;
-    let mut start = 0;
-    while start + step <= source.len() {
-        if let Some(window) = source.get(start..start + step) {
-            if haystack.contains(window) {
-                return true;
-            }
-        }
-        start += step;
-    }
-    false
-}
-
 pub(crate) fn gate_private_export(
     app: &tauri::AppHandle,
     id: &str,

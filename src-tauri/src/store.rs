@@ -57,40 +57,16 @@ pub(crate) fn atomic_write(
     result
 }
 
-/// Upper bound per transcript, so the history cannot become a dumping ground.
-const MAX_TRANSCRIPT_CHARS: usize = 2_000_000;
-
 fn save_at(path: &Path, transcripts: &[StoredTranscript]) -> Result<(), String> {
     // Never replace corrupt/unreadable history, even if a caller ignored a
     // previous load failure. Recovery must be an explicit operation.
     read_transcripts(path)?;
-    for transcript in transcripts {
-        validate_storable(transcript)?;
-    }
     let bytes = serde_json::to_vec_pretty(transcripts)
         .map_err(|e| format!("No se pudo serializar: {}", e))?;
     atomic_write(path, |file| {
         file.write_all(&bytes)
             .map_err(|e| format!("No se pudo escribir: {}", e))
     })
-}
-
-/// The history is a transcript store, not a document store. A private document
-/// must never reach it: the session lives in memory and is discarded on close,
-/// and persisting it would contradict what PRIVACY.md promises. The renderer
-/// supplies this list, so the restriction is enforced here rather than trusted.
-fn validate_storable(transcript: &StoredTranscript) -> Result<(), String> {
-    const FORBIDDEN: [&str; 3] = ["Documento sanitizado", "Private Legal", "Private AI"];
-    if FORBIDDEN
-        .iter()
-        .any(|marker| transcript.title.contains(marker))
-    {
-        return Err("El historial guarda transcripciones, no documentos privados.".into());
-    }
-    if transcript.text.len() > MAX_TRANSCRIPT_CHARS {
-        return Err("La transcripción es demasiado larga para el historial.".into());
-    }
-    Ok(())
 }
 
 #[tauri::command]

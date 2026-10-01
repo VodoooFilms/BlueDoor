@@ -370,17 +370,7 @@
   }
 
   function receivePrivateSession(next: PrivacySession | null) {
-    const previous = privateSession;
-    // A map change regenerates the sanitized text, so any HTML the editor had
-    // captured is stale: keeping it exports the previous aliases and makes the
-    // writer's text check fail with a confusing message. Drop it so the editor
-    // rebuilds from the new sanitized text.
-    const resetEditor =
-      !next ||
-      next.id !== previous?.id ||
-      next.sanitized !== previous.sanitized ||
-      next.revision !== previous.revision;
-    if (resetEditor) {
+    if (!next || next.id !== privateSession?.id || next.sanitized !== privateSession.sanitized) {
       privateEditHtml = null;
       privateEditFormat = DEFAULT_FORMAT;
     }

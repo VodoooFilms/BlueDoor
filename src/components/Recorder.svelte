@@ -131,8 +131,6 @@
   }
 
   let unlistenProgress: (() => void) | null = null;
-  /** Kept outside the download `try` so a failure can still release it. */
-  let unlistenNemotron: (() => void) | null = null;
 
   // Atajo global de grabación: Espacio (y Cmd/Ctrl+Enter) para empezar/parar,
   // igual que indica el hint. No se activa si el foco está en un control.
@@ -177,8 +175,6 @@
       unlistenProgress();
       unlistenProgress = null;
     }
-    unlistenNemotron?.();
-    unlistenNemotron = null;
     stopOrb();
     if (recordingInterval) clearInterval(recordingInterval);
     if (audioStream) audioStream.getTracks().forEach((t) => t.stop());
@@ -283,7 +279,8 @@
     nemotronProgress = 0;
     errorMessage = "";
     try {
-      unlistenNemotron = await listen<[string, number]>("model-download-progress", (event) => {
+      let unlisten: (() => void) | null = null;
+      unlisten = await listen<[string, number]>("model-download-progress", (event) => {
         if (event.payload[0] === nemotronId) {
           nemotronProgress = event.payload[1];
           if (event.payload[1] >= 100) {
@@ -292,18 +289,12 @@
         }
       });
       await invoke<string>("download_diarization_model");
-      unlistenNemotron?.();
-      unlistenNemotron = null;
+      if (unlisten) unlisten();
       nemotronMissing = false;
       nemotronAvailable = await invoke<boolean>("diarization_available").catch(() => false);
       nemotronDownloading = false;
       nemotronProgress = 100;
     } catch (e: any) {
-      // The listener must be released here too: it used to be declared inside
-      // the `try`, so a failed download left a listener writing into state on
-      // every retry.
-      unlistenNemotron?.();
-      unlistenNemotron = null;
       nemotronDownloading = false;
       errorMessage = String(e);
     }
