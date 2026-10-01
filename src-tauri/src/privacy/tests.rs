@@ -151,13 +151,9 @@ fn clearing_analysis_keeps_original_and_invalidates_export() {
     assert!(!session.analyzed && !session.reviewed && !session.edited);
     assert!(session.sanitized.is_empty() && session.entities.is_empty());
     assert!(session.warnings.is_empty() && session.advisories.is_empty());
-    assert!(check_export_payload(
-        &session,
-        "Documento protegido",
-        None,
-        "Documento protegido"
-    )
-    .is_err());
+    assert!(
+        check_export_payload(&session, "Documento protegido", None, "Documento protegido").is_err()
+    );
 }
 
 #[test]

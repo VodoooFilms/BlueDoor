@@ -50,12 +50,12 @@ try {
         assertRevision(args);
         // Same invariants as privacy.rs::require_sanitized, so the UI test fails
         // if the UI ever offers an approval the Rust side would refuse.
-        if(!args.entities.length)throw new Error('El mapa no tiene entidades: la versión sanitizada sería el documento original.');
+        if(!args.entities.length)throw new Error('El mapa no tiene entidades: la versión protegida sería el documento original.');
         const mapChanged=JSON.stringify(session.entities)!==JSON.stringify(args.entities);
         session.entities=args.entities;
         let sanitized=original;
         for(const e of args.entities)sanitized=sanitized.replaceAll(e.original,e.alias);
-        if(sanitized.trim()===original.trim())throw new Error('La versión sanitizada es idéntica al original.');
+        if(sanitized.trim()===original.trim())throw new Error('La versión protegida es idéntica al original.');
         if(!session.edited || mapChanged){session.sanitized=sanitized;session.edited=false;}
         session.warnings=session.sanitized.includes('@')?['Posible EMAIL residual: corrige el mapa antes de aprobar.']:[];
         session.advisories=advisories(session.entities);
@@ -150,7 +150,7 @@ try {
   await page.evaluate(()=>window.__emitAnalysisProgress(['stale-operation',0,'sanitizing']));
   assert.equal(await page.getByRole('status').filter({hasText:ui('Analizando con AI local')}).count(),1,'Ignore progress from another operation');
   await page.evaluate(()=>{const {id,revision}=window.__analysisRequest;window.__emitAnalysisProgress([id,revision,'sanitizing']);});
-  await page.getByRole('status').filter({hasText:ui('Sanitizando el documento')}).waitFor();
+  await page.getByRole('status').filter({hasText:ui('Protegiendo el documento')}).waitFor();
   await page.screenshot({path:`artifacts/private-legal-sanitizing-${language}.png`,fullPage:true});
   await page.evaluate(()=>window.__finishAnalysis());
   await page.waitForFunction(()=>!document.querySelector('.analyze-button').disabled);
@@ -204,11 +204,11 @@ try {
   await page.screenshot({path:`artifacts/private-legal-expanded-${language}.png`,fullPage:true});
   await page.getByRole('button',{name:ui('Volver a pantalla dividida'),exact:true}).click();
   assert(await page.locator('.sanitized-panel').isVisible(),'Back arrow restores the split view');
-  await page.getByRole('button',{name:ui('Abrir versión sanitizada en Edit'),exact:true}).click();
+  await page.getByRole('button',{name:ui('Abrir versión protegida en Edit'),exact:true}).click();
   await page.locator('.private-document').waitFor();
   await page.getByRole('button',{name:ui('Volver a pantalla dividida'),exact:true}).click();
   await page.locator('.boundary-grid').waitFor();
-  await page.getByRole('button',{name:ui('Abrir versión sanitizada en Edit'),exact:true}).click();
+  await page.getByRole('button',{name:ui('Abrir versión protegida en Edit'),exact:true}).click();
 
   const rulerBounds = await page.locator('.private-document').evaluate(view => {
     const ruler = view.querySelector('.ruler').getBoundingClientRect();
@@ -224,8 +224,8 @@ try {
   await page.waitForFunction(()=>window.__privacyCalls.some(c=>c.cmd==='generate_pdf'));
   const exported=await page.evaluate(()=>window.__privacyCalls.find(c=>c.cmd==='generate_pdf'));
   const destination=await page.evaluate(()=>window.__privacyCalls.find(c=>c.cmd==='choose_pdf_destination'));
-  assert.match(destination.args.defaultName, /^(Documento sanitizado|Sanitized document)_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.pdf$/, 'PDF filename includes the safe title, local date and time');
-  assert.equal(exported.args.title, language === 'en' ? 'Sanitized document' : 'Documento sanitizado');
+  assert.match(destination.args.defaultName, /^(Documento protegido|Protected document)_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.pdf$/, 'PDF filename includes the safe title, local date and time');
+  assert.equal(exported.args.title, language === 'en' ? 'Protected document' : 'Documento protegido');
   assert(exported.args.private&&exported.args.private.id==='local-1','Private PDF carries the reviewed session id');
   assert(Number.isInteger(exported.args.private.revision),'Private PDF carries the reviewed revision');
   // El título se sella en el encabezado y en los metadatos del PDF, así que
@@ -265,7 +265,7 @@ try {
   await page.getByText(ui('El mapa no tiene entidades')).waitFor();
   await page.getByRole('button',{name:ui('← Volver al documento'),exact:true}).click();
   assert(await page.locator('.sanitized-panel').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).isDisabled(),'Unapplied empty map blocks Edit');
-  await page.getByRole('button',{name:ui('Borrar versión sanitizada'),exact:true}).click();
+  await page.getByRole('button',{name:ui('Borrar versión protegida'),exact:true}).click();
   assert.equal(await page.getByTestId('sanitized-document').count(),0);
   assert((await page.getByTestId('private-original').textContent()).includes('María Pérez'));
   assert.equal(await page.locator('.document-actions').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).count(),0);

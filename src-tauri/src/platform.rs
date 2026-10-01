@@ -121,6 +121,44 @@ fn owned_backends_dir() -> Result<PathBuf, String> {
 fn load_one_backend(file: &Path) -> Result<(), String> {
     let path = std::ffi::CString::new(file.to_string_lossy().as_bytes())
         .map_err(|_| "Ruta de aplicación no válida")?;
+    #[cfg(target_os = "macos")]
+    let backend = unsafe {
+        // transcribe-cpp also statically links GGML. A direct sys call can
+        // resolve to its private registry instead of the one used by libllama.
+        // Resolve the loader from Qwen's own dylib so both share a registry.
+        unsafe extern "C" {
+            fn dlopen(
+                path: *const std::ffi::c_char,
+                mode: std::ffi::c_int,
+            ) -> *mut std::ffi::c_void;
+            fn dlsym(
+                handle: *mut std::ffi::c_void,
+                symbol: *const std::ffi::c_char,
+            ) -> *mut std::ffi::c_void;
+        }
+        let directory = file.parent().ok_or("Falta el directorio del backend")?;
+        let bundled = directory.join("libggml.0.dylib");
+        let library = if bundled.is_file() {
+            bundled
+        } else {
+            directory.join("../lib/libggml.0.dylib")
+        };
+        let library = std::ffi::CString::new(library.to_string_lossy().as_bytes())
+            .map_err(|_| "Ruta de aplicación no válida")?;
+        // Keep the handle alive for the lifetime of the loaded model/backends.
+        let handle = dlopen(library.as_ptr(), 2 /* RTLD_NOW */);
+        if handle.is_null() {
+            return Err("No se pudo abrir el motor de IA local.".into());
+        }
+        let symbol = dlsym(handle, c"ggml_backend_load".as_ptr());
+        if symbol.is_null() {
+            return Err("No se pudo inicializar el motor de IA local.".into());
+        }
+        let loader: unsafe extern "C" fn(*const std::ffi::c_char) -> *mut std::ffi::c_void =
+            std::mem::transmute(symbol);
+        loader(path.as_ptr())
+    };
+    #[cfg(not(target_os = "macos"))]
     let backend = unsafe { llama_cpp_sys_2::ggml_backend_load(path.as_ptr()) };
     if backend.is_null() {
         return Err("No se pudo cargar un componente de IA. Reinstala BLegal Local Demo.".into());
