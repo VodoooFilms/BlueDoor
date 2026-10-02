@@ -1510,7 +1510,7 @@ fn check_export_authorization(
         // Hay una sesión privada cargada en memoria (aunque no se envíe el payload
         // de exportación). Esto bloquea cualquier exportación desde Edit/Transcript
         // mientras Private Legal está activo, para evitar mezclar el contenido.
-        return Err("Hay un documento privado cargado: solo se puede exportar su versión revisada. Para exportar una transcripción o audio, vuelve a la vista principal.".into());
+        return Err("Hay un documento privado cargado: solo se puede exportar su versión revisada. Para exportar una transcripción o audio, vuelve a la vista principal y cierra Private Legal antes de exportar.".into());
     };
     if session.id != private.id || session.revision != private.revision || !session.analyzed {
         return Err("La sesión cambió. Recarga el documento privado antes de exportar.".into());
