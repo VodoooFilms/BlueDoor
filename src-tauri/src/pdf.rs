@@ -92,16 +92,16 @@ pub(crate) async fn generate_pdf(
     let destination = state.consume_pdf_path(&destination)?;
     // A private document is gated here, in the writer, not in the renderer: the
     // payload must match the reviewed session and the map must be non-empty.
-    if let Some(private) = private.as_ref() {
-        crate::privacy::gate_private_export(
-            &app,
-            &private.id,
-            private.revision,
-            text.as_deref().unwrap_or_default(),
-            html.as_deref(),
-            &title,
-        )?;
-    }
+    // This runs on every export, not only when the renderer asks for it, so a
+    // payload that simply omits the private session cannot slip through.
+    crate::privacy::gate_private_export(
+        &app,
+        private.as_ref(),
+        text.as_deref().unwrap_or_default(),
+        html.as_deref(),
+        &title,
+        &[("el idioma", &language), ("el modelo", &model)],
+    )?;
     generate_pdf_at_path(
         title,
         segments,

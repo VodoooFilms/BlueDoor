@@ -166,6 +166,12 @@ try {
   await page.evaluate(()=>window.__finishAnalysis());
   await page.waitForFunction(()=>!document.querySelector('.analyze-button').disabled);
 
+  // El análisis termina sin revisión: el rótulo no puede prometer SAFE todavía,
+  // porque en el propio texto de la app SAFE significa "revisado".
+  const statusUnreviewed=await page.getByTestId('sanitized-status').textContent();
+  assert(!/SAFE/.test(statusUnreviewed),'An unreviewed document must not claim SAFE: '+statusUnreviewed);
+  assert.equal(statusUnreviewed, ui('Pendiente de revisión'),'Unreviewed document says it is pending review');
+
   assert.equal(await page.getByRole('progressbar').count(),0,'Loader disappears after analysis');
   assert.equal(await page.locator('.processing-slot').count(),0);
   assert.equal(await page.locator('.document-actions').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).count(),1);
@@ -238,6 +244,7 @@ try {
   assert.match(destination.args.defaultName, /^(Documento protegido|Protected document)_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.pdf$/, 'PDF filename includes the safe title, local date and time');
   assert.equal(exported.args.title, language === 'en' ? 'Protected document' : 'Documento protegido');
   assert(exported.args.private&&exported.args.private.id==='local-1','Private PDF carries the reviewed session id');
+  assert.equal(await page.getByTestId('sanitized-status').textContent(),'SAFE — PROTECTED','A confirmed review is labelled SAFE');
   assert(Number.isInteger(exported.args.private.revision),'Private PDF carries the reviewed revision');
   // El título se sella en el encabezado y en los metadatos del PDF, así que
   // también viaja como contenido exportado.

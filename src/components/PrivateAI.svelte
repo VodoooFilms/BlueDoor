@@ -207,7 +207,7 @@
           <div class="panel-footer" aria-hidden="true"></div>
         </section>
         <section class="sanitized-panel" class:panel-hidden={originalExpanded}>
-          <div class="panel-heading"><div><p class="eyebrow">SAFE — PROTECTED</p><h2>{p("Versión para compartir")}</h2></div><div class="panel-meta"><button class="trash-button" onclick={clearResult} disabled={!!busy || !session.analyzed} title={p("Borrar versión protegida para repetir el análisis")} aria-label={p("Borrar versión protegida")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11"></path><path d="M6.5 6v10a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V6"></path><path d="M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6"></path><path d="M10 9v5"></path></svg></button></div></div>
+          <div class="panel-heading"><div><p class="eyebrow" class:eyebrow-pending={session.analyzed && !session.reviewed} data-testid="sanitized-status">{session.analyzed ? (session.reviewed ? "SAFE — PROTECTED" : p("Pendiente de revisión")) : "SAFE — PROTECTED"}</p><h2>{p("Versión para compartir")}</h2></div><div class="panel-meta"><button class="trash-button" onclick={clearResult} disabled={!!busy || !session.analyzed} title={p("Borrar versión protegida para repetir el análisis")} aria-label={p("Borrar versión protegida")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11"></path><path d="M6.5 6v10a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V6"></path><path d="M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6"></path><path d="M10 9v5"></path></svg></button></div></div>
           {#if session.analyzed}
             <div class="text-window">
               <button class="view-toggle" onclick={() => { if (session) onEdit(session); }} disabled={!!busy || draftDirty} title={p("Abrir versión protegida en Edit")} aria-label={p("Abrir versión protegida en Edit")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M3 13v4h4M17 13v4h-4" /></svg></button>
@@ -247,6 +247,8 @@
   .error { color:var(--error); }
 
   .eyebrow { margin:0 0 8px; font-size:11px; font-weight:500; letter-spacing:.12em; color:var(--muted); }
+  /* A document that has not been confirmed must not read like a safe one. */
+  .eyebrow-pending { color:#8a5a12; font-weight:700; }
   h1,h2 { font-family:var(--font-heading); font-weight:400; color:var(--text); }
   h1 em { font-family:"Newsreader",var(--font-heading); font-style:italic; font-weight:300; }
   h1 { margin:0 0 5px; font-size:30px; line-height:1.2; } h2 { margin:0; font-size:21px; line-height:1.3; }

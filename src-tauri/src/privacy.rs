@@ -1477,22 +1477,64 @@ fn normalized_text(text: &str) -> String {
 /// be non-empty and the sanitized text must differ from the original.
 pub(crate) fn gate_private_export(
     app: &tauri::AppHandle,
-    id: &str,
-    revision: u64,
+    private: Option<&crate::pdf::PrivateExport>,
     text: &str,
     html: Option<&str>,
     title: &str,
+    labels: &[(&str, &str)],
 ) -> Result<(), String> {
     let privacy = app.state::<PrivacyState>();
     let guard = privacy
         .0
         .lock()
         .map_err(|_| "Sesión privada no disponible")?;
-    let session = guard
-        .as_ref()
-        .filter(|s| s.id == id && s.revision == revision && s.analyzed)
-        .ok_or("La sesión cambió. Recarga el documento privado antes de exportar.")?;
-    check_export_payload(session, text, html, title)
+    check_export_authorization(guard.as_ref(), private, text, html, title, labels)
+}
+
+/// The decision the writer makes, independent of Tauri state so it can be tested
+/// directly like `check_export_payload` below.
+fn check_export_authorization(
+    session: Option<&Session>,
+    private: Option<&crate::pdf::PrivateExport>,
+    text: &str,
+    html: Option<&str>,
+    title: &str,
+    labels: &[(&str, &str)],
+) -> Result<(), String> {
+    let Some(session) = session else {
+        // No private document is loaded, so this is an ordinary transcript
+        // export and there is nothing private in it to gate.
+        return Ok(());
+    };
+    let Some(private) = private else {
+        // The WebView holds the unredacted text of the document that is loaded
+        // right now, so leaving the gate out of the payload is not permission to
+        // write it out. Omitting it has to fail like a tampered payload does.
+        return Err("Hay un documento privado cargado: solo se puede exportar su versión revisada. Vuelve a Private Legal o borra el documento antes de exportar.".into());
+    };
+    if session.id != private.id || session.revision != private.revision || !session.analyzed {
+        return Err("La sesión cambió. Recarga el documento privado antes de exportar.".into());
+    }
+    check_export_payload(session, text, html, title)?;
+    check_export_labels(session, labels)
+}
+
+/// The writer prints the duration, language and model line into the page body.
+/// Those strings come from the renderer as well, so they clear the same gate:
+/// an identifier tucked into `model` would otherwise leave the process exactly
+/// like one tucked into the text.
+fn check_export_labels(session: &Session, labels: &[(&str, &str)]) -> Result<(), String> {
+    for (name, value) in labels {
+        if value.trim().is_empty() {
+            continue;
+        }
+        if !leak_warnings(value, &session.entities).is_empty() {
+            return Err(format!(
+                "PDF bloqueado: {name} contiene posibles datos privados."
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// The rules of the export gate, independent of Tauri state so they can be
@@ -1546,13 +1588,22 @@ pub(crate) fn validate_private_export(
 ) -> Result<(), String> {
     // Same rules as the writer, minus the rendered HTML which does not exist
     // yet at this point. Failing here only saves the user the file dialog.
-    gate_private_export(
-        &app,
-        &id,
-        revision,
-        &text,
-        None,
-        title.as_deref().unwrap_or_default(),
+    // This one is always about a specific session, so a missing or stale
+    // session is an error here even though the writer treats it as "no private
+    // document loaded".
+    let privacy = app.state::<PrivacyState>();
+    let guard = privacy
+        .0
+        .lock()
+        .map_err(|_| "Sesión privada no disponible")?;
+    let session = guard
+        .as_ref()
+        .filter(|s| s.id == id && s.revision == revision && s.analyzed)
+        .ok_or("La revisión está desactualizada.")?;
+    check_export_payload(session, &text, None, title.as_deref().unwrap_or_default())?;
+    check_export_labels(
+        session,
+        &[("el título", title.as_deref().unwrap_or_default())],
     )
 }
 

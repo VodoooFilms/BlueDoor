@@ -1655,3 +1655,117 @@ fn diag_speed_error() {
         Err(e) => eprintln!("DIAG err: {e}"),
     }
 }
+
+/// A private document must not be exportable by leaving the gate out of the
+/// payload. The WebView holds `Session::original`, so "not asking" has to fail.
+#[test]
+fn a_loaded_private_document_cannot_be_exported_by_omitting_the_gate() {
+    let session = reviewed_session();
+    let exported = serde_json::to_value(&session).unwrap();
+    assert!(
+        exported["original"]
+            .as_str()
+            .unwrap()
+            .contains("María Pérez"),
+        "el renderer recibe el texto sin redactar, por eso la omisión importa"
+    );
+    let matching = crate::pdf::PrivateExport {
+        id: session.id.clone(),
+        revision: session.revision,
+    };
+    let labels: [(&str, &str); 0] = [];
+    // Presenting the reviewed session is the only way to be let through.
+    assert!(
+        check_export_authorization(
+            Some(&session),
+            Some(&matching),
+            &session.sanitized,
+            None,
+            "Documento protegido",
+            &labels,
+        )
+        .is_ok(),
+        "la sesión revisada debe poder exportarse"
+    );
+    // The bypass: same writer, same text, gate simply left out of the payload.
+    let err = check_export_authorization(
+        Some(&session),
+        None,
+        &session.original,
+        None,
+        "Documento protegido",
+        &labels,
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("documento privado cargado"),
+        "omitir la puerta debe explicar el motivo: {err}"
+    );
+    // The unredacted text is refused even when the session is presented.
+    assert!(
+        check_export_authorization(
+            Some(&session),
+            Some(&matching),
+            &session.original,
+            None,
+            "Documento",
+            &labels,
+        )
+        .is_err(),
+        "el texto sin redactar no puede salir"
+    );
+    // A payload naming another session cannot present this one.
+    let other = crate::pdf::PrivateExport {
+        id: uuid::Uuid::new_v4().to_string(),
+        revision: session.revision,
+    };
+    assert!(
+        check_export_authorization(
+            Some(&session),
+            Some(&other),
+            &session.sanitized,
+            None,
+            "Documento protegido",
+            &labels,
+        )
+        .is_err(),
+        "otra sesión no vale"
+    );
+    // With nothing private loaded, a transcript export is untouched.
+    assert!(
+        check_export_authorization(None, None, "reunión de equipo", None, "Acta", &labels).is_ok(),
+        "sin documento privado cargado la exportación normal sigue funcionando"
+    );
+}
+
+/// The language and model line is printed in the PDF body, so it must clear the
+/// same gate as the text. These are the real values the recorder sends.
+#[test]
+fn the_language_and_model_line_cannot_carry_private_data() {
+    let session = reviewed_session();
+    // What the recorder really sends must not trip the gate.
+    for (name, value) in [
+        ("el idioma", "es"),
+        ("el modelo", "whisper-large-v3"),
+        ("el modelo", "parakeet"),
+        ("el idioma", "EN"),
+    ] {
+        assert!(
+            check_export_labels(&session, &[(name, value)]).is_ok(),
+            "un valor real de la app debe pasar: {name}={value}"
+        );
+    }
+    // An identifier or a name smuggled into the model field must not.
+    for (name, value) in [
+        ("el modelo", "Cédula maria@example.com"),
+        ("el idioma", "María Pérez"),
+        ("el modelo", "whisglargev3-María Pérez"),
+    ] {
+        assert!(
+            check_export_labels(&session, &[(name, value)]).is_err(),
+            "esto se imprimiría en el PDF y debe bloquearse: {name}={value}"
+        );
+    }
+    // An empty label is missing metadata, not a leak.
+    assert!(check_export_labels(&session, &[("el modelo", "")]).is_ok());
+}
