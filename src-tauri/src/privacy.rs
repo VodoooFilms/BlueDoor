@@ -1507,10 +1507,10 @@ fn check_export_authorization(
         return Ok(());
     };
     let Some(private) = private else {
-        // The WebView holds the unredacted text of the document that is loaded
-        // right now, so leaving the gate out of the payload is not permission to
-        // write it out. Omitting it has to fail like a tampered payload does.
-        return Err("Hay un documento privado cargado: solo se puede exportar su versión revisada. Vuelve a Private Legal o borra el documento antes de exportar.".into());
+        // Hay una sesión privada cargada en memoria (aunque no se envíe el payload
+        // de exportación). Esto bloquea cualquier exportación desde Edit/Transcript
+        // mientras Private Legal está activo, para evitar mezclar el contenido.
+        return Err("Hay un documento privado cargado: solo se puede exportar su versión revisada. Para exportar una transcripción o audio, vuelve a la vista principal.".into());
     };
     if session.id != private.id || session.revision != private.revision || !session.analyzed {
         return Err("La sesión cambió. Recarga el documento privado antes de exportar.".into());
