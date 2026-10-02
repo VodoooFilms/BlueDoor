@@ -48,9 +48,9 @@ Estos números son de QA con documentos sintéticos y dependen del modelo elegid
 
 ## Pendientes conocidos
 
-Ordenados por lo que más puede romper la promesa de privacidad:
+Ordenados por lo que más puede romper la promesa de privacidad. El primero ya está resuelto y se conserva como aviso:
 
-1. **Empaquetado de los backends de IA.** `platform.rs` exige `Contents/Frameworks/libggml-cpu-apple_m1.so` y `libggml-metal.so` más las cuatro dylibs de ggml/llama, con rpath `@executable_path/../Frameworks`. `pnpm tauri build` **no** las incluye, así que la app instalada falla con *«Falta un componente de IA de la aplicación»*. Hoy se reparó a mano; falta hacerlo en `package-local-ai.py`. Ojo: el backend de CPU que se copia a mano primero fue `libggml-cpu-apple_m4.so` y la app lo rechazó porque no era el nombre que busca.
+1. **Empaquetado de los backends de IA — corregido el 1 de octubre de 2026.** `platform.rs` exige `Contents/Frameworks/libggml-cpu-apple_m1.so` y `libggml-metal.so`, más las cuatro dylibs de ggml/llama, con rpath `@executable_path/../Frameworks`. El flujo correcto es `pnpm demo:mac` (`scripts/build-local-demo.py`), que encadena build, `package-local-ai.py`, `verify-bundle.py` y la firma ad hoc. Un `pnpm tauri build --bundles app` a secas no copia nada y produce una app sin motor: hay que usar `demo:mac`. `package-local-ai.py` ahora lee la lista de backends de `platform.rs` y aborta si falta alguna, en vez de confiar en lo que el build emitió, y añade el rpath de Frameworks a cada Mach-O y no solo al ejecutable. Comprobado: `verify-bundle.py` en verde y la app instalada supera `check_installation`, que es la prueba de que ambos backends cargan.
 2. **`Session.original` sigue serializándose al WebView.** La puerta de exportación ya no se puede omitir, pero el documento original continúa expuesto al renderer: un XSS todavía lo leería. La solución de fondo es no enviar el original al WebView.
 3. **Audio sin límites.** No hay tope de tamaño ni de duración, y el `ffmpeg` se lanza sin timeout ni cancelación.
 4. **`parse_color` entra en pánico** con bytes no ASCII (`html.rs`), por indexar la cadena como si fuera un slice de un byte.

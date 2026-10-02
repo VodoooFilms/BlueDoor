@@ -3,9 +3,26 @@
 from pathlib import Path
 import importlib.util
 import hashlib
+import re
 import shutil
 import subprocess
 import sys
+
+FRAMEWORKS_RPATH = '@executable_path/../Frameworks'
+
+
+def required_backends(root):
+    """Backend module names the app insists on, read from platform.rs itself.
+
+    platform.rs refuses to run the model when any of these files is absent in
+    Contents/Frameworks, so the packaging step must satisfy that list instead
+    of trusting whatever the build happened to emit.
+    """
+    source = (root / 'src-tauri/src/platform.rs').read_text()
+    names = sorted(set(re.findall(r'"(libggml[A-Za-z0-9_.-]*\.so)"', source)))
+    if not names:
+        raise RuntimeError('Could not read the required backend list from platform.rs')
+    return names
 
 
 def prepare(app, build):
@@ -41,13 +58,17 @@ def prepare(app, build):
         raise RuntimeError('Expected exactly one built llama backend directory')
     for module in candidates[0].glob('*.so'):
         shutil.copy2(module, frameworks / module.name)
+    root = Path(__file__).resolve().parent.parent
+    missing = [name for name in required_backends(root) if not (frameworks / name).is_file()]
+    if missing:
+        raise RuntimeError('Bundle lacks the backends platform.rs requires: ' + ', '.join(missing))
     main = app / 'Contents/MacOS/belegal-local-demo'
     for binary in verifier.macho_files(app):
         for path in verifier.rpaths(binary):
             if path.startswith('/'):
                 subprocess.run(['install_name_tool', '-delete_rpath', path, str(binary)], check=True)
-    if '@executable_path/../Frameworks' not in verifier.rpaths(main):
-        subprocess.run(['install_name_tool', '-add_rpath', '@executable_path/../Frameworks', str(main)], check=True)
+        if FRAMEWORKS_RPATH not in verifier.rpaths(binary):
+            subprocess.run(['install_name_tool', '-add_rpath', FRAMEWORKS_RPATH, str(binary)], check=True)
 
 
 if __name__ == '__main__':
