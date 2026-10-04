@@ -1,0 +1,685 @@
+mod editor;
+// Immutable page snapshots with UTF-8 source offsets. Pixel replacements are
+// computed from the same entity map as text sanitization, never UI rectangles.
+use crate::privacy::{Entity, PrivacyState, Session};
+use serde::{Deserialize, Serialize};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use tauri::Manager;
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Glyph {
+    pub start: usize,
+    pub end: usize,
+    pub line: usize,
+    pub rect: [f64; 4],
+    pub font_size: f64,
+    pub font_name: String,
+    pub color: [f64; 3],
+    pub confidence: f64,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Page {
+    pub width: f64,
+    pub height: f64,
+    pub image_base64: String,
+    pub glyphs: Vec<Glyph>,
+    pub source: String,
+}
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct DocumentLayout {
+    #[serde(default)]
+    pub edits: Vec<editor::TextEdit>,
+    pub text: String,
+    pub pages: Vec<Page>,
+}
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Redaction {
+    pub page: usize,
+    pub entity_index: usize,
+    pub rect: [f64; 4],
+    pub alias: String,
+    pub font_size: f64,
+    pub font_name: String,
+    pub color: [f64; 3],
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LayoutPreview {
+    pub id: String,
+    pub revision: u64,
+    pub pages: Vec<Page>,
+    pub redactions: Vec<Redaction>,
+    pub estimated: bool,
+    pub blocks: Vec<editor::TextBlock>,
+}
+#[derive(Serialize)]
+struct RenderPlan<'a> {
+    pages: &'a [Page],
+    redactions: &'a [Redaction],
+    overlays: &'a [editor::RichOverlay],
+}
+
+pub(crate) fn executable(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let bundled = app
+        .path()
+        .resource_dir()
+        .map_err(|_| "Componente de formato no disponible.")?
+        .join("runtime/belegal-layout");
+    #[cfg(debug_assertions)]
+    if !bundled.is_file() {
+        let development =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/belegal-layout");
+        if development.is_file() {
+            return Ok(development);
+        }
+    }
+    if !bundled.is_file() {
+        return Err("Conservar el formato está disponible en macOS. Reinstala la app si falta el componente.".into());
+    }
+    Ok(bundled)
+}
+pub(crate) fn extract(path: &Path, helper: &Path) -> Result<DocumentLayout, String> {
+    let output = Command::new(helper)
+        .arg("--layout")
+        .arg(path)
+        .output()
+        .map_err(|_| "No se pudo obtener el formato del documento.")?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr)
+            .lines()
+            .last()
+            .unwrap_or("No se pudo obtener el formato.")
+            .chars()
+            .take(500)
+            .collect());
+    }
+    let document: DocumentLayout = serde_json::from_slice(&output.stdout)
+        .map_err(|_| "Coordenadas del documento no válidas.")?;
+    validate_layout(&document)?;
+    Ok(document)
+}
+fn validate_layout(document: &DocumentLayout) -> Result<(), String> {
+    if document.text.is_empty()
+        || document.text.len() > crate::privacy::MAX_DOCUMENT_BYTES
+        || document.pages.is_empty()
+        || document.pages.len() > 30
+    {
+        return Err("Documento fuera de los límites de formato.".into());
+    }
+    for page in &document.pages {
+        if !page.width.is_finite()
+            || !page.height.is_finite()
+            || page.width <= 0.0
+            || page.height <= 0.0
+            || page.width > 20_000.0
+            || page.height > 20_000.0
+            || page.image_base64.is_empty()
+        {
+            return Err("Tamaño de página no válido.".into());
+        }
+        for glyph in &page.glyphs {
+            if glyph.start >= glyph.end
+                || glyph.end > document.text.len()
+                || !document.text.is_char_boundary(glyph.start)
+                || !document.text.is_char_boundary(glyph.end)
+                || !valid_rect(&glyph.rect, page)
+                || !glyph.font_size.is_finite()
+                || glyph.font_size <= 0.0
+                || !glyph
+                    .color
+                    .iter()
+                    .all(|c| c.is_finite() && (0.0..=1.0).contains(c))
+            {
+                return Err("Coordenadas del texto no válidas.".into());
+            }
+        }
+    }
+    Ok(())
+}
+fn valid_rect(r: &[f64; 4], page: &Page) -> bool {
+    r.iter().all(|v| v.is_finite())
+        && r[0] >= 0.0
+        && r[1] >= 0.0
+        && r[2] > 0.0
+        && r[3] > 0.0
+        && r[0] + r[2] <= page.width + 0.01
+        && r[1] + r[3] <= page.height + 0.01
+}
+
+pub(crate) fn redactions(
+    document: &DocumentLayout,
+    entities: &[Entity],
+) -> Result<Vec<Redaction>, String> {
+    // Validation and longest-first precedence must match sanitize().
+    crate::privacy::sanitize(&document.text, entities)?;
+    let mut matches = vec![];
+    for (index, entity) in entities.iter().enumerate() {
+        for found in crate::privacy::matching_pattern(&entity.original)?.find_iter(&document.text) {
+            if crate::privacy::boundary(&document.text, found.start(), found.end()) {
+                matches.push((found.start(), found.end(), index));
+            }
+        }
+    }
+    matches.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+    let mut cursor = 0;
+    let mut result = Vec::new();
+    for (start, end, index) in matches {
+        if start < cursor {
+            continue;
+        }
+        cursor = end;
+        let mut covered = vec![false; end - start];
+        let mut occurrence: Vec<Redaction> = vec![];
+        for (number, page) in document.pages.iter().enumerate() {
+            let mut last_line = None;
+            for glyph in page
+                .glyphs
+                .iter()
+                .filter(|g| g.start < end && g.end > start)
+            {
+                for byte in glyph.start.max(start)..glyph.end.min(end) {
+                    covered[byte - start] = true;
+                }
+                let r = glyph.rect;
+                if let Some(previous) = occurrence.last_mut().filter(|previous| {
+                    previous.page == number
+                        && last_line == Some(glyph.line)
+                        && ((previous.rect[1] + previous.rect[3] / 2.0) - (r[1] + r[3] / 2.0)).abs()
+                            < r[3] * 0.6
+                }) {
+                    let x = previous.rect[0].min(r[0]);
+                    let y = previous.rect[1].min(r[1]);
+                    let right = (previous.rect[0] + previous.rect[2]).max(r[0] + r[2]);
+                    let bottom = (previous.rect[1] + previous.rect[3]).max(r[1] + r[3]);
+                    previous.rect = [x, y, right - x, bottom - y];
+                } else {
+                    occurrence.push(Redaction {
+                        page: number,
+                        entity_index: index,
+                        rect: r,
+                        alias: String::new(),
+                        font_size: glyph.font_size,
+                        font_name: glyph.font_name.clone(),
+                        color: glyph.color,
+                    });
+                }
+                last_line = Some(glyph.line);
+            }
+        }
+        for (offset, character) in document.text[start..end].char_indices() {
+            if !character.is_whitespace()
+                && !(offset..offset + character.len_utf8()).all(|i| covered[i])
+            {
+                return Err("Un dato privado no tiene coordenadas completas. Revisa el OCR o usa la exportación de texto; no se exportará una cobertura parcial.".into());
+            }
+        }
+        let first = occurrence
+            .first_mut()
+            .ok_or("No se pudo localizar un dato privado en la página.")?;
+        first.alias = entities[index].alias.clone();
+        if document.text[start..end].ends_with('.') {
+            first.alias.push('.');
+        }
+        for mut area in occurrence {
+            let page = &document.pages[area.page];
+            // Cover antialiasing edges, clipped to the physical page.
+            let right = (area.rect[0] + area.rect[2] + 0.7).min(page.width);
+            let bottom = (area.rect[1] + area.rect[3] + 0.7).min(page.height);
+            area.rect[0] = (area.rect[0] - 0.7).max(0.0);
+            area.rect[1] = (area.rect[1] - 0.7).max(0.0);
+            area.rect[2] = right - area.rect[0];
+            area.rect[3] = bottom - area.rect[1];
+            result.push(area);
+        }
+    }
+    if result.len() > 4000 {
+        return Err("Demasiadas zonas privadas en el documento.".into());
+    }
+    Ok(result)
+}
+fn snapshot(app: &tauri::AppHandle, id: &str, revision: u64) -> Result<Session, String> {
+    app.state::<PrivacyState>()
+        .0
+        .lock()
+        .map_err(|_| "Sesión privada no disponible")?
+        .as_ref()
+        .filter(|s| s.id == id && s.revision == revision)
+        .cloned()
+        .ok_or("La sesión cambió. Recarga la vista del documento.".into())
+}
+fn plan(session: &Session) -> Result<(DocumentLayout, Vec<Redaction>), String> {
+    let document = session
+        .layout
+        .as_deref()
+        .ok_or("Este documento no tiene formato conservable. Importa un PDF o una imagen.")?;
+    if session.original != document.text {
+        return Err(
+            "La extracción cambió: vuelve a importar el documento para conservar su formato."
+                .into(),
+        );
+    }
+    if session.edited && document.edits.is_empty() {
+        return Err("Esta vista utiliza el mapa de alias. Aplica de nuevo el mapa para conservar el formato original.".into());
+    }
+    let mut active = document.clone();
+    if !session.edited {
+        active.edits.clear();
+    }
+    Ok((
+        active,
+        if session.analyzed {
+            redactions(document, &session.entities)?
+        } else {
+            vec![]
+        },
+    ))
+}
+#[cfg(test)]
+fn render(
+    helper: &Path,
+    document: &DocumentLayout,
+    redactions: &[Redaction],
+    mode: &str,
+) -> Result<Vec<u8>, String> {
+    render_overlays(helper, document, redactions, &[], mode)
+}
+fn render_overlays(
+    helper: &Path,
+    document: &DocumentLayout,
+    redactions: &[Redaction],
+    overlays: &[editor::RichOverlay],
+    mode: &str,
+) -> Result<Vec<u8>, String> {
+    let mut child = Command::new(helper)
+        .arg(mode)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|_| "No se pudo preparar el documento protegido.")?;
+    let payload = serde_json::to_vec(&RenderPlan {
+        pages: &document.pages,
+        redactions,
+        overlays,
+    })
+    .map_err(|_| "No se pudo preparar el documento.")?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or("No se pudo preparar el documento.")?;
+    // Concurrent write avoids pipe deadlock when a large preview is returned.
+    let writer = std::thread::spawn(move || stdin.write_all(&payload));
+    let output = child
+        .wait_with_output()
+        .map_err(|_| "La exportación se interrumpió.")?;
+    writer
+        .join()
+        .map_err(|_| "La exportación se interrumpió.")?
+        .map_err(|_| "No se pudo preparar el documento.")?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr)
+            .lines()
+            .last()
+            .unwrap_or("No se pudo conservar el formato.")
+            .chars()
+            .take(500)
+            .collect());
+    }
+    Ok(output.stdout)
+}
+#[tauri::command]
+pub(crate) async fn preview_private_layout(
+    app: tauri::AppHandle,
+    id: String,
+    revision: u64,
+) -> Result<LayoutPreview, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let session = snapshot(&app, &id, revision)?;
+        let (document, areas) = plan(&session)?;
+        let (blocks, overlays, _) = editor::compiled(&document, &session.entities)?;
+        let pages = if areas.is_empty() && overlays.is_empty() {
+            document
+                .pages
+                .iter()
+                .map(|p| Page {
+                    glyphs: vec![],
+                    ..p.clone()
+                })
+                .collect()
+        } else {
+            serde_json::from_slice(&render_overlays(
+                &executable(&app)?,
+                &document,
+                &areas,
+                &overlays,
+                "--preview",
+            )?)
+            .map_err(|_| "Vista previa no válida.")?
+        };
+        snapshot(&app, &id, revision)?;
+        Ok(LayoutPreview {
+            id,
+            revision,
+            pages,
+            redactions: areas,
+            blocks,
+            estimated: document.pages.iter().any(|p| p.source == "ocr"),
+        })
+    })
+    .await
+    .map_err(|_| "La vista previa se interrumpió.")?
+}
+#[tauri::command]
+pub(crate) async fn export_private_layout(
+    app: tauri::AppHandle,
+    id: String,
+    revision: u64,
+    dest_path: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let session = snapshot(&app, &id, revision)?; let (document, areas) = plan(&session)?;
+        let private = crate::pdf::PrivateExport { id: id.clone(), revision };
+        crate::privacy::gate_private_export(&app, Some(&private), &session.sanitized, None, "Protected", &[])?;
+        let (_,overlays,pure_map) = editor::compiled(&document, &session.entities)?;
+        if pure_map.split_whitespace().collect::<Vec<_>>() != session.sanitized.split_whitespace().collect::<Vec<_>>() { return Err("La versión revisada contiene cambios de texto. Aplica el mapa de nuevo para exportar el formato original.".into()); }
+        let path = crate::pdf::validate_pdf_destination(Path::new(&dest_path))?;
+        let path = app.state::<crate::types::AppState>().consume_pdf_path(&path)?;
+        let bytes = render_overlays(&executable(&app)?, &document, &areas, &overlays, "--export")?;
+        if !bytes.starts_with(b"%PDF-") { return Err("El componente no produjo un PDF válido.".into()); }
+        let state = app.state::<PrivacyState>(); let guard = state.0.lock().map_err(|_| "Sesión privada no disponible")?;
+        if !guard.as_ref().is_some_and(|s| s.id == id && s.revision == revision && s.reviewed) { return Err("La revisión cambió durante la exportación. Vuelve a revisarla.".into()); }
+        crate::store::atomic_write(&path, |file| file.write_all(&bytes).map_err(|_| "No se pudo guardar el PDF.".into()))?;
+        Ok(path.to_string_lossy().into_owned())
+    }).await.map_err(|_| "La exportación se interrumpió.")?
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+    use crate::privacy::Kind;
+    fn helper() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/belegal-layout")
+    }
+    fn entity(kind: Kind, original: &str, alias: &str) -> Entity {
+        Entity {
+            kind,
+            original: original.into(),
+            alias: alias.into(),
+            source: "review".into(),
+        }
+    }
+    #[test]
+    fn document_layout_workflow_preserves_pages_and_exports_modified_pixels() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let directory = root.join("artifacts/layout-workflow");
+        std::fs::create_dir_all(&directory).unwrap();
+        let documents = [
+            (
+                "layout-document.pdf",
+                vec![
+                    entity(Kind::Person, "María Pérez", "PERSON_01"),
+                    entity(Kind::Email, "maria@example.com", "EMAIL_01"),
+                    entity(Kind::Id, "0912345678", "ID_01"),
+                ],
+            ),
+            (
+                "private-scan.pdf",
+                vec![
+                    entity(Kind::Person, "Maria Perez", "PERSON_01"),
+                    entity(Kind::Id, "0912345678", "ID_01"),
+                ],
+            ),
+        ];
+        for (name, map) in documents {
+            let layout = extract(&root.join("tests/fixtures").join(name), &helper()).unwrap();
+            let areas = redactions(&layout, &map).unwrap();
+            assert!(!areas.is_empty());
+            if name == "layout-document.pdf" {
+                assert_eq!(layout.pages.len(), 2);
+                assert!((layout.pages[0].width - 595.28).abs() < 0.01);
+                assert!((layout.pages[1].width - 792.0).abs() < 0.01);
+                assert_eq!(
+                    areas.iter().filter(|a| a.entity_index == 0).count(),
+                    3,
+                    "all repeated names must be covered"
+                );
+                let name_area = areas.iter().find(|a| a.entity_index == 0).unwrap();
+                assert!(
+                    (name_area.rect[0] - 48.0).abs() < 1.0,
+                    "independent reportlab x coordinate"
+                );
+                assert!(
+                    (name_area.rect[1] - 109.0).abs() < 10.0,
+                    "independent reportlab baseline"
+                );
+            } else {
+                assert!(layout.pages.iter().all(|p| p.source == "ocr"));
+            }
+            let preview = render(&helper(), &layout, &areas, "--preview").unwrap();
+            let pdf = render(&helper(), &layout, &areas, "--export").unwrap();
+            assert!(pdf.starts_with(b"%PDF-"));
+            let pages: Vec<Page> = serde_json::from_slice(&preview).unwrap();
+            assert_eq!(pages.len(), layout.pages.len());
+            std::fs::write(directory.join(format!("{name}.preview.json")), preview).unwrap();
+            std::fs::write(
+                directory.join(format!("{name}.plan.json")),
+                serde_json::to_vec(&RenderPlan {
+                    pages: &layout.pages,
+                    redactions: &areas,
+                    overlays: &[],
+                })
+                .unwrap(),
+            )
+            .unwrap();
+            std::fs::write(directory.join(format!("{name}.protected.pdf")), pdf).unwrap();
+        }
+    }
+    #[test]
+    fn rich_text_correction_preserves_pages_and_rebases_aliases() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut document =
+            extract(&root.join("tests/fixtures/layout-document.pdf"), &helper()).unwrap();
+        let map = vec![
+            entity(Kind::Person, "María Pérez", "PERSON_01"),
+            entity(Kind::Email, "maria@example.com", "EMAIL_01"),
+            entity(Kind::Id, "0912345678", "ID_01"),
+        ];
+        let (blocks, _, text) = editor::compiled(&document, &map).unwrap();
+        assert_eq!(
+            text,
+            crate::privacy::sanitize(&document.text, &map).unwrap()
+        );
+        let title = blocks
+            .iter()
+            .find(|b| b.html.contains("Informe de prueba"))
+            .unwrap();
+        document.edits.push(editor::TextEdit{block_id:title.id,html:"<div style=\"padding-left: 5px; padding-right: 3px; text-indent: 2px\"><span style=\"font-family: Georgia; font-size: 14px; color: #204080\"><b>Informe corregido</b></span></div>".into(),font:"georgia".into(),size:14.,align:"left".into()});
+        let (_, overlays, text) = editor::compiled(&document, &map).unwrap();
+        assert!(text.starts_with("Informe corregido\n"));
+        assert!(!text.contains("Informe de prueba"));
+        assert_eq!(overlays[0].paragraphs[0].left, 5.);
+        assert_eq!(overlays[0].paragraphs[0].right, 3.);
+        assert_eq!(overlays[0].paragraphs[0].first, 2.);
+        assert!(overlays[0].paragraphs[0].runs[0].bold);
+        assert_eq!(overlays[0].paragraphs[0].runs[0].font, "georgia");
+        let areas = redactions(&document, &map).unwrap();
+        let preview =
+            render_overlays(&helper(), &document, &areas, &overlays, "--preview").unwrap();
+        let pdf = render_overlays(&helper(), &document, &areas, &overlays, "--export").unwrap();
+        let output = root.join("artifacts/layout-workflow");
+        std::fs::create_dir_all(&output).unwrap();
+        std::fs::write(output.join("rich-edited.pdf"), pdf).unwrap();
+        std::fs::write(output.join("rich-edited.preview.json"), preview).unwrap();
+        std::fs::write(
+            output.join("rich-edited.plan.json"),
+            serde_json::to_vec(&RenderPlan {
+                pages: &document.pages,
+                redactions: &areas,
+                overlays: &overlays,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            output.join("text-blocks.json"),
+            serde_json::to_vec(&blocks).unwrap(),
+        )
+        .unwrap();
+        // Saved formatting must survive a later global alias rename.
+        let name = blocks
+            .iter()
+            .find(|b| b.html.contains("PERSON_01"))
+            .unwrap();
+        document.edits.push(editor::TextEdit {
+            block_id: name.id,
+            html: "<div><b>PER</b><span>SON_01</span></div>".into(),
+            font: "Helvetica".into(),
+            size: 10.,
+            align: "left".into(),
+        });
+        let mut renamed = map.clone();
+        renamed[0].alias = "CLIENTE_01".into();
+        editor::rebase_aliases(&mut document, &map, &renamed).unwrap();
+        let (_, _, text) = editor::compiled(&document, &renamed).unwrap();
+        assert!(text.contains("CLIENTE_01"));
+        assert!(!text.contains("PERSON_01"));
+        assert!(text.starts_with("Informe corregido"));
+        document.edits[0].html = format!("<div>{}</div>", "Demasiado texto ".repeat(500));
+        let (_, overlays, _) = editor::compiled(&document, &renamed).unwrap();
+        assert!(render_overlays(
+            &helper(),
+            &document,
+            &redactions(&document, &renamed).unwrap(),
+            &overlays,
+            "--export"
+        )
+        .unwrap_err()
+        .contains("no cabe"));
+    }
+    #[test]
+    fn incomplete_coordinates_and_stale_or_edited_layouts_are_rejected() {
+        let root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/layout-document.pdf");
+        let document = extract(&root, &helper()).unwrap();
+        let map = vec![entity(Kind::Person, "María Pérez", "PERSON_01")];
+        let mut damaged = document.clone();
+        damaged.pages[0].glyphs.remove(18);
+        // Remove the whole first occurrence's coordinate coverage, independently
+        // of font/renderer behavior. Partial protection must not be exportable.
+        let start = damaged.text.find("María Pérez").unwrap();
+        damaged.pages[0]
+            .glyphs
+            .retain(|g| g.end <= start || g.start >= start + "María Pérez".len());
+        assert!(redactions(&damaged, &map).is_err());
+        let mut session = Session::new("document.pdf".into(), document.text.clone()).unwrap();
+        session.layout = Some(std::sync::Arc::new(document));
+        session.layout_available = true;
+        assert!(plan(&session).is_ok());
+        session.original.push('x');
+        assert!(plan(&session).is_err());
+        session.original = session.layout.as_ref().unwrap().text.clone();
+        session.edited = true;
+        assert!(plan(&session).is_err());
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn save_private_layout_text(
+    app: tauri::AppHandle,
+    id: String,
+    revision: u64,
+    edit: editor::TextEdit,
+) -> Result<Session, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let session = snapshot(&app, &id, revision)?;
+        if !session.analyzed {
+            return Err("Protege el documento antes de editarlo.".into());
+        }
+        let (document, areas) = plan(&session)?;
+        let mut document = document.clone();
+        document.edits.retain(|e| e.block_id != edit.block_id);
+        document.edits.push(edit);
+        let (_, overlays, text) = editor::compiled(&document, &session.entities)?;
+        // Render first: overflow or invalid formatting must never commit a
+        // correction that cannot be shown or exported in full.
+        render_overlays(
+            &executable(&app)?,
+            &document,
+            &areas,
+            &overlays,
+            "--preview",
+        )?;
+        let state = app.state::<PrivacyState>();
+        let mut guard = state.0.lock().map_err(|_| "Sesión privada no disponible")?;
+        let current = guard
+            .as_mut()
+            .filter(|s| s.id == id && s.revision == revision)
+            .ok_or("La edición está desactualizada.")?;
+        current.layout = Some(std::sync::Arc::new(document));
+        current.sanitized = text;
+        current.edited = true;
+        current.reviewed = false;
+        current.warnings = crate::privacy::leak_warnings(&current.sanitized, &current.entities);
+        current.revision += 1;
+        Ok(current.clone())
+    })
+    .await
+    .map_err(|_| "La corrección se interrumpió.")?
+}
+
+#[tauri::command]
+pub(crate) async fn review_private_layout(
+    app: tauri::AppHandle,
+    id: String,
+    revision: u64,
+    entities: Vec<Entity>,
+    confirm: bool,
+) -> Result<Session, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let before = snapshot(&app, &id, revision)?;
+        let (source, _) = plan(&before)?;
+        let mut document = source.clone();
+        editor::rebase_aliases(&mut document, &before.entities, &entities)?;
+        let areas = redactions(&document, &entities)?;
+        let (_, overlays, text) = editor::compiled(&document, &entities)?;
+        render_overlays(
+            &executable(&app)?,
+            &document,
+            &areas,
+            &overlays,
+            "--preview",
+        )?;
+        let next = crate::privacy::review_private_document(
+            id.clone(),
+            revision,
+            entities,
+            confirm,
+            app.clone(),
+        )?;
+        if document.edits.is_empty() {
+            return Ok(next);
+        }
+        let state = app.state::<PrivacyState>();
+        let mut guard = state.0.lock().map_err(|_| "Sesión privada no disponible")?;
+        let current = guard
+            .as_mut()
+            .filter(|s| s.id == id && s.revision == next.revision)
+            .ok_or("La revisión cambió.")?;
+        current.layout = Some(std::sync::Arc::new(document));
+        current.sanitized = text;
+        current.edited = true;
+        current.warnings = crate::privacy::leak_warnings(&current.sanitized, &current.entities);
+        current.reviewed = confirm && current.analysis_complete && current.warnings.is_empty();
+        // Invalidate any preview that started between map review and the
+        // atomic installation of the preserved rich corrections.
+        current.revision += 1;
+        Ok(current.clone())
+    })
+    .await
+    .map_err(|_| "La revisión se interrumpió.")?
+}

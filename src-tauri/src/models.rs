@@ -16,10 +16,13 @@ pub(crate) const QWEN_ID: &str = "qwen3-fast";
 pub(crate) const QWEN_FILE: &str = "ggml-qwen3-1.7b-instruct-q4.gguf";
 pub(crate) const QWEN_Q8_ID: &str = "qwen3-q8";
 pub(crate) const QWEN_Q8_FILE: &str = "ggml-qwen3-1.7b-instruct-q8.gguf";
+pub(crate) const QWEN_PII_ID: &str = "belegal-pii-v1";
+pub(crate) const QWEN_PII_FILE: &str = "belegal-pii-v1-q4.gguf";
 pub(crate) fn qwen_file(id: &str) -> Result<&'static str, String> {
     match id {
         QWEN_ID => Ok(QWEN_FILE),
         QWEN_Q8_ID => Ok(QWEN_Q8_FILE),
+        QWEN_PII_ID if model_assets().contains_key(QWEN_PII_ID) => Ok(QWEN_PII_FILE),
         _ => Err("Peso Qwen desconocido".into()),
     }
 }
@@ -142,26 +145,39 @@ pub(crate) fn list_models(app_handle: tauri::AppHandle) -> ModelsList {
         installed: model_appears_installed(&path),
         path: path.to_string_lossy().to_string(),
     }];
+    let mut privacy: Vec<ModelEntry> = [
+        (QWEN_ID, QWEN_FILE, "Q4_K_M", "1.36 GB"),
+        (QWEN_Q8_ID, QWEN_Q8_FILE, "Q8_0", "2.22 GB"),
+    ]
+    .into_iter()
+    .map(|(id, file, weight, size)| {
+        let path = models_dir(&app_handle).join(file);
+        ModelEntry {
+            id: id.into(),
+            name: format!("Qwen3-1.7B {weight}"),
+            size: size.into(),
+            installed: model_appears_installed(&path),
+            path: path.to_string_lossy().into(),
+        }
+    })
+    .collect();
+    // A trained model is offered only by builds containing its pinned hash.
+    // It has no download URL: training artifacts stay on this machine.
+    if let Some(asset) = model_assets().get(QWEN_PII_ID) {
+        let path = models_dir(&app_handle).join(QWEN_PII_FILE);
+        privacy.push(ModelEntry {
+            id: QWEN_PII_ID.into(),
+            name: "BeLegal PII v1 · postentrenado".into(),
+            size: format!("{:.2} GB", asset.size as f64 / 1_000_000_000.0),
+            installed: model_appears_installed(&path),
+            path: path.to_string_lossy().into(),
+        });
+    }
     ModelsList {
         whisper,
         parakeet,
         diarization,
-        privacy: [
-            (QWEN_ID, QWEN_FILE, "Q4_K_M", "1.36 GB"),
-            (QWEN_Q8_ID, QWEN_Q8_FILE, "Q8_0", "2.22 GB"),
-        ]
-        .into_iter()
-        .map(|(id, file, weight, size)| {
-            let path = models_dir(&app_handle).join(file);
-            ModelEntry {
-                id: id.into(),
-                name: format!("Qwen3-1.7B {weight}"),
-                size: size.into(),
-                installed: model_appears_installed(&path),
-                path: path.to_string_lossy().into(),
-            }
-        })
-        .collect(),
+        privacy,
     }
 }
 
@@ -283,6 +299,7 @@ fn asset_for_path(path: &std::path::Path) -> Option<&'static ModelAsset> {
         .or_else(|| (file == NEMOTRON_FILE).then_some(NEMOTRON_ID))
         .or_else(|| (file == QWEN_FILE).then_some(QWEN_ID))
         .or_else(|| (file == QWEN_Q8_FILE).then_some(QWEN_Q8_ID))
+        .or_else(|| (file == QWEN_PII_FILE).then_some(QWEN_PII_ID))
         .or_else(|| PARAKEET_MODELS.iter().find(|m| m.3 == file).map(|m| m.0))?;
     model_assets().get(id)
 }
@@ -478,7 +495,8 @@ mod portability_tests {
                 || PARAKEET_MODELS.iter().any(|m| m.0 == id)
                 || id == NEMOTRON_ID
                 || id == QWEN_ID
-                || id == QWEN_Q8_ID;
+                || id == QWEN_Q8_ID
+                || id == QWEN_PII_ID;
             assert!(
                 known,
                 "asset en el manifest que no esta en el catalogo: {}",
@@ -520,6 +538,16 @@ mod portability_tests {
             "3d0b790534fe4b79525fc3692950408dca41171676ed7e21db57af5c65ef6ab6"
         );
         assert!(qwen.url.ends_with(&qwen.sha256));
+        if let Some(trained) = asset_for_path(std::path::Path::new(QWEN_PII_FILE)) {
+            assert!(
+                trained.url.is_empty(),
+                "Local training has no remote distribution endpoint"
+            );
+            assert_eq!(trained.sha256.len(), 64);
+            assert!(trained.sha256.bytes().all(|b| b.is_ascii_hexdigit()));
+            assert!(trained.size > 1_000_000);
+            assert_eq!(qwen_file(QWEN_PII_ID).unwrap(), QWEN_PII_FILE);
+        }
         let nemotron = asset_for_path(std::path::Path::new(NEMOTRON_FILE)).unwrap();
         assert_eq!(
             nemotron.sha256,
@@ -544,6 +572,12 @@ pub(crate) async fn download_privacy_model(
     id: String,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
+    if id == QWEN_PII_ID {
+        return Err(
+            "Este modelo se entrenó en este equipo. Restaura su copia local para reinstalarlo."
+                .into(),
+        );
+    }
     let destination = models_dir(&app_handle).join(qwen_file(&id)?);
     tauri::async_runtime::spawn_blocking(move || {
         download_file(&app_handle, &destination, &id)?;

@@ -165,6 +165,10 @@ pub(crate) struct Session {
     pub analysis_complete: bool,
     pub reviewed: bool,
     pub revision: u64,
+    pub layout_available: bool,
+    /// Immutable page pixels and exact extraction offsets remain in memory.
+    #[serde(skip_serializing)]
+    pub layout: Option<std::sync::Arc<crate::layout::DocumentLayout>>,
 }
 impl Session {
     pub(crate) fn new(file_name: String, original: String) -> Result<Self, String> {
@@ -194,6 +198,8 @@ impl Session {
             analysis_complete: false,
             reviewed: false,
             revision: 0,
+            layout_available: false,
+            layout: None,
         })
     }
 }
@@ -295,6 +301,9 @@ pub(crate) fn apply_private_ocr(
         .as_mut()
         .filter(|s| s.id == id && s.revision == revision)
         .ok_or("La sugerencia está desactualizada.")?;
+    if session.layout_available {
+        return Err("Para conservar el formato, revisa los valores exactos en el mapa; las coordenadas corresponden a la extracción original.".into());
+    }
     if !valid_ocr_prefix(&suggestion, &session.original) {
         return Err(
             "La corrección solo puede añadir una letra inicial a una palabra existente.".into(),
@@ -343,7 +352,8 @@ fn needs_ocr_cleanup(session: &Session) -> bool {
         .and_then(|value| value.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
-    session.original == session.extracted_original
+    !session.layout_available
+        && session.original == session.extracted_original
         && matches!(
             extension.as_str(),
             "pdf" | "png" | "jpg" | "jpeg" | "tiff" | "tif" | "heic"
@@ -431,7 +441,7 @@ fn normalized(s: &str) -> String {
         .join(" ")
         .to_lowercase()
 }
-fn matching_pattern(original: &str) -> Result<Regex, String> {
+pub(crate) fn matching_pattern(original: &str) -> Result<Regex, String> {
     let escaped = original
         .split_whitespace()
         .map(regex::escape)
@@ -442,7 +452,7 @@ fn matching_pattern(original: &str) -> Result<Regex, String> {
         .build()
         .map_err(|_| "Entidad no válida".into())
 }
-fn boundary(text: &str, start: usize, end: usize) -> bool {
+pub(crate) fn boundary(text: &str, start: usize, end: usize) -> bool {
     let word = |c: char| c.is_alphanumeric() || c == '_';
     let first = text[start..end].chars().next();
     let last = text[start..end].chars().next_back();
@@ -1609,3 +1619,6 @@ pub(crate) fn validate_private_export(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod benchmark;

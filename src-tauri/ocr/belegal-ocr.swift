@@ -53,8 +53,12 @@ func rasterizedPage(_ page: PDFPage) throws -> CGImage {
     }
     context.setFillColor(CGColor(gray: 1, alpha: 1))
     context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    // Keep the page-space transform separate from raster scaling. Passing
+    // rounded pixel dimensions into getDrawingTransform can distort the
+    // embedded image sampling enough to make Vision miss otherwise clear text.
+    context.scaleBy(x: CGFloat(width) / box.width, y: CGFloat(height) / box.height)
     context.concatenate(reference.getDrawingTransform(.mediaBox,
-                        rect: CGRect(x: 0, y: 0, width: width, height: height),
+                        rect: CGRect(x: 0, y: 0, width: box.width, height: box.height),
                         rotate: 0, preserveAspectRatio: true))
     context.drawPDFPage(reference)
     guard let image = context.makeImage() else {

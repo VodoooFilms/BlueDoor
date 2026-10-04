@@ -510,11 +510,11 @@
     <div class="app-toast" role="alert">{importError}</div>
   {/if}
 
-  <div class="privacy-container" class:hidden={workflow !== "private" || privateEditVisible}>
-    <PrivateAI comparisonRequest={privateComparisonRequest} externalSession={privateSession} onSessionChange={receivePrivateSession} onEdit={() => requestNavigation(() => { workflow = "private"; privateEditVisible = true; })} onBusyChange={(busy) => (privacyBusy = busy)} />
+  <div class="privacy-container" class:hidden={workflow !== "private" || (privateEditVisible && !privateSession?.layoutAvailable)}>
+    <PrivateAI editing={privateEditVisible && !!privateSession?.layoutAvailable} comparisonRequest={privateComparisonRequest} externalSession={privateSession} onSessionChange={receivePrivateSession} onEdit={() => requestNavigation(() => { workflow = "private"; privateEditVisible = true; showModels = false; })} onBusyChange={(busy) => (privacyBusy = busy)} />
   </div>
 
-  {#if workflow === "private" && privateEditVisible && privateTranscript}
+  {#if workflow === "private" && privateEditVisible && privateTranscript && !privateSession?.layoutAvailable}
     <TranscriptView transcript={privateTranscript} privateDocument privateReviewed={privateSession?.reviewed ?? false} privateId={privateSession?.id ?? null} privateRevision={privateSession?.revision ?? null} onBackToComparison={goPrivate} onConfirmReview={confirmPrivateReview} onValidateExport={validatePrivateExport} onSave={savePrivateEdit} onDirtyChange={(dirty, save) => { editorDirty = dirty; editorSave = save; }} />
   {/if}
 

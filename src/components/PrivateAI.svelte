@@ -5,11 +5,16 @@
   import { listen } from "@tauri-apps/api/event";
   import { ENTITY_KINDS, type EntityKind, type PrivateEntity, type PrivacySession } from "../lib/privacy";
   import belegalMark from "../assets/belegal-mark.png";
+  import DocumentLayout from "./DocumentLayout.svelte";
+  import { pdfFileName } from "../lib/editor/export";
 
-  let { onBusyChange, onSessionChange, onEdit, externalSession, comparisonRequest }: { onBusyChange: (busy: boolean) => void; onSessionChange: (session: PrivacySession | null) => void; onEdit: (session: PrivacySession) => void; externalSession: PrivacySession | null; comparisonRequest: number } = $props();
+  let { onBusyChange, onSessionChange, onEdit, externalSession, comparisonRequest, editing = false }: { editing?: boolean; onBusyChange: (busy: boolean) => void; onSessionChange: (session: PrivacySession | null) => void; onEdit: (session: PrivacySession) => void; externalSession: PrivacySession | null; comparisonRequest: number } = $props();
   let session = $state<PrivacySession | null>(null);
   let entities = $state<PrivateEntity[]>([]);
   let draftDirty = $state(false);
+  let layoutDirty = $state(false);
+  function layoutEdited(dirty: boolean) { layoutDirty = dirty; onBusyChange(!!busy || dirty); }
+  let aliasEdit: { index: number; members: number[] } | null = null;
   let busy = $state("");
   const importingDocument = $derived(busy.startsWith("Importando"));
   let sanitizing = $state(false);
@@ -39,21 +44,40 @@
   let addText = $state("");
   let addKind = $state<EntityKind>("PERSON");
   let mapOpen = $state(false);
+  let layoutOpen = $state(true);
+  let exported = $state("");
   let originalExpanded = $state(false);
   $effect(() => {
     void comparisonRequest;
+    void editing;
     originalExpanded = false;
     mapOpen = false;
   });
   function adopt(next: PrivacySession | null) {
+    if (next?.id !== session?.id) { layoutOpen = true; exported = ""; }
     if (next?.id !== session?.id) originalExpanded = false;
     if (!next?.analyzed || next.id !== session?.id) mapOpen = false;
     session = next;
     onSessionChange(next);
     entities = next?.entities.map(e => ({ ...e })) ?? [];
     draftDirty = false;
+    aliasEdit = null;
   }
   function edited() { draftDirty = true; error = ""; }
+  function beginAliasEdit(index: number) {
+    const alias = entities[index]?.alias;
+    if (alias === undefined) return;
+    // Keep the original group throughout typing, even if an intermediate value
+    // temporarily matches a different group's alias.
+    aliasEdit = { index, members: entities.flatMap((entity, i) =>
+      (alias.trim() ? entity.alias.trim() === alias.trim() : i === index) ? [i] : []) };
+  }
+  function renameAlias(index: number, value: string) {
+    if (aliasEdit?.index !== index) beginAliasEdit(index);
+    const members = new Set(aliasEdit?.members ?? []);
+    entities = entities.map((entity, i) => members.has(i) ? { ...entity, alias: value } : entity);
+    edited();
+  }
   $effect(() => { if (externalSession && (session?.id !== externalSession.id || session.revision !== externalSession.revision)) adopt(externalSession); });
   onMount(async () => {
     const stop = await listen<[string, number, string]>("private-analysis-progress", event => {
@@ -102,7 +126,9 @@
     analysisStep = "";
     await run("Analizando documento local…", async () => {
       const modelId = localStorage.getItem("belegal-privacy-model") || "qwen3-fast";
-      adopt(await invoke<PrivacySession>("analyze_private_document", { id: current.id, revision: current.revision, modelId }));
+      const analyzed = await invoke<PrivacySession>("analyze_private_document", { id: current.id, revision: current.revision, modelId });
+      adopt(analyzed);
+      if (analyzed.layoutAvailable && analyzed.analyzed) onEdit(analyzed);
     });
   }
   function addEntity() {
@@ -117,7 +143,7 @@
     if (!session) return;
     const current = session;
     await run("Validando el mapa local…", async () => {
-      adopt(await invoke<PrivacySession>("review_private_document", { id: current.id, revision: current.revision, entities: $state.snapshot(entities), confirm }));
+      adopt(await invoke<PrivacySession>(current.layoutAvailable ? "review_private_layout" : "review_private_document", { id: current.id, revision: current.revision, entities: $state.snapshot(entities), confirm }));
     });
   }
   async function clearResult() {
@@ -129,6 +155,17 @@
   }
   async function clear() {
     await run("Cerrando documento…", async () => { await invoke("clear_privacy_session"); adopt(null); });
+  }
+  async function exportOriginalLayout() {
+    if (!session || draftDirty) return;
+    await run("Exportando PDF con formato original…", async () => {
+      const reviewed = await invoke<PrivacySession>("review_private_layout", { id: session!.id, revision: session!.revision, entities: $state.snapshot(entities), confirm: true });
+      adopt(reviewed);
+      if (!reviewed.reviewed) throw new Error(p("Revisa el mapa privado antes de exportar."));
+      const destPath = await invoke<string | null>("choose_pdf_destination", { defaultName: pdfFileName("Protected") });
+      if (!destPath) return;
+      exported = await invoke<string>("export_private_layout", { id: reviewed.id, revision: reviewed.revision, destPath });
+    });
   }
 </script>
 
@@ -142,60 +179,64 @@
 {/snippet}
 
 <section class="privacy-workflow" aria-label="Private Legal">
-  <div class="intro">
-    <div><p class="eyebrow">{p("PRIVATE LEGAL · MOTOR LOCAL")}</p><h1>{#each p("Lo privado permanece aquí.").split(/\b(privado|private)\b/) as part}{#if part === "privado" || part === "private"}<em>{part}</em>{:else}{part}{/if}{/each}</h1></div>
+  {#if !editing || mapOpen}<div class="intro">
+    <div><p class="eyebrow">{p("PRIVATE LEGAL · MOTOR LOCAL")}</p><h1>{#if editing}{p("Revisa el documento protegido.")}{:else}{#each p("Lo privado permanece aquí.").split(/\b(privado|private)\b/) as part}{#if part === "privado" || part === "private"}<em>{part}</em>{:else}{part}{/if}{/each}{/if}</h1></div>
     <div class="intro-status">
       <div class="status-slot">
         {#if error}<p class="error" role="alert">{p(error)}</p>{/if}
       </div>
     </div>
-  </div>
+  </div>{/if}
 
-    <div class="document-actions">
+    {#if !editing || mapOpen || busy}<div class="document-actions">
       <div class="document-actions-left">
-        {#if !mapOpen}
+        {#if !mapOpen && !editing}
           <button class="primary import-button" onclick={importDocument} disabled={!!busy}>{p("Importar documento")}</button>
+          {#if session?.layoutAvailable}<button class="secondary" onclick={() => layoutOpen = !layoutOpen} disabled={!!busy}>{p(layoutOpen ? "Ver texto" : "Ver formato original")}</button>{/if}
         {/if}
         {#if importingDocument}
           {@render processingIndicator()}
         {/if}
       </div>
       <div class="document-actions-right">
-        {#if session && !mapOpen}
+        {#if session && !mapOpen && !editing}
           <button class="secondary analyze-button" onclick={analyze} disabled={!!busy}>{p("Proteger documento")}</button>
         {/if}
         {#if busy && !importingDocument}
           {@render processingIndicator()}
         {:else if !busy && session?.analyzed}
           <div class="result-actions">
-            <button class="secondary" class:active-page={mapOpen} onclick={() => { mapOpen = true; }} disabled={!session.entities.length} aria-pressed={mapOpen}>{p("Mapa privado")}</button>
-            <button class="secondary" onclick={() => { if (session) onEdit(session); }} disabled={draftDirty}>{p("Abrir en Edit")}</button>
+            {#if editing || !session.layoutAvailable}<button class="secondary" class:active-page={mapOpen} onclick={() => { mapOpen = true; }} disabled={!session.entities.length || layoutDirty} aria-pressed={mapOpen}>{p("Mapa privado")}</button>{/if}
+            {#if !editing}<button class="secondary" onclick={() => { if (session) onEdit(session); }} disabled={draftDirty}>{p("Abrir en Edit")}</button>{/if}
           </div>
         {/if}
       </div>
-    </div>
+    </div>{/if}
     {#if session}
       {#if mapOpen}
         <section class="map-page" aria-label={p("Mapa privado")}>
           <div class="panel-heading"><div><p class="eyebrow">{p("MAPA PRIVADO · SOLO EN ESTE EQUIPO")}</p><h2>{p("Revisa las entidades y sus aliases.")}</h2></div><button class="secondary" onclick={() => mapOpen = false}>{p("← Volver al documento")}</button></div>
           <div class="map-heading"><h2>{p("Mapa privado")}</h2><span>{entities.length} {p("entradas · solo local")}</span></div>
           {#if session.analyzed}
-            <p class="map-help">{p("Corrige detecciones y aliases. Para unir variantes de una persona usa el mismo alias. Eliminar una entrada restaura ese dato en la salida: revisa con cuidado.")}</p>
+            <p class="map-help">{p("Corrige detecciones y aliases. Cambiar un alias actualiza todas las entradas que lo comparten. Para unir variantes usa el mismo alias. Eliminar una entrada restaura ese dato en la salida: revisa con cuidado.")}</p>
             <div class="entity-list">
               {#each entities as entity, i}
                 <div class="entity-row">
                   <label><span>{p("Categoría")}</span><select bind:value={entity.kind} onchange={edited} disabled={!!busy}>{#each ENTITY_KINDS as kind}<option value={kind.value}>{p(kind.label)}</option>{/each}</select></label>
                   <label><span>{p("Valor privado")}</span><input aria-label={`${p("Valor privado")} ${i+1}`} bind:value={entity.original} oninput={edited} disabled={!!busy}/></label>
-                  <label><span>{p("Alias")}</span><input aria-label={`Alias ${i+1}`} bind:value={entity.alias} oninput={edited} disabled={!!busy} spellcheck="false"/></label>
-                  <button class="remove" aria-label={`${p("Eliminar entidad")} ${i+1}`} disabled={!!busy} onclick={() => { entities = entities.filter((_, n) => n !== i); edited(); }}>×</button>
+                  <label><span>{p("Alias")}</span><input aria-label={`Alias ${i+1}`} value={entity.alias} onfocus={() => beginAliasEdit(i)} oninput={event => renameAlias(i, event.currentTarget.value)} disabled={!!busy} spellcheck="false"/></label>
+                  <button class="remove" aria-label={`${p("Eliminar entidad")} ${i+1}`} disabled={!!busy} onclick={() => { entities = entities.filter((_, n) => n !== i); aliasEdit = null; edited(); }}>×</button>
                 </div>
               {/each}
             </div>
             <div class="add-entity"><select aria-label={p("Tipo de nueva entidad")} bind:value={addKind} disabled={!!busy}>{#each ENTITY_KINDS as kind}<option value={kind.value}>{p(kind.label)}</option>{/each}</select><input aria-label={p("Nueva entidad privada")} bind:value={addText} placeholder={p("Texto exacto del original")} disabled={!!busy}/><button class="secondary" onclick={addEntity} disabled={!!busy || !addText.trim()}>{p("Añadir entidad")}</button></div>
             <button class="secondary apply-map" onclick={() => applyMap()} disabled={!!busy || !draftDirty}>{p("Aplicar cambios al mapa")}</button>
           {:else}<p class="empty-note">{p("Analiza el documento con Qwen para detectar entidades y construir el mapa.")}</p>{/if}
-          {#if draftDirty}<p class="notice">{p("Aplica los cambios al mapa antes de abrir el documento en Edit.")}</p>{/if}
+          {#if draftDirty}<p class="notice">{p(editing ? "Aplica los cambios al mapa para actualizar el documento." : "Aplica los cambios al mapa antes de abrir el documento en Edit.")}</p>{/if}
         </section>
+      {:else if (layoutOpen || editing) && session.layoutAvailable}
+        <DocumentLayout onMap={() => mapOpen = true} onSessionChange={adopt} onTextDirty={layoutEdited} {session} {entities} editable={editing} dirty={draftDirty} busy={!!busy} onAliasFocus={beginAliasEdit} onAliasChange={renameAlias} onApply={() => applyMap()} onExport={exportOriginalLayout} />
+        {#if exported}<p class="notice" role="status">{p("PDF guardado con el formato original.")} {exported}</p>{/if}
       {:else}
       <div class="boundary-grid" class:original-expanded={originalExpanded}>
         <section class="private-panel">

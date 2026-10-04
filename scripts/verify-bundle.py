@@ -26,7 +26,7 @@ def verify(app):
     main = app / "Contents/MacOS/belegal-local-demo"
     resources = app / "Contents/Resources"
     errors = []
-    required = [main, resources / "runtime/ffmpeg", resources / "runtime/belegal-ocr", resources / "runtime/ffmpeg-build.json",
+    required = [main, resources / "runtime/ffmpeg", resources / "runtime/belegal-ocr", resources / "runtime/belegal-layout", resources / "runtime/ffmpeg-build.json",
                 resources / "runtime/FFmpeg-LICENSE.txt", resources / "runtime/ffmpeg-source.tar.xz",
                 resources / "runtime/THIRD_PARTY_NOTICES.md", resources / "runtime/licenses/inventory.json"]
     for p in required:

@@ -38,12 +38,16 @@ try {
     servers.push(server);
     await server.listen();
   }
-  for (const language of ["es", "en"]) await run("check-private-ai.mjs", language);
-  for (const test of [
-    "check-model-setup.mjs", "check-welcome.mjs", "check-editor.mjs",
-    "check-history.mjs", "check-conversation.mjs", "check-pcm.mjs",
-  ]) await run(test);
-  console.log("\nAll UI tests passed.");
+  if (process.argv.includes("--layout")) {
+    for (const test of ["check-layout.mjs", "check-layout-rich.mjs", "check-alias-groups.mjs"]) await run(test);
+  } else {
+    for (const language of ["es", "en"]) await run("check-private-ai.mjs", language);
+    for (const test of [
+      "check-model-setup.mjs", "check-welcome.mjs", "check-editor.mjs",
+      "check-history.mjs", "check-conversation.mjs", "check-pcm.mjs",
+    ]) await run(test);
+  }
+  console.log("\nAll requested UI workflows passed.");
 } catch (error) {
   console.error(error);
   process.exitCode = 1;

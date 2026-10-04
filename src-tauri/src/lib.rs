@@ -2,6 +2,7 @@ mod audio;
 mod diagnostics;
 mod diarization;
 mod documents;
+mod layout;
 mod llm;
 mod models;
 mod paths;
@@ -84,6 +85,10 @@ pub fn run() {
             platform::open_server_home,
             documents::import_private_document,
             documents::paste_private_document,
+            layout::preview_private_layout,
+            layout::save_private_layout_text,
+            layout::review_private_layout,
+            layout::export_private_layout,
             privacy::get_privacy_session,
             privacy::get_private_extraction,
             privacy::clear_privacy_session,

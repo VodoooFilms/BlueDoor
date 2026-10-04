@@ -160,13 +160,45 @@ pub(crate) async fn import_private_document(
         let ocr = ocr_executable(&app);
         #[cfg(not(target_os = "macos"))]
         let ocr: Option<std::path::PathBuf> = None;
-        let text = extract(&path, ocr.as_deref())?;
+        #[cfg(target_os = "macos")]
+        let extension = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        #[cfg(target_os = "macos")]
+        let layout = if matches!(
+            extension.as_str(),
+            "pdf" | "png" | "jpg" | "jpeg" | "tif" | "tiff" | "heic"
+        ) {
+            let metadata = path
+                .metadata()
+                .map_err(|_| "No se pudo abrir el documento.")?;
+            if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES {
+                return Err("Selecciona un documento de hasta 10 MB.".into());
+            }
+            Some(std::sync::Arc::new(crate::layout::extract(
+                &path,
+                &crate::layout::executable(&app)?,
+            )?))
+        } else {
+            None
+        };
+        #[cfg(not(target_os = "macos"))]
+        let layout: Option<std::sync::Arc<crate::layout::DocumentLayout>> = None;
+        let text = if let Some(layout) = &layout {
+            layout.text.clone()
+        } else {
+            extract(&path, ocr.as_deref())?
+        };
         let name = path
             .file_name()
             .and_then(|s| s.to_str())
             .unwrap_or("Documento local")
             .to_string();
-        let session = Session::new(name, text)?;
+        let mut session = Session::new(name, text)?;
+        session.layout_available = layout.is_some();
+        session.layout = layout;
         *app.state::<PrivacyState>()
             .0
             .lock()

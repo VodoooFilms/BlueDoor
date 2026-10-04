@@ -19,7 +19,7 @@ pub(crate) struct PrivateExport {
     pub revision: u64,
 }
 
-fn validate_pdf_destination(path: &Path) -> Result<PathBuf, String> {
+pub(crate) fn validate_pdf_destination(path: &Path) -> Result<PathBuf, String> {
     let file_name = path
         .file_name()
         .ok_or("Selecciona una ruta de destino válida.")?;
@@ -532,3 +532,66 @@ impl genpdf::PageDecorator for ReportDecorator {
 
 #[cfg(test)]
 mod tests;
+
+// The layout editor shares the rich-text parser used by the existing TextEdit
+// export. Only typed runs are passed to CoreText, never executable HTML.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LayoutRun {
+    pub text: String,
+    pub font: String,
+    pub size: f64,
+    pub color: [f64; 3],
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+}
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LayoutParagraph {
+    pub runs: Vec<LayoutRun>,
+    pub left: f64,
+    pub right: f64,
+    pub first: f64,
+    pub align: String,
+}
+pub(crate) fn layout_paragraphs(
+    html: &str,
+    font: &str,
+    size: f64,
+    align: &str,
+) -> Vec<LayoutParagraph> {
+    parse_html_to_blocks(html)
+        .into_iter()
+        .map(|b| LayoutParagraph {
+            left: b.padding_left as f64,
+            right: b.padding_right as f64,
+            first: b.text_indent as f64,
+            align: b
+                .align
+                .map(|a| match a {
+                    genpdf::Alignment::Center => "center",
+                    genpdf::Alignment::Right => "right",
+                    _ => "left",
+                })
+                .unwrap_or(align)
+                .into(),
+            runs: b
+                .runs
+                .into_iter()
+                .map(|r| LayoutRun {
+                    text: r.text,
+                    font: r.font_family.unwrap_or_else(|| font.into()),
+                    size: r.font_size.map(f64::from).unwrap_or(size),
+                    color: r
+                        .color
+                        .map(|(r, g, b)| [r as f64 / 255., g as f64 / 255., b as f64 / 255.])
+                        .unwrap_or([0., 0., 0.]),
+                    bold: r.bold,
+                    italic: r.italic,
+                    underline: r.underline,
+                })
+                .collect(),
+        })
+        .collect()
+}

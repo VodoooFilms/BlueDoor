@@ -14,6 +14,8 @@ pub(super) struct HtmlRun {
 #[derive(Debug)]
 pub(super) struct HtmlBlock {
     pub(super) padding_left: f32,
+    pub(super) padding_right: f32,
+    pub(super) text_indent: f32,
     pub(super) align: Option<genpdf::Alignment>,
     pub(super) runs: Vec<HtmlRun>,
 }
@@ -21,6 +23,8 @@ pub(super) struct HtmlBlock {
 #[derive(Clone, Default)]
 struct Cursor {
     padding_left: f32,
+    padding_right: f32,
+    text_indent: f32,
     bold: bool,
     italic: bool,
     underline: bool,
@@ -32,6 +36,8 @@ struct Cursor {
 #[derive(Default)]
 struct StylePatch {
     padding_left: Option<f32>,
+    padding_right: Option<f32>,
+    text_indent: Option<f32>,
     color: Option<(u8, u8, u8)>,
     bold: Option<bool>,
     italic: Option<bool>,
@@ -168,6 +174,21 @@ fn parse_style_attr(style: &str) -> StylePatch {
                     .filter(|n| n.is_finite())
                     .map(|n| n.clamp(0.0, 480.0));
             }
+            "padding-right" | "text-indent" => {
+                let n = v
+                    .strip_suffix("px")
+                    .unwrap_or(&v)
+                    .trim()
+                    .parse::<f32>()
+                    .ok()
+                    .filter(|n| n.is_finite())
+                    .map(|n| n.clamp(-480., 480.));
+                if k == "padding-right" {
+                    p.padding_right = n.map(|n| n.max(0.));
+                } else {
+                    p.text_indent = n;
+                }
+            }
             "color" => p.color = parse_color(&v),
             "font-weight" => {
                 p.bold = Some(
@@ -259,6 +280,8 @@ fn flush_block(
     blocks: &mut Vec<HtmlBlock>,
     align: Option<genpdf::Alignment>,
     padding_left: f32,
+    padding_right: f32,
+    text_indent: f32,
 ) {
     if runs.is_empty() {
         return;
@@ -275,6 +298,8 @@ fn flush_block(
     }
     blocks.push(HtmlBlock {
         padding_left,
+        padding_right,
+        text_indent,
         align,
         runs: std::mem::take(runs),
     });
@@ -357,6 +382,8 @@ pub(super) fn parse_html_to_blocks(html: &str) -> Vec<HtmlBlock> {
                         &mut blocks,
                         align,
                         stack.last().map_or(0.0, |c| c.padding_left),
+                        stack.last().map_or(0.0, |c| c.padding_right),
+                        stack.last().map_or(0.0, |c| c.text_indent),
                     );
                     align = None;
                     pop(&mut stack);
@@ -366,6 +393,14 @@ pub(super) fn parse_html_to_blocks(html: &str) -> Vec<HtmlBlock> {
                     }
                     let mut c = cur(&stack);
                     c.padding_left = st.padding_left.unwrap_or(c.padding_left);
+                    c.padding_right = st.padding_right.unwrap_or(c.padding_right);
+                    c.text_indent = st.text_indent.unwrap_or(c.text_indent);
+                    c.font_size = st.font_size.or(c.font_size);
+                    c.font_family = st.font_family.or(c.font_family);
+                    c.color = st.color.or(c.color);
+                    c.bold = st.bold.unwrap_or(c.bold);
+                    c.italic = st.italic.unwrap_or(c.italic);
+                    c.underline = st.underline.unwrap_or(c.underline);
                     stack.push(c);
                 } else {
                     let c = cur(&stack);
@@ -449,7 +484,14 @@ pub(super) fn parse_html_to_blocks(html: &str) -> Vec<HtmlBlock> {
                     stack.push(c);
                 }
             }
-            "br" => flush_text(&mut buf, &mut runs, stack.last().expect("cursor")),
+            "br" => flush_block(
+                &mut runs,
+                &mut blocks,
+                align,
+                stack.last().map_or(0., |c| c.padding_left),
+                stack.last().map_or(0., |c| c.padding_right),
+                stack.last().map_or(0., |c| c.text_indent),
+            ),
             _ => {}
         }
     }
@@ -459,6 +501,8 @@ pub(super) fn parse_html_to_blocks(html: &str) -> Vec<HtmlBlock> {
         &mut blocks,
         align,
         stack.last().map_or(0.0, |c| c.padding_left),
+        stack.last().map_or(0.0, |c| c.padding_right),
+        stack.last().map_or(0.0, |c| c.text_indent),
     );
     blocks
 }

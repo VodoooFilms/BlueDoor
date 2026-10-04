@@ -28,9 +28,11 @@ La identificación de hablantes requiere el modelo de diarización y un motor co
 ## Cómo funciona
 
 1. Importa un documento privado o pega su texto.
-2. Analiza el contenido con el modelo local.
-3. Revisa el mapa de entidades y la versión sanitizada.
-4. Abre el resultado en Edit, realiza tus ajustes y exporta a PDF.
+2. Pulsa **Proteger documento**. En PDF e imágenes, el resultado abre directamente **Edit**.
+3. Revisa el documento conservando sus páginas, gráficos y posiciones. Corrige el texto directamente sobre la página con los controles de fuente, tamaño, estilos y sangrías del procesador existente. El mapa permite renombrar conjuntamente todas las entradas que comparten un alias.
+4. Guarda las correcciones y pulsa **Exportar PDF**. La exportación conserva la distribución original en las zonas no editadas; si una corrección no cabe, se rechaza para que puedas ajustarla, sin recortarla.
+
+La edición de PDF mantiene posiciones por bloques; no redistribuye automáticamente todo el documento como Word. Las zonas OCR y las fuentes disponibles pueden limitar la fidelidad. El historial de cambios y las páginas permanecen en memoria durante la sesión. Los avances y límites de evaluación y postentrenamiento se documentan en [PRIVACY_EVALUATION.md](docs/PRIVACY_EVALUATION.md); esta versión no incluye un nuevo modelo entrenado y validado.
 
 La exportación privada valida el contenido y el título contra la sesión revisada. La detección y el OCR pueden omitir o interpretar mal datos: **la revisión humana sigue siendo necesaria y la sanitización no garantiza anonimato**.
 
@@ -44,11 +46,11 @@ La exportación privada valida el contenido y el título contra la sesión revis
 
 ## Instalación en macOS
 
-**Versión actual: 0.2.0 · Apple Silicon · macOS 13.4 o posterior.**
+**Versión actual: 0.3.0 · Apple Silicon · macOS 13.4 o posterior.**
 
 Abre el DMG y arrastra **Belegal _ Local demo.app** a **Aplicaciones**. En la primera apertura, el botón de bienvenida lleva a Models si faltan los modelos requeridos; si están instalados, permite comenzar.
 
-El instalador local verificado se publica como versión de prueba en [GitHub Releases](https://github.com/VodoooFilms/belegal/releases/tag/v0.2.0-cleanup.4). Los archivos de instalación permanecen fuera del árbol de código. La app está firmada ad hoc y **no está notarizada por Apple**; macOS puede mostrar avisos de seguridad al distribuirla. Los modelos no se incluyen en el DMG.
+El instalador local verificado se publica como versión de prueba en [GitHub Releases](https://github.com/VodoooFilms/belegal/releases/tag/v0.3.0). Los archivos de instalación permanecen fuera del árbol de código. La app está firmada ad hoc y **no está notarizada por Apple**; macOS puede mostrar avisos de seguridad al distribuirla. Los modelos no se incluyen en el DMG.
 
 ## Desarrollo
 
@@ -73,6 +75,8 @@ pnpm check:native     # rustfmt y Clippy
 pnpm test:native      # pruebas Rust
 pnpm exec playwright install webkit
 pnpm test:ui          # inicia y cierra sus servidores automáticamente
+cargo test --manifest-path src-tauri/Cargo.toml --lib layout::tests  # genera fixtures de QA en macOS
+pnpm test:layout:ui   # importar → proteger → editar sobre la página → exportar
 ```
 
 La suite UI cubre privacidad en español e inglés, permisos y descargas del setup, bienvenida, editor, historial, hablantes y captura PCM. Requiere libres los puertos 1420 y 5198. En Linux, instala WebKit con `--with-deps`.

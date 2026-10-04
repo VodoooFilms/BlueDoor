@@ -1,6 +1,6 @@
 <script lang="ts">
   import { privateCopy as p } from "../lib/private-i18n";
-  import { tick } from "svelte";
+  import { tick, type Snippet } from "svelte";
   import type { Transcript, DocFormat } from "../lib/types";
   import { DEFAULT_FORMAT, FONT_OPTIONS, SIZE_OPTIONS } from "../lib/types";
   import { formatDuration, sanitizeRichHtml } from "../lib/utils";
@@ -21,6 +21,11 @@
       speakerNames?: Record<string, string>
     ) => void | Promise<void>;
     onDirtyChange: (dirty: boolean, save: () => void | Promise<void>) => void;
+    embedded?: boolean;
+    pageSurface?: Snippet<[Snippet<[string]>]>;
+    surfaceActive?: boolean;
+    surfaceScale?: number;
+    onSaved?: () => void;
     privateDocument?: boolean;
     privateReviewed?: boolean;
     privateId?: string | null;
@@ -30,7 +35,7 @@
     onValidateExport?: (text: string, title?: string) => Promise<void>;
   }
 
-  let { transcript, onSave, onDirtyChange, privateDocument = false, privateReviewed = false, privateId = null, privateRevision = null, onBackToComparison, onConfirmReview, onValidateExport }: Props = $props();
+  let { transcript, onSave, onDirtyChange, privateDocument = false, privateReviewed = false, privateId = null, privateRevision = null, onBackToComparison, onConfirmReview, onValidateExport, embedded = false, pageSurface, surfaceActive = true, surfaceScale = 1, onSaved }: Props = $props();
   let exporting = $state(false);
   let openingServer = $state(false);
   let statusMessage = $state("");
@@ -65,6 +70,26 @@
   let selItalic = $state(false);
   let selUnderline = $state(false);
   let selColor = $state("");
+  let selFont = $state("");
+  let selSize = $state<number | null>(null);
+  const displayFont = $derived(selFont || docFormat.font);
+  const displaySize = $derived(selSize ?? docFormat.size);
+  function readSelectionStyle() {
+    const node = window.getSelection()?.anchorNode;
+    let element = node?.nodeType === Node.ELEMENT_NODE ? node as Element : node?.parentElement;
+    if (node === editorEl && editorEl?.childNodes.length) {
+      const offset = window.getSelection()?.anchorOffset ?? 0;
+      const child = editorEl.childNodes[Math.max(0, Math.min(offset ? offset - 1 : 0, editorEl.childNodes.length - 1))];
+      element = child.nodeType === Node.ELEMENT_NODE ? child as Element : child.parentElement;
+      while (element?.lastElementChild) element = element.lastElementChild;
+    }
+    if (!element || !editorEl?.contains(element)) return;
+    const style = getComputedStyle(element);
+    const family = style.fontFamily.split(",")[0].trim().replace(/^["']|["']$/g, "");
+    selFont = FONT_OPTIONS.find(f => f.id.toLowerCase() === family.toLowerCase() || f.label.toLowerCase() === family.toLowerCase())?.id ?? family;
+    selSize = parseFloat(style.fontSize) || null;
+    selColor = style.color;
+  }
   let lastRange: Range | null = null;
 
   // --- Regla de márgenes/sangrías (aplicada al párrafo / zona seleccionada) ---
@@ -80,7 +105,7 @@
       const css = getComputedStyle(editor);
       const left = parseFloat(css.paddingLeft);
       const right = parseFloat(css.paddingRight);
-      privateRulerStyle = `width:${paper.width - left - right}px; margin-left:${paper.left + left - container.getBoundingClientRect().left - container.clientLeft}px; margin-right:0;`;
+      privateRulerStyle = `width:${paper.width - (left + right) * surfaceScale}px; margin-left:${paper.left + left * surfaceScale - container.getBoundingClientRect().left - container.clientLeft}px; margin-right:0;`;
     }
     const observer = new ResizeObserver(alignRuler);
     observer.observe(editor);
@@ -124,7 +149,7 @@
 
   const dirty = $derived(savedSnapshot !== "" && editorSnapshot(rich, docFormat, speakerNames) !== savedSnapshot);
   $effect(() => {
-    onDirtyChange(dirty, saveCorrection);
+    onDirtyChange(pageSurface && !surfaceActive ? false : dirty, saveCorrection);
   });
 
   // Escribe el contenido en el editor cuando se monta o cambia la transcripción,
@@ -145,12 +170,13 @@
         s.removeAllRanges();
         s.addRange(range);
       }
+      readSelectionStyle();
     }
     prevEditorEl = editorEl;
   });
 
   const fontCss = $derived(
-    FONT_OPTIONS.find((f) => f.id === docFormat.font)?.css ?? FONT_OPTIONS[0].css
+    FONT_OPTIONS.find((f) => f.id === docFormat.font)?.css ?? JSON.stringify(docFormat.font)
   );
 
   const editorStyle = $derived(
@@ -191,6 +217,7 @@
       selBold = selItalic = selUnderline = false;
       selColor = "";
     }
+    readSelectionStyle();
     refreshIndents();
   }
 
@@ -200,6 +227,7 @@
       selBold = document.queryCommandState("bold");
       selItalic = document.queryCommandState("italic");
       selUnderline = document.queryCommandState("underline");
+      readSelectionStyle();
     }
   }
 
@@ -213,7 +241,30 @@
       editorEl.contentEditable = "true";
       const current = editorEl.innerHTML;
       const next = sanitizeRichHtml(current);
-      if (next !== current) editorEl.innerHTML = next;
+      if (next !== current) {
+        // Sanitizing reconstructs DOM nodes. Preserve the selected text so the
+        // next toolbar action still affects the same words.
+        const selection = window.getSelection();
+        const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+        let offsets: [number, number] | null = null;
+        if (range && editorEl.contains(range.commonAncestorContainer)) {
+          const prefix = range.cloneRange(); prefix.selectNodeContents(editorEl); prefix.setEnd(range.startContainer, range.startOffset);
+          offsets = [prefix.toString().length, prefix.toString().length + range.toString().length];
+        }
+        editorEl.innerHTML = next;
+        if (offsets && selection) {
+          const restored = document.createRange();
+          const walker = document.createTreeWalker(editorEl, NodeFilter.SHOW_TEXT);
+          let offset = 0, startSet = false, endSet = false;
+          while (walker.nextNode()) {
+            const node = walker.currentNode, end = offset + (node.textContent?.length ?? 0);
+            if (!startSet && offsets[0] <= end) { restored.setStart(node, Math.max(0, offsets[0] - offset)); startSet = true; }
+            if (!endSet && offsets[1] <= end) { restored.setEnd(node, Math.max(0, offsets[1] - offset)); endSet = true; break; }
+            offset = end;
+          }
+          if (startSet && endSet) { selection.removeAllRanges(); selection.addRange(restored); lastRange = restored.cloneRange(); }
+        }
+      }
       const prev = rich;
       rich = next;
       if (rich !== prev) remember(prev);
@@ -254,7 +305,20 @@
       }
     }
     document.execCommand("styleWithCSS", false, "true");
-    document.execCommand(cmd, false, value);
+    if (cmd === "fontSize" && value) {
+      const selection = window.getSelection();
+      if (selection?.rangeCount) {
+        const range = selection.getRangeAt(0);
+        if (range.collapsed) range.selectNodeContents(editorEl);
+        const content = range.extractContents();
+        for (const element of content.querySelectorAll<HTMLElement>("*")) {
+          element.removeAttribute("size"); element.style.removeProperty("font-size");
+        }
+        const span = document.createElement("span"); span.style.fontSize = `${Number(value)}px`; span.append(content);
+        range.insertNode(span); range.selectNodeContents(span);
+        selection.removeAllRanges(); selection.addRange(range); lastRange = range.cloneRange();
+      }
+    } else document.execCommand(cmd, false, value);
     syncFromEditor();
     refreshSelState();
   }
@@ -292,17 +356,6 @@
     if (t instanceof Element && t.closest(".editor-toolbar")) return;
     if (t instanceof Element && t.closest(".ruler")) return;
     lastRange = null;
-  }
-
-  // Mapea tamaños px a los niveles 1-7 de execCommand (aprox., para la selección).
-  function sizeToLevel(px: number): string {
-    if (px <= 11) return "1";
-    if (px <= 13) return "2";
-    if (px <= 15) return "3";
-    if (px <= 18) return "4";
-    if (px <= 22) return "5";
-    if (px <= 30) return "6";
-    return "7";
   }
 
   // --- Regla de márgenes/sangrías ---
@@ -355,7 +408,7 @@
   }
 
   function setBlockIndent(b: HTMLElement, pl: number, ti: number, pr: number) {
-    const width = rulerRef?.clientWidth ?? 660;
+    const width = (rulerRef?.clientWidth ?? 660) / surfaceScale;
     pl = Math.max(0, Math.min(width - 40, pl));
     pr = Math.max(0, Math.min(width - pl - 40, pr));
     ti = Math.max(-pl, Math.min(width - pl - pr - 20, ti));
@@ -366,7 +419,7 @@
 
   function nudge(kind: "left" | "first" | "right", dir: 1 | -1) {
     const b = currentBlock();
-    if (!b) return;
+    if (!b || !surfaceActive) return;
     const i = readIndents(b);
     let pl = i.pl;
     let ti = i.ti;
@@ -382,15 +435,15 @@
   function dragRuler(kind: "left" | "first" | "right", e: PointerEvent) {
     e.preventDefault();
     const r = rulerRef;
-    if (!r) return;
+    if (!r || !surfaceActive) return;
     const rect = r.getBoundingClientRect();
     const blocks = affectedBlocks();
     const list = blocks.length ? blocks : (currentBlock() ? [currentBlock()!] : []);
     if (list.length === 0) return;
     const start = readIndents(list[0]);
-    const max = rect.width;
+    const max = rect.width / surfaceScale;
     function move(ev: PointerEvent) {
-      const pos = Math.round(Math.max(0, Math.min(max, ev.clientX - rect.left)));
+      const pos = Math.round(Math.max(0, Math.min(max, (ev.clientX - rect.left) / surfaceScale)));
       let pl = start.pl;
       let ti = start.ti;
       let pr = start.pr;
@@ -483,6 +536,7 @@
 
   async function saveCorrection() {
     if (savedCorrection) return;
+    statusMessage = "";
     const safeHtml = sanitizeRichHtml(rich);
     rich = safeHtml;
     correctedText = htmlToPlain(safeHtml);
@@ -490,6 +544,7 @@
     catch (e) { statusMessage = String(e); return; }
     savedSnapshot = editorSnapshot(safeHtml, docFormat, speakerNames);
     savedCorrection = true;
+    onSaved?.();
   }
 
   // Renombra un hablante y reescribe los prefijos del editor en el acto,
@@ -541,7 +596,8 @@
   // descartando correcciones y pasos del historial.
   function resetToOriginal() {
     const original = normalizeSpeakerText(transcript.text, transcript.segments, speakerNames);
-    rich = conversationHtml(textToHtml(original), speakerNames, hasSpeakers);
+    rich = embedded ? sanitizeRichHtml(transcript.correctedHtml || textToHtml(original)) : conversationHtml(textToHtml(original), speakerNames, hasSpeakers);
+    if (embedded) docFormat = transcript.format ?? DEFAULT_FORMAT;
     correctedText = htmlToPlain(rich);
     resetSnapshot = editorSnapshot(rich, docFormat, speakerNames);
     savedCorrection = false;
@@ -553,51 +609,51 @@
 
 <svelte:window onpointerdown={onGlobalPointerDown} onkeydown={onUndoKeydown} />
 
-<section class="viewer" class:private-document={privateDocument}>
+<section class="viewer" class:private-document={privateDocument} class:embedded class:page-editor={!!pageSurface}>
   <div class="viewer-head">
-    <div class="head-copy">
+    {#if !pageSurface}<div class="head-copy">
       <strong>{privateDocument ? p(transcript.title) : transcript.title}</strong>
       <span>{privateDocument ? p("Documento privado · solo en memoria") : t.meta(formatDuration(transcript.duration), transcript.language, transcript.model)}</span>
-    </div>
+    </div>{/if}
     <div class="head-actions">
-      <button class="head-btn" onclick={resetToOriginal} disabled={!canReset} title={t.reset}>
+      <button class="head-btn" onclick={resetToOriginal} disabled={!surfaceActive || !canReset} title={t.reset}>
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
           <path d="M21 3v5h-5"></path>
         </svg>
         {t.reset}
       </button>
-      <button class="head-btn" onclick={undo} disabled={!canUndo} title={`${t.undo} (Ctrl+Z)`}>
+      <button class="head-btn" onclick={undo} disabled={!surfaceActive || !canUndo} title={`${t.undo} (Ctrl+Z)`}>
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
           <path d="M3 3v5h5"></path>
         </svg>
         {t.undo}
       </button>
-      <button class="head-btn" class:copied={copied} onclick={copyToClipboard}>{copied ? t.copied : t.copy}</button>
-      <button class="head-btn save-btn" class:saved={savedCorrection} onclick={saveCorrection} disabled={savedCorrection}>
+      <button class="head-btn" class:copied={copied} onclick={copyToClipboard} disabled={!surfaceActive}>{copied ? t.copied : t.copy}</button>
+      <button class="head-btn save-btn" class:saved={savedCorrection} onclick={saveCorrection} disabled={!surfaceActive || savedCorrection}>
         <span class="save-label">
           <span class="save-label-measure" aria-hidden="true">{t.save}</span>
           <span class="save-label-measure" aria-hidden="true">{t.saved}</span>
           <span>{savedCorrection ? privateDocument ? p("Guardado") : t.saved : t.save}</span>
         </span>
       </button>
-      <button class="head-btn" onclick={openServer} disabled={openingServer} title="https://blegalcorp.com/">
+      {#if !embedded}<button class="head-btn" onclick={openServer} disabled={openingServer} title="https://blegalcorp.com/">
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M10 13V3"></path>
           <path d="M6 7l4-4 4 4"></path>
           <path d="M4 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"></path>
         </svg>
         {t.langLabel === "ES" ? "Subir al servidor" : "Upload to server"}
-      </button>
-      <button class="head-btn primary" onclick={() => exportAsPDF()} disabled={exporting} title={privateDocument ? p("Exportar el documento actual a un PDF local") : t.exportPdf}>
+      </button>{/if}
+      {#if !embedded}<button class="head-btn primary" onclick={() => exportAsPDF()} disabled={exporting} title={privateDocument ? p("Exportar el documento actual a un PDF local") : t.exportPdf}>
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M10 13V3"></path>
           <path d="M6 7l4-4 4 4"></path>
           <path d="M4 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"></path>
         </svg>
         {exporting ? t.exportingPdf : privateDocument ? p("Exportar PDF") : t.exportPdf}
-      </button>
+      </button>{/if}
     </div>
   </div>
 
@@ -624,11 +680,12 @@
     </div>
   {/if}
 
+  <fieldset class="editor-tools" disabled={!surfaceActive}>
   <div class="editor-toolbar" aria-label={t.alignLabel}>
       <label class="tb-field" title={t.fontLabel}>
         <select
           class="tb-font"
-          value={docFormat.font}
+          value={displayFont}
           onchange={(e) => {
             const v = (e.currentTarget as HTMLSelectElement).value;
             if (inEditorSelection()) applyFormat("fontName", v);
@@ -636,6 +693,7 @@
           }}
           aria-label={t.fontLabel}
         >
+          {#if !FONT_OPTIONS.some(f => f.id === displayFont)}<option value={displayFont}>{displayFont}</option>{/if}
           {#each FONT_OPTIONS as f}
             <option value={f.id}>{f.label}</option>
           {/each}
@@ -644,14 +702,15 @@
       <label class="tb-field" title={t.sizeLabel}>
         <select
           class="tb-size"
-          value={docFormat.size}
+          value={displaySize}
           onchange={(e) => {
             const v = Number((e.currentTarget as HTMLSelectElement).value);
-            if (inEditorSelection()) applyFormat("fontSize", sizeToLevel(v));
+            if (inEditorSelection()) applyFormat("fontSize", String(v));
             else setDocFormat({ size: v });
           }}
           aria-label={t.sizeLabel}
         >
+          {#if !SIZE_OPTIONS.includes(displaySize)}<option value={displaySize}>{displaySize}</option>{/if}
           {#each SIZE_OPTIONS as s}
             <option value={s}>{s}</option>
           {/each}
@@ -700,13 +759,21 @@
           <span class="ruler-num">{n}</span>
         {/each}
       </div>
-      <div class="ruler-marker first" role="button" tabindex="0" style={`left: ${curPL + curTI}px`} onpointerdown={(e) => dragRuler("first", e)} onkeydown={(e) => { if (e.key === "ArrowLeft") nudge("first", -1); else if (e.key === "ArrowRight") nudge("first", 1); }} title={t.firstLineIndent}></div>
-      <div class="ruler-marker left" role="button" tabindex="0" style={`left: ${curPL}px`} onpointerdown={(e) => dragRuler("left", e)} onkeydown={(e) => { if (e.key === "ArrowLeft") nudge("left", -1); else if (e.key === "ArrowRight") nudge("left", 1); }} title={t.leftIndent}></div>
-      <div class="ruler-marker right" role="button" tabindex="0" style={`right: ${curPR}px`} onpointerdown={(e) => dragRuler("right", e)} onkeydown={(e) => { if (e.key === "ArrowLeft") nudge("right", -1); else if (e.key === "ArrowRight") nudge("right", 1); }} title={t.rightIndent}></div>
+      <div class="ruler-marker first" role="button" tabindex={surfaceActive ? 0 : -1} style={`left: ${(curPL + curTI) * surfaceScale}px`} onpointerdown={(e) => dragRuler("first", e)} onkeydown={(e) => { if (e.key === "ArrowLeft") nudge("first", -1); else if (e.key === "ArrowRight") nudge("first", 1); }} title={t.firstLineIndent}></div>
+      <div class="ruler-marker left" role="button" tabindex={surfaceActive ? 0 : -1} style={`left: ${curPL * surfaceScale}px`} onpointerdown={(e) => dragRuler("left", e)} onkeydown={(e) => { if (e.key === "ArrowLeft") nudge("left", -1); else if (e.key === "ArrowRight") nudge("left", 1); }} title={t.leftIndent}></div>
+      <div class="ruler-marker right" role="button" tabindex={surfaceActive ? 0 : -1} style={`right: ${curPR * surfaceScale}px`} onpointerdown={(e) => dragRuler("right", e)} onkeydown={(e) => { if (e.key === "ArrowLeft") nudge("right", -1); else if (e.key === "ArrowRight") nudge("right", 1); }} title={t.rightIndent}></div>
     </div>
 
+  </fieldset>
   <div class="viewer-body">
-    {#if privateDocument}<button class="return-comparison" onclick={onBackToComparison} title={p("Volver a pantalla dividida")} aria-label={p("Volver a pantalla dividida")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5M7 10h10" /></svg></button>{/if}
+    {#if pageSurface}{@render pageSurface(richSurface)}{:else}
+    {#if privateDocument && !embedded}<button class="return-comparison" onclick={onBackToComparison} title={p("Volver a pantalla dividida")} aria-label={p("Volver a pantalla dividida")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5M7 10h10" /></svg></button>{/if}
+    {@render richSurface("")}
+    {/if}
+  </div>
+</section>
+
+{#snippet richSurface(positionStyle: string)}
     <div
       class="corrected rich-editor"
       contenteditable="true"
@@ -715,15 +782,14 @@
       spellcheck="false"
       tabindex="0"
       aria-label={t.corrected}
-      style={editorStyle}
+      style={`${editorStyle}${positionStyle}`}
       bind:this={editorEl}
       oninput={syncFromEditor}
       onpaste={onPaste}
       onkeyup={onEditorInteract}
       onmouseup={onEditorInteract}
     ></div>
-  </div>
-</section>
+{/snippet}
 
 <style>
   .viewer {
@@ -950,4 +1016,18 @@
   .ruler-marker.first { color: #4da3ff; filter: drop-shadow(0 0 1px rgba(77, 163, 255, .45)); }
   .ruler-marker.left { color: var(--accent); }
   .ruler-marker.right { color: var(--muted); }
+  .embedded { min-width:0; width:100%; }
+  .embedded .viewer-head { flex-wrap:wrap; }
+  .embedded .head-actions { flex-wrap:wrap; }
+  .embedded .editor-toolbar { flex-wrap:wrap; }
+  .embedded .viewer-body { padding:14px; }
+  .embedded .corrected { width:100%; min-height:180px; margin:0; padding:12px; box-shadow:none; background:var(--surface); line-height:1.25; }
+  .editor-tools { border:0; padding:0; margin:0; min-width:0; flex:none; }
+  .editor-tools:disabled .ruler { opacity:.45; }
+  .page-editor { border:0; border-radius:0; }
+  .page-editor .viewer-head { padding:6px 12px; }
+  .page-editor .head-actions { width:100%; justify-content:flex-start; }
+  .page-editor .viewer-body { padding:22px; background:var(--panel); overflow:auto; }
+  .page-editor .corrected { position:absolute; width:auto; min-height:0; margin:0; padding:0; border:0; border-radius:0; box-shadow:none; line-height:normal; background:transparent; overflow:visible; z-index:4; }
+  .page-editor .ruler { overflow:hidden; }
 </style>

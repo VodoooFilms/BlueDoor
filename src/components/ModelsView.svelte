@@ -367,6 +367,8 @@
             <div class="download-progress"><div class="progress-track"><div class="progress-fill" style={`width: ${progress[privacySelected] ?? 0}%`}></div></div><span>{progress[privacySelected] ?? 0}%</span></div>
           {:else if installed[privacySelected]}
             <span class="ok">{t.downloaded}</span>
+          {:else if privacySelected === "belegal-pii-v1"}
+            <span>{p("Restaura la copia local del modelo entrenado.")}</span>
           {:else}
             <button class="download-btn" disabled={busy} onclick={() => install("privacy")}>{t.download}</button>
           {/if}
