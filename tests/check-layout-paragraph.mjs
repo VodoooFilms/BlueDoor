@@ -1,0 +1,128 @@
+import {webkit} from 'playwright';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const pages=JSON.parse(readFileSync('artifacts/layout-workflow/paragraph-before.preview.json'));
+const editedPages=JSON.parse(readFileSync('artifacts/layout-workflow/paragraph-edited.preview.json'));
+const blocks=JSON.parse(readFileSync('artifacts/layout-workflow/paragraph-blocks.json'));
+const browser=await webkit.launch();
+try {
+ const page=await browser.newPage({viewport:{width:1500,height:1050}});page.setDefaultTimeout(15000);
+ await page.addInitScript(({pages,editedPages,blocks})=>{
+  localStorage.setItem('belegal-local-demo-language','es');localStorage.setItem('belegal-local-demo-welcome-seen','true');
+  let session={id:'paragraph-layout',revision:1,fileName:'layout-paragraphs.pdf',original:'Documento de prueba María Pérez',entities:[{kind:'PERSON',original:'María Pérez',alias:'PERSON_01',source:'review'}],sanitized:'Documento de prueba PERSON_01',warnings:[],advisories:[],analyzed:true,analysisComplete:true,reviewed:false,edited:false,layoutAvailable:true};
+  window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},transformCallback:()=>1,invoke:async(cmd,args)=>{
+   if(['check_installation','save_transcripts','plugin:event|unlisten'].includes(cmd))return;
+   if(cmd==='load_transcripts')return [];
+   if(cmd==='plugin:event|listen')return 1;
+   if(cmd==='list_models')return {whisper:[],parakeet:[],diarization:[],privacy:[{installed:true}]};
+   if(cmd==='diarization_available')return false;
+   if(cmd==='get_privacy_session')return structuredClone(session);
+   if(cmd==='preview_private_layout'){
+    if(session.edited)await new Promise(resolve=>setTimeout(resolve,80));
+    return {id:session.id,revision:session.revision,pages:session.edited?editedPages:pages,blocks:structuredClone(blocks),redactions:[],estimated:false};
+   }
+   if(cmd==='save_private_layout_text'){
+    if(args.edit.html.includes('NO_CABE'))throw Error('El texto corregido no cabe en su zona.');
+    const b=blocks.find(b=>b.id===args.edit.blockId);Object.assign(b,args.edit);b.bounds=[...args.edit.bounds];b.rect=[...b.bounds];
+    session.revision++;session.edited=true;session.reviewed=false;session.sanitized='Documento corregido PERSON_01';
+    window.__savedEdit=structuredClone(args.edit);return structuredClone(session);
+   }
+   throw Error('Unexpected command '+cmd);
+  }};
+ },{pages,editedPages,blocks});
+ await page.goto('http://localhost:1420');
+ await page.getByRole('button',{name:'Editar texto 1, Página 1',exact:true}).click();
+ const editor=page.locator('.page-editor .rich-editor');await editor.waitFor();
+ assert.match(await editor.innerText(),/Este párrafo.*que continúa.*sin duplicar líneas/s,'select the complete paragraph');
+ const originalHeight=await editor.evaluate(el=>el.clientHeight);
+ const extension='Un párrafo ampliado contiene PERSON_01 y palabras adicionales que se distribuyen al escribir. '.repeat(2);
+ await editor.fill(extension);await editor.press('End');await editor.press('Enter');await editor.press('x');
+ await page.waitForFunction(h=>document.querySelector('.rich-editor').clientHeight>h+10,originalHeight);
+ const fullHeight=await editor.evaluate(el=>el.clientHeight);
+ const nextTop=blocks.find(b=>b.html.includes('otro párrafo')).rect[1];
+ const bottom=await editor.evaluate(el=>parseFloat(el.style.top)+el.clientHeight);
+ assert(bottom<nextTop,'typing cannot visually overwrite the next paragraph');
+ const lower=page.getByRole('button',{name:'Borde inferior del área de texto',exact:true});
+ await lower.focus();await lower.press('ArrowDown');
+ assert(await page.locator('.page-editor .save-btn').isEnabled(),'height geometry is saveable');
+ await page.getByRole('button',{name:'Deshacer',exact:true}).click();
+ // Reset the text and geometry together before testing height-only undo.
+ await page.getByRole('button',{name:'Restablecer',exact:true}).click();
+ // Text and geometry share operation order in either direction.
+ const initialText=await editor.innerText();
+ const right=page.getByRole('button',{name:'Borde derecho del área de texto',exact:true});
+ const initialRight=await right.evaluate(el=>parseFloat(el.style.left));
+ await editor.fill('Texto nuevo para comprobar deshacer');
+ await right.focus();await right.press('ArrowRight');
+ assert(await right.evaluate(el=>parseFloat(el.style.left))>initialRight);
+ await page.getByRole('button',{name:'Deshacer',exact:true}).click();
+ assert.equal(await right.evaluate(el=>parseFloat(el.style.left)),initialRight,'last resize is undone before earlier text');
+ assert.equal(await editor.innerText(),'Texto nuevo para comprobar deshacer');
+ await page.getByRole('button',{name:'Deshacer',exact:true}).click();
+ assert.equal(await editor.innerText(),initialText);
+ await right.focus();await right.press('ArrowRight');
+ const widerRight=await right.evaluate(el=>parseFloat(el.style.left));
+ await editor.fill('Texto escrito después de ampliar');
+ await page.getByRole('button',{name:'Deshacer',exact:true}).click();
+ assert.equal(await editor.innerText(),initialText,'last text is undone before earlier resize');
+ assert.equal(await right.evaluate(el=>parseFloat(el.style.left)),widerRight);
+ await page.getByRole('button',{name:'Deshacer',exact:true}).click();
+ assert.equal(await right.evaluate(el=>parseFloat(el.style.left)),initialRight);
+ await editor.fill('Borrador antes de restablecer');await right.focus();await right.press('ArrowRight');
+ await page.getByRole('button',{name:'Restablecer',exact:true}).click();
+ assert.equal(await editor.innerText(),initialText);assert.equal(await right.evaluate(el=>parseFloat(el.style.left)),initialRight);
+ assert(await page.getByRole('button',{name:'Deshacer',exact:true}).isDisabled(),'reset clears both histories');
+ await lower.focus();await lower.press('ArrowDown');
+ const movedBottom=await lower.evaluate(el=>parseFloat(el.style.top));
+ await page.getByRole('button',{name:'Deshacer',exact:true}).click();
+ assert(await lower.evaluate(el=>parseFloat(el.style.top))<movedBottom,'undo restores the lower edge');
+ await editor.fill('Texto excesivo '.repeat(200));
+ await page.getByRole('status').filter({hasText:'supera el espacio libre'}).waitFor();
+ assert.equal(await editor.evaluate(el=>getComputedStyle(el).overflowY),'auto');
+ assert(await editor.evaluate(el=>el.scrollHeight>el.clientHeight),'overflow remains visible by scrolling, not over the next paragraph');
+ await editor.fill(extension);await editor.press('End');await editor.press('Enter');await editor.press('x');
+ await editor.press('Meta+a');
+ await page.locator('.page-editor .ruler-marker.left').focus();await page.locator('.page-editor .ruler-marker.left').press('ArrowRight');
+ await page.screenshot({path:'artifacts/layout-workflow/ui-paragraph-editor.png',fullPage:true});
+ await page.locator('.page-editor .save-btn').click();await page.waitForFunction(()=>!!window.__savedEdit);
+ const edit=await page.evaluate(()=>window.__savedEdit);assert.match(edit.html,/PERSON_01/);assert.match(edit.html,/padding-left: 5px/);assert(edit.bounds[3]>=fullHeight);
+ await page.getByRole('button',{name:'Editar texto 1, Página 1',exact:true}).click();await editor.waitFor();
+ assert.match(await editor.innerText(),/palabras adicionales/);assert.match(await editor.innerHTML(),/padding-left: 5px/);
+ // Exiting a paragraph is independent of leaving the Edit tab.
+ await page.getByRole('button',{name:'Terminar edición',exact:true}).click();
+ assert.equal(await editor.count(),0,'finish deselects an unchanged paragraph');
+ assert(await page.getByRole('button',{name:'Mapa privado',exact:true}).isEnabled());
+ await page.getByRole('button',{name:'Editar texto 1, Página 1',exact:true}).click();await editor.waitFor();
+ await editor.press('Escape');assert.equal(await editor.count(),0,'Escape exits a clean paragraph');
+ await page.getByRole('button',{name:'Editar texto 1, Página 1',exact:true}).click();await editor.waitFor();
+ await editor.fill('Un borrador que debe conservarse');await editor.press('Escape');
+ const dialog=page.getByRole('dialog',{name:'Salir de la edición del párrafo',exact:true});await dialog.waitFor();
+ await page.getByRole('button',{name:'Seguir editando',exact:true}).click();
+ assert.equal(await editor.innerText(),'Un borrador que debe conservarse');
+ await page.getByRole('img',{name:'Página 1',exact:true}).click({position:{x:20,y:20}});
+ await dialog.waitFor();await page.getByRole('button',{name:'Descartar cambios',exact:true}).click();
+ assert.equal(await editor.count(),0,'discard exits the box without saving the draft');
+ await page.getByRole('button',{name:'Editar texto 1, Página 1',exact:true}).click();await editor.waitFor();
+ await editor.fill('Un párrafo guardado al terminar');
+ const other=blocks.find(b=>b.html.includes('otro párrafo'));
+ await page.getByRole('button',{name:`Editar texto ${other.id+1}, Página 1`,exact:true}).click();
+ await dialog.waitFor();await page.getByRole('button',{name:'Guardar y salir',exact:true}).click();
+ await page.waitForFunction(()=>window.__savedEdit.html.includes('guardado al terminar'));
+ await page.waitForFunction(()=>document.querySelector('.rich-editor')?.textContent.includes('otro párrafo'));
+ await editor.press('Escape');await editor.waitFor({state:'detached'});assert.equal(await editor.count(),0,'saved draft switches to the requested paragraph');
+ await page.getByRole('img',{name:'Página 1',exact:true}).click({position:{x:20,y:20}});
+ assert.equal(await page.locator('dialog[open]').count(),0,'outside click after successful close must not reopen an unsaved dialog');
+ await page.getByRole('button',{name:'Editar texto 1, Página 1',exact:true}).click();await editor.waitFor();
+ await editor.fill('NO_CABE');await page.getByRole('button',{name:'Terminar edición',exact:true}).click();
+ await dialog.waitFor();await page.getByRole('button',{name:'Guardar y salir',exact:true}).click();
+ await page.locator('.page-editor .status').filter({hasText:'no cabe'}).waitFor();
+ assert.equal(await editor.innerText(),'NO_CABE','failed save keeps the draft accessible');
+ await dialog.waitFor();
+ assert.match(await dialog.innerText(),/No se guardó el párrafo/,'save failure stays visible instead of reopening the generic prompt');
+ assert.match(await dialog.innerText(),/no cabe/);
+ await page.getByRole('button',{name:'Descartar cambios',exact:true}).click();
+ assert.equal(await editor.count(),0,'a failed save must never trap the user in a paragraph');
+ assert.equal(await page.locator('.page-editor .status').count(),0,'closed paragraph does not leave a stale save error');
+ assert(await page.getByRole('button',{name:'Documents',exact:true}).count()===0 || await page.getByRole('button',{name:'Documentos',exact:true}).isEnabled());
+ console.log('PASS paragraph workflow: full paragraph, automatic wrapping/growth, new paragraph, bounded overflow, vertical resize/reset/undo, margins, save/reopen');
+} finally {await browser.close();}

@@ -51,6 +51,7 @@ coverage/
 
 playwright-report/
 test-results/
+tmp/
 installers/
 *.dmg
 *.dmg.sha256

@@ -7,6 +7,87 @@ use std::path::Path;
 /// serialises work behind a `try_lock` on the engine cache.
 static REAL_INFERENCE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// Explicit local QA: the input stays outside the repository. Measure actual
+/// inference and retries, rather than inferring capacity from page count.
+#[test]
+#[ignore = "Requires BELEGAL_QA_LAYOUT and verified local Qwen weights"]
+fn real_qwen_user_pdf_capacity() {
+    let path = std::env::var("BELEGAL_QA_LAYOUT").expect("set local layout JSON path");
+    let value: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let text = value["text"].as_str().unwrap();
+    let (_guard, engine) = locked_qwen_engine();
+    struct Measured<'a> {
+        engine: &'a crate::llm::LlmEngine,
+        calls: std::cell::Cell<usize>,
+        errors: std::cell::Cell<usize>,
+    }
+    impl EntityExtractor for Measured<'_> {
+        fn extract(
+            &self,
+            text: &str,
+            progress: &mut dyn FnMut(usize),
+        ) -> Result<Vec<Detection>, String> {
+            self.calls.set(self.calls.get() + 1);
+            let start = std::time::Instant::now();
+            let prompt = self.engine.privacy_prompt_for_test(text);
+            let prompt_tokens = self.engine.count_tokens_for_test(&prompt).unwrap();
+            let mut output_tokens = 0;
+            let outcome = self.engine.extract(text, &mut |n| {
+                output_tokens = n;
+                progress(n);
+            });
+            if outcome.is_err() {
+                self.errors.set(self.errors.get() + 1);
+            }
+            eprintln!("CAPACITY call={} chars={} prompt_tokens={} output_tokens={} seconds={:.2} result={}",
+                self.calls.get(), text.chars().count(), prompt_tokens, output_tokens, start.elapsed().as_secs_f64(),
+                match &outcome { Ok(v) => format!("{} suggestions", v.len()), Err(e) => e.clone() });
+            outcome
+        }
+        fn extract_exact(
+            &self,
+            text: &str,
+            progress: &mut dyn FnMut(usize),
+        ) -> Result<Vec<Detection>, String> {
+            self.engine.extract_exact(text, progress)
+        }
+    }
+    let measured = Measured {
+        engine: &engine,
+        calls: std::cell::Cell::new(0),
+        errors: std::cell::Cell::new(0),
+    };
+    let start = std::time::Instant::now();
+    let analysis = analyze_with_progress(&measured, text, &mut |_, _, _| {}).unwrap();
+    eprintln!("CAPACITY pages={} source_chars={} calls={} errors={} fragments={} failed={} entities={} seconds={:.2}",
+        value["pages"].as_array().unwrap().len(), text.chars().count(), measured.calls.get(), measured.errors.get(),
+        analysis.fragments, analysis.failed_fragments, analysis.entities.len(), start.elapsed().as_secs_f64());
+    assert!(analysis.complete(), "all source fragments must be analyzed");
+    if let Ok(path) = std::env::var("BELEGAL_QA_RESULT") {
+        let bytes = serde_json::to_vec(&analysis.entities).unwrap();
+        crate::store::atomic_write(Path::new(&path), |file| {
+            use std::io::Write;
+            file.write_all(&bytes).map_err(|e| e.to_string())
+        })
+        .unwrap();
+    }
+    let calls = engine.generations_for_test();
+    for pass in 1..=2 {
+        let started = std::time::Instant::now();
+        let repeated = analyze_with_progress(&engine, text, &mut |_, _, _| {}).unwrap();
+        assert!(repeated.complete());
+        // Failed large tasks may be tried again; their successful children must
+        // be reused. No new inference is permitted for completed source blocks.
+        let extra = engine.generations_for_test() - calls;
+        eprintln!(
+            "CAPACITY repeat={} seconds={:.2} additional_generations={extra}",
+            pass,
+            started.elapsed().as_secs_f64()
+        );
+        assert_eq!(extra, 0, "a completed document must not run Qwen again");
+    }
+}
+
 /// Loads a verified Qwen engine while holding the serialisation lock. The
 /// returned guard must stay alive for as long as the engine is used.
 fn locked_qwen_engine() -> (std::sync::MutexGuard<'static, ()>, crate::llm::LlmEngine) {
@@ -322,7 +403,8 @@ fn leaks_are_detected_independently_of_qwen_and_model_json_is_strict() {
     // A shape we cannot read at all is still an error.
     assert!(parse_detections(r#"{"entities":"nope"}"#).is_err());
     assert!(parse_detections(r#"{"entities":[],"safe":true}"#).is_err());
-    assert!(parse_detections(r#"{"entities":[]}"#).is_err());
+    assert!(parse_detections(r#"{"entities":[]}"#).unwrap().is_empty());
+    assert!(parse_detections(r#"{"entities":[{"kind":"PERSON"}]}"#).is_err());
     // One bad element must not cost us the good ones.
     let mixed = parse_detections(
         r#"[{"kind":"ACCOUNT","text":"EC1234567890"},{"kind":"PERSON","text":"Ana"}]"#,
@@ -331,7 +413,9 @@ fn leaks_are_detected_independently_of_qwen_and_model_json_is_strict() {
     assert_eq!(mixed.len(), 2);
     assert_eq!(mixed[0].kind, Kind::Other);
     assert_eq!(mixed[1].kind, Kind::Person);
-    assert!(parse_detections("```json\n{\"entities\":[]}\n```").is_err());
+    assert!(parse_detections("```json\n{\"entities\":[]}\n```")
+        .unwrap()
+        .is_empty());
     assert!(!leak_warnings(
         "María Pérez",
         &[entity(Kind::Person, "María Pérez", "PERSON_01")]
@@ -1177,21 +1261,11 @@ USD 1500 por obligaciones pendientes. La cédula 0912345678 consta en el expedie
     assert!(analysis.entities.len() <= 400, "too many entities");
 }
 
-/// Timing guard for the fragment size. A document that used to need 19 model
-/// round trips must now need a fraction of them; this fails loudly if the
-/// chunk size is ever reverted.
+/// Response size, not page count or context capacity, bounds extraction tasks.
 #[test]
-fn long_documents_need_far_fewer_fragments_than_before() {
-    let text = "palabra ".repeat(20_000); // 160 KB, well past any real limit
-    let fragments = chunks(&text).len();
-    // Each fragment must be answered inside the budget, so the size is set by
-    // the answer, not by how much prompt fits. What must never regress is the
-    // round trips for the same document: 61 fragments was the old 2800/200
-    // setup that made a lawyer wait minutes per document.
-    assert!(
-        fragments < 61,
-        "the fragment size regressed: {fragments} fragments"
-    );
+fn long_documents_use_tasks_small_enough_for_the_response_budget() {
+    let text = "palabra ".repeat(8_000); // Supported 64 KB text budget.
+    assert!(chunks(&text).iter().all(|v| v.chars().count() <= 2000));
     // Overlap must still let an entity survive a fragment boundary: no gap
     // between neighbouring fragments.
     let size = crate::privacy::chunk_chars_for_test();
@@ -1360,10 +1434,8 @@ fn overflowing_fragment_is_split_instead_of_lost() {
         "tras el desbordamiento debe leer mitades: {seen:?}"
     );
     assert!(
-        halves
-            .iter()
-            .all(|n| *n > crate::privacy::min_split_chars_for_test()),
-        "las mitades no deben caer por debajo del suelo de división: {halves:?}"
+        halves.iter().all(|n| *n > 0 && *n < size),
+        "cada división conserva texto y reduce la tarea: {halves:?}"
     );
     assert_eq!(analysis.failed_fragments, 0, "nada debe perderse");
     assert!(
@@ -1467,9 +1539,17 @@ fn always_failing_model_terminates_instead_of_looping() {
     };
     let analysis = analyze_with_progress(&rec, &text, &mut |_, _, _| {}).unwrap();
     let sizes = rec.sizes.borrow().clone();
-    // Both `extract` and its default `extract_exact` record, so each node of the
-    // halving tree appears twice: the two attempts the runner makes per node.
-    let passes = sizes.len() / 2;
+    // Overflow must split immediately, without paying for the same task twice.
+    let passes = sizes.len();
+    let mut maximum_calls = 0;
+    let mut pending_sizes: Vec<_> = chunks(&text).iter().map(|v| v.chars().count()).collect();
+    while let Some(n) = pending_sizes.pop() {
+        maximum_calls += 1;
+        if n > min {
+            pending_sizes.extend([n / 2 + CHUNK_OVERLAP / 2, n - n / 2 + CHUNK_OVERLAP / 2]);
+        }
+    }
+    assert_eq!(passes, maximum_calls, "one inference per overflowing task");
     let mut tally: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
     for n in &sizes {
         *tally.entry(*n).or_default() += 1;
@@ -1481,22 +1561,9 @@ fn always_failing_model_terminates_instead_of_looping() {
     eprintln!("PASSES {passes}");
     // Each fragment is halved until it fits under the floor, so the work is a
     // bounded binary tree, not an unbounded retry loop.
-    // Per fragment the halving tree is walked down to the floor and every node
-    // is attempted twice, so a fragment of length L costs
-    // 2 * (1 + 2 + 4 + ... ) bounded by the floor. The tree depth depends on
-    // each fragment's own length, so it is computed per fragment.
-    let ceiling: usize = chunks(&text)
-        .iter()
-        .map(|f| {
-            let mut level = vec![f.chars().count()];
-            let mut nodes = 0usize;
-            while !level.is_empty() {
-                nodes += level.len();
-                level = level.iter().filter(|n| **n > min).map(|n| n / 2).collect();
-            }
-            nodes * 2
-        })
-        .sum();
+    // Context overlap keeps names whole and each child still shrinks. The
+    // exact ceiling below includes that overlap and excludes duplicate retries.
+    let ceiling = maximum_calls;
     // The point of this test is termination, not an exact count. Halving a
     // fragment is a bounded binary tree, so the passes stay within a small
     // multiple of the fragment count no matter how long the document is.
@@ -1511,6 +1578,57 @@ fn always_failing_model_terminates_instead_of_looping() {
     );
     assert_eq!(analysis.entities.len(), 0, "sin entidades aceptadas");
     assert!(!analysis.complete());
+}
+
+#[test]
+fn long_tables_without_entities_do_not_trigger_retries() {
+    struct TableOnly(std::cell::Cell<usize>);
+    impl EntityExtractor for TableOnly {
+        fn extract(&self, _: &str, _: &mut dyn FnMut(usize)) -> Result<Vec<Detection>, String> {
+            self.0.set(self.0.get() + 1);
+            parse_detections(r#"{"entities":[]}"#)
+        }
+        fn extract_exact(
+            &self,
+            _: &str,
+            _: &mut dyn FnMut(usize),
+        ) -> Result<Vec<Detection>, String> {
+            panic!("a valid empty table result must never be retried")
+        }
+    }
+    let text = "Actividad\tFecha\tMonto\nPreparación\tJulio 2026\tUSD 500\n".repeat(120);
+    let extractor = TableOnly(std::cell::Cell::new(0));
+    let analysis = analyze_with_progress(&extractor, &text, &mut |_, _, _| {}).unwrap();
+    assert!(analysis.complete());
+    assert_eq!(extractor.0.get(), chunks(&text).len());
+}
+
+#[test]
+fn adaptive_splits_preserve_names_crossing_the_cut() {
+    struct FindName;
+    impl EntityExtractor for FindName {
+        fn extract(&self, text: &str, _: &mut dyn FnMut(usize)) -> Result<Vec<Detection>, String> {
+            if text.chars().count() > 1500 {
+                return Err("no terminó dentro del límite".into());
+            }
+            Ok(if text.contains("María Pérez") {
+                vec![Detection {
+                    kind: Kind::Person,
+                    text: "María Pérez".into(),
+                }]
+            } else {
+                vec![]
+            })
+        }
+    }
+    // A unique name straddles the midpoint of a full extraction block.
+    let text = format!("{}María Pérez{}", "x ".repeat(498), " y".repeat(496));
+    let analysis = analyze_with_progress(&FindName, &text, &mut |_, _, _| {}).unwrap();
+    assert!(analysis.complete());
+    assert!(analysis
+        .entities
+        .iter()
+        .any(|e| e.original == "María Pérez"));
 }
 
 #[test]

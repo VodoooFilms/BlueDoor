@@ -35,7 +35,7 @@ try {
       if(cmd==='get_privacy_session')return session;
       if(cmd==='get_private_extraction'){assertRevision(args);return extracted;}
       if(cmd==='import_private_document') {
-        session={id:'local-1',revision:0,fileName:'private-client-file.txt',original,entities:[],sanitized:'',warnings:[],advisories:[],analyzed:false,reviewed:false};
+        session={id:'local-1',revision:0,fileName:'private-client-file.txt',original,entities:[],sanitized:'',warnings:[],advisories:[],analyzed:false,analysisComplete:false,reviewed:false};
         return structuredClone(session);
       }
       if(cmd==='analyze_private_document') {
@@ -43,7 +43,7 @@ try {
         await new Promise(resolve => { window.__finishAnalysis = resolve; });
         session.entities=[{kind:'PERSON',original:'María Pérez',alias:'PERSON_01',source:'qwen'},{kind:'COMPANY',original:'Banco Andino',alias:'COMPANY_01',source:'qwen'},{kind:'EMAIL',original:'maria@example.com',alias:'EMAIL_01',source:'pattern'}];
         session.sanitized='PERSON_01 demanda a COMPANY_01. Email: EMAIL_01. Reclama USD 1500 el 2026-09-30.';
-        session.analyzed=true;session.advisories=advisories(session.entities);session.revision++;
+        session.analyzed=true;session.analysisComplete=true;session.advisories=advisories(session.entities);session.revision++;
         return structuredClone(session);
       }
       if(cmd==='review_private_document') {
@@ -101,197 +101,84 @@ try {
     }};
   });
   await page.goto('http://localhost:1420');
-  if (language === 'en') {
-    await page.getByRole('heading',{name:'Your private information stays here.',exact:true}).waitFor();
-    assert.equal(await page.locator('html').getAttribute('lang'),'en');
-    await page.locator('.nav-models').filter({hasText:'Models'}).click();
-    await page.getByText('Local detection of private entities in documents',{exact:true}).waitFor();
-    await page.locator('.nav-models').filter({hasText:'Private Legal'}).click();
-  }
-  assert.equal(await page.locator('.document-actions').getByRole('button',{name:ui('Proteger documento'),exact:true}).count(),0,'No Protect button without a document');
-  assert.equal(await page.locator('.document-actions').getByRole('button').count(),1,'Only Import is visible before loading a document');
-  await page.screenshot({path:`artifacts/private-legal-empty-${language}.png`,fullPage:true});
-  assert.equal(await page.getByRole('button',{name:ui('Pegar texto'),exact:true}).count(),0);
-  assert.equal(await page.locator('.paste-panel').count(),0);
-  assert.equal(await page.locator('.processing-slot').count(),0);
-  assert.equal(await page.locator('.brand-mark').count(),0);
-  assert.equal(await page.getByRole('heading',{name:ui('Revisión del OCR'),exact:true}).count(),0);
+  await page.getByRole('heading',{name:ui('Lo privado permanece aquí.'),exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).count(),0,'no protection without a document');
   assert.equal(await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).count(),0);
-  assert.equal(await page.locator('.document-actions').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).count(),0);
-  await page.getByRole('heading',{name:ui('Primero, importa un documento privado.'),exact:true}).waitFor();
-  await page.getByRole('button',{name:ui('Importa un documento')}).click();
-  await page.getByTestId('private-original').waitFor();
+  await page.getByRole('button',{name:ui('Importar documento'),exact:true}).click();
+  assert.equal(await page.getByRole('heading',{name:ui('Lo privado permanece aquí.'),exact:true}).count(),0,'welcome copy is not part of the workspace');
+  assert((await page.locator('.original-page').innerText()).includes('María Pérez'));
   assert.equal(await page.getByTestId('private-initial-extraction').count(),0);
-  assert.equal(await page.getByRole('button',{name:ui('Ver extracción inicial sin correcciones')}).count(),0);
-  assert.equal(await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).count(),0);
-  assert.equal(await page.locator('.document-actions').getByRole('button',{name:ui('Cerrar documento')}).count(),0);
-  await page.setViewportSize({width:943,height:700});
-  const actionsBefore = await page.locator('.document-actions').boundingBox();
-  const documentBefore = await page.locator('.boundary-grid').boundingBox();
+  const before=await page.locator('.workspace-header').boundingBox();
   await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).click();
   await page.getByRole('progressbar',{name:ui('Procesando documento')}).waitFor();
-  const actionsDuring = await page.locator('.document-actions').boundingBox();
-  const documentDuring = await page.locator('.boundary-grid').boundingBox();
-  assert.equal(actionsBefore.y,actionsDuring.y,'Processing status does not move the buttons');
-  assert.equal(documentBefore.y,documentDuring.y,'Processing status does not move the document');
-  assert.equal(await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).count(),0);
-  assert.equal(await page.locator('.document-actions').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).count(),0);
-  const protectBounds = await page.locator('.analyze-button').boundingBox();
-  const loaderBounds = await page.getByRole('progressbar').boundingBox();
-  assert(Math.abs(loaderBounds.y+loaderBounds.height-protectBounds.y-protectBounds.height)<1,'Loader aligns with the bottom of the buttons');
+  assert.equal(before.y,(await page.locator('.workspace-header').boundingBox()).y,'processing does not shift the action row');
   await page.getByRole('status').filter({hasText:ui('Analizando con AI local')}).waitFor();
-  const labelBounds=await page.locator('.processing-label').boundingBox();
-  assert(labelBounds.y+labelBounds.height<loaderBounds.y,'Small status text sits above the loader');
-  assert(loaderBounds.x > protectBounds.x + protectBounds.width,'Loader follows Protect document');
-  const panelBounds = await page.locator('.sanitized-panel').boundingBox();
-  assert(Math.abs(protectBounds.x-panelBounds.x)<2,'Protect begins at the right document column');
-  assert(loaderBounds.x + loaderBounds.width <= panelBounds.x + panelBounds.width,'Loader fits the right column');
-  await page.screenshot({path:`artifacts/private-legal-processing-${language}.png`,fullPage:true});
   await page.evaluate(()=>window.__emitAnalysisProgress(['stale-operation',0,'sanitizing']));
-  assert.equal(await page.getByRole('status').filter({hasText:ui('Analizando con AI local')}).count(),1,'Ignore progress from another operation');
+  assert.equal(await page.getByRole('status').filter({hasText:ui('Analizando con AI local')}).count(),1,'ignore progress from another operation');
   const {id,revision}=await page.evaluate(()=>window.__analysisRequest);
-  // A token counter proves the model is advancing while a fragment is read.
-  // This is the regression the lawyer hit: one frozen label for minutes.
-  await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'reading:1/2:24']),[id,revision]);
   const fragment=(n,total)=>ui('Leyendo con AI local · fragmento {0} de {1}').replace('{0}',n).replace('{1}',total);
+  await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'reading:1/2:24']),[id,revision]);
   await page.getByRole('status').filter({hasText:fragment(1,2)}).waitFor();
-  const midLabel=await page.getByRole('status').innerText();
-  assert(/24 tokens/.test(midLabel),`Progress shows running token count, saw: ${midLabel.replace(/\n/g,' ')}`);
+  assert.match(await page.getByRole('status').innerText(),/24 tokens/);
   await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'reading:2/2:96']),[id,revision]);
   await page.getByRole('status').filter({hasText:fragment(2,2)}).waitFor();
-  await page.screenshot({path:`artifacts/private-legal-reading-${language}.png`,fullPage:true});
   await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'sanitizing']),[id,revision]);
   await page.getByRole('status').filter({hasText:ui('Protegiendo el documento')}).waitFor();
-  await page.screenshot({path:`artifacts/private-legal-sanitizing-${language}.png`,fullPage:true});
   await page.evaluate(()=>window.__finishAnalysis());
-  await page.waitForFunction(()=>!document.querySelector('.analyze-button').disabled);
-
-  // El análisis termina sin revisión: el rótulo no puede prometer SAFE todavía,
-  // porque en el propio texto de la app SAFE significa "revisado".
-  const statusUnreviewed=await page.getByTestId('sanitized-status').textContent();
-  assert(!/SAFE/.test(statusUnreviewed),'An unreviewed document must not claim SAFE: '+statusUnreviewed);
-  assert.equal(statusUnreviewed, ui('Pendiente de revisión'),'Unreviewed document says it is pending review');
-
-  assert.equal(await page.getByRole('progressbar').count(),0,'Loader disappears after analysis');
-  assert.equal(await page.locator('.processing-slot').count(),0);
-  assert.equal(await page.locator('.document-actions').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).count(),1);
-  await page.screenshot({path:`artifacts/private-legal-complete-${language}.png`,fullPage:true});
-  await page.setViewportSize({width:800,height:700});
-  const fits = await page.locator('.document-actions').evaluate(el=>el.scrollWidth<=el.clientWidth+1);
-  assert(fits,'Controls fit a compact two-column window');
-  await page.setViewportSize({width:1370,height:800});
-  assert.equal(await page.locator('.private-panel .entity-list').count(),0);
-  await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).click();
-  await page.getByLabel('Alias 1',{exact:true}).waitFor();
-  assert.equal(await page.locator('.document-actions .import-button').count(),0,'Import is hidden inside the map');
-  assert.equal(await page.locator('.document-actions .analyze-button').count(),0,'Protect is hidden inside the map');
-  await page.screenshot({path:`artifacts/private-legal-map-${language}.png`,fullPage:true});
-  await page.locator('.nav-models').filter({hasText:ui('Private Legal')}).click();
-  await page.locator('.boundary-grid').waitFor();
-  assert.equal(await page.locator('.map-page').count(),0,'Private Legal tab leaves the map');
-  assert.equal(await page.locator('.document-actions .import-button').count(),1,'Import returns on the document');
-  assert.equal(await page.locator('.document-actions .analyze-button').count(),1,'Protect returns on the document');
-  await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).click();
-  await page.getByLabel('Alias 1',{exact:true}).waitFor();
-  const columnWidths = await page.locator('.entity-row').first().evaluate(row => {
-    const fields = row.querySelectorAll('input');
-    return [...fields].map(field => field.getBoundingClientRect().width);
-  });
-  assert(Math.abs(columnWidths[0] - columnWidths[1]) < 1, 'Private value and alias have equal width');
-  const previewButton=page.getByRole('button',{name:ui('Preview what leaves this computer')});
-  assert.equal(await previewButton.count(),0,'Map has its own internal page');
+  const map=page.getByRole('button',{name:ui('Mapa privado'),exact:true});
+  await map.waitFor();
+  await page.waitForFunction(()=>!document.querySelector('.workspace-views button:last-child').disabled);
+  assert.equal(await page.getByRole('progressbar').count(),0);
+  assert.match(await page.locator('.workspace-title span').innerText(),new RegExp(ui('Pendiente de revisión')));
+  assert(!/SAFE/.test(await page.locator('.workspace-title span').innerText()),'analysis alone does not promise safety');
+  assert.equal(await page.locator('.boundary-grid').count(),0,'legacy split comparison is gone');
+  assert.equal(await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).count(),0,'no repeated protection inside Edit');
+  await map.click();
   await page.getByLabel('Alias 1',{exact:true}).fill('CLIENTE_01');
-  assert(await page.locator('.document-actions').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).isDisabled(),'Unapplied map blocks Edit');
-  await page.getByRole('button',{name:ui('Aplicar cambios al mapa')}).click();
-  await page.getByRole('button',{name:ui('← Volver al documento'),exact:true}).click();
-  assert.equal(await page.getByRole('button',{name:ui('Confirmar revisión local')}).count(),0);
-  await page.locator('.privacy-workflow').evaluate(el => el.scrollTop = 0);
-  const layout = await page.locator('.privacy-workflow').evaluate(root => {
-    const panel = root.querySelector('.sanitized-panel');
-    const openEdit = panel.querySelector('.review-controls button').getBoundingClientRect();
-    return {height:root.clientHeight, scrollHeight:root.scrollHeight, bottom:root.getBoundingClientRect().bottom, editBottom:openEdit.bottom};
-  });
-  assert(layout.scrollHeight <= layout.height + 1,'Private Legal needs no outer scroll');
-  assert(layout.editBottom <= layout.bottom,'Edit stays visible');
-  await page.screenshot({path:`artifacts/private-legal-review-${language}.png`,fullPage:true});
-  const originalWidth = (await page.locator('.private-panel').boundingBox()).width;
-  await page.getByRole('button',{name:ui('Ampliar documento original'),exact:true}).click();
-  assert(!(await page.locator('.sanitized-panel').isVisible()),'Original expansion hides the other panel');
-  assert((await page.locator('.private-panel').boundingBox()).width > originalWidth * 1.5,'Original uses the full comparison width');
-  await page.screenshot({path:`artifacts/private-legal-expanded-${language}.png`,fullPage:true});
-  await page.getByRole('button',{name:ui('Volver a pantalla dividida'),exact:true}).click();
-  assert(await page.locator('.sanitized-panel').isVisible(),'Back arrow restores the split view');
-  await page.getByRole('button',{name:ui('Abrir versión protegida en Edit'),exact:true}).click();
-  await page.locator('.private-document').waitFor();
-  await page.getByRole('button',{name:ui('Volver a pantalla dividida'),exact:true}).click();
-  await page.locator('.boundary-grid').waitFor();
-  await page.getByRole('button',{name:ui('Abrir versión protegida en Edit'),exact:true}).click();
-
-  const rulerBounds = await page.locator('.private-document').evaluate(view => {
-    const ruler = view.querySelector('.ruler').getBoundingClientRect();
-    const editor = view.querySelector('.corrected');
-    const paper = editor.getBoundingClientRect();
-    const css = getComputedStyle(editor);
-    return { left: ruler.left, right: ruler.right, textLeft: paper.left + parseFloat(css.paddingLeft), textRight: paper.right - parseFloat(css.paddingRight) };
-  });
-  assert(Math.abs(rulerBounds.left - rulerBounds.textLeft) < 2, 'Left ruler margin follows the document');
-  assert(Math.abs(rulerBounds.right - rulerBounds.textRight) < 2, 'Right ruler margin follows the document');
-  await page.screenshot({path:`artifacts/private-legal-editor-${language}.png`,fullPage:true});
-  await page.getByRole('button',{name:ui('Exportar PDF')}).click();
+  const document=page.getByRole('button',{name:ui('Documento'),exact:true});
+  assert(await document.isDisabled(),'unapplied map blocks view switching');
+  await page.locator('.map-page').getByRole('button',{name:ui('Guardar cambios'),exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('.workspace-views button:first-child').disabled);
+  await document.click();
+  await page.getByRole('button',{name:ui('Exportar PDF'),exact:true}).click();
   await page.waitForFunction(()=>window.__privacyCalls.some(c=>c.cmd==='generate_pdf'));
   const exported=await page.evaluate(()=>window.__privacyCalls.find(c=>c.cmd==='generate_pdf'));
   const destination=await page.evaluate(()=>window.__privacyCalls.find(c=>c.cmd==='choose_pdf_destination'));
-  assert.match(destination.args.defaultName, /^(Documento protegido|Protected document)_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.pdf$/, 'PDF filename includes the safe title, local date and time');
-  assert.equal(exported.args.title, language === 'en' ? 'Protected document' : 'Documento protegido');
-  assert(exported.args.private&&exported.args.private.id==='local-1','Private PDF carries the reviewed session id');
-  assert.equal(await page.getByTestId('sanitized-status').textContent(),'SAFE — PROTECTED','A confirmed review is labelled SAFE');
-  assert(Number.isInteger(exported.args.private.revision),'Private PDF carries the reviewed revision');
-  // El título se sella en el encabezado y en los metadatos del PDF, así que
-  // también viaja como contenido exportado.
-  assert(!/@/.test(exported.args.title||''),'Private PDF title is not private data');
-  // Export saves and revalidates an edited document in one click.
-  await page.waitForFunction(()=>!document.querySelector('.head-btn.primary').disabled);
-  await page.locator('.rich-editor').fill(exported.args.text + ' Texto añadido.');
+  assert.match(destination.args.defaultName,/^(Documento protegido|Protected document)_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.pdf$/);
+  assert.equal(exported.args.title,language==='en'?'Protected document':'Documento protegido');
+  assert.equal(exported.args.private.id,'local-1');
+  assert(Number.isInteger(exported.args.private.revision));
+  assert.match(await page.locator('.workspace-title span').innerText(),new RegExp(ui('Revisión confirmada')));
+  await page.locator('.rich-editor').fill(exported.args.text+' Texto añadido.');
+  await page.locator('.settings-menu summary').click();
   await page.locator('#languageToggle').click();
-  assert((await page.locator('.rich-editor').textContent()).includes('Texto añadido.'),'Language switch preserves unsaved text');
+  assert((await page.locator('.rich-editor').innerText()).includes('Texto añadido.'),'language switch preserves the draft');
   await page.locator('#languageToggle').click();
-
+  await page.keyboard.press('Escape');
   await page.getByRole('button',{name:ui('Exportar PDF'),exact:true}).click();
   await page.waitForFunction(()=>window.__privacyCalls.filter(c=>c.cmd==='generate_pdf').length===2);
-  assert.equal(await page.getByRole('region',{name:ui('Revisión antes de exportar')}).count(),0);
-  const latest = await page.evaluate(()=>window.__privacyCalls.filter(c=>c.cmd==='generate_pdf').at(-1));
-  assert(latest.args.private.revision > exported.args.private.revision, 'Export uses the newly validated revision');
-  assert(latest.args.text.includes('Texto añadido.'), 'Export includes the current edits');
-  await page.locator('.nav-models').filter({hasText:ui('Private Legal')}).click();
-  await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).click();
+  const latest=await page.evaluate(()=>window.__privacyCalls.filter(c=>c.cmd==='generate_pdf').at(-1));
+  assert(latest.args.private.revision>exported.args.private.revision);
+  assert(latest.args.text.includes('Texto añadido.'));
+  await map.click();
   await page.getByRole('button',{name:ui('Eliminar entidad 3'),exact:true}).click();
-  assert(await page.locator('.document-actions').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).isDisabled());
-  await page.getByRole('button',{name:ui('Aplicar cambios al mapa')}).click();
-  await page.getByRole('button',{name:ui('← Volver al documento'),exact:true}).click();
-  await page.getByText(ui('Posibles filtraciones · vista previa bloqueada')).waitFor();
-  await page.locator('.sanitized-panel').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).click();
-  await page.getByRole('button',{name:ui('Exportar PDF'),exact:true}).click();
-  await page.locator('.status').filter({hasText:ui('Posible EMAIL residual')}).waitFor();
-  assert.equal(await page.evaluate(()=>window.__privacyCalls.filter(c=>c.cmd==='generate_pdf').length),2,'Residual leak blocks export');
-  await page.locator('.nav-models').filter({hasText:ui('Private Legal')}).click();
-
-  // Vaciar el mapa no puede convertir el original en una salida aprobada.
-  await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).click();
+  await page.locator('.map-page').getByRole('button',{name:ui('Guardar cambios'),exact:true}).click();
+  await page.getByText(ui('Posibles filtraciones · vista previa bloqueada'),{exact:true}).waitFor();
+  await document.click();
+  assert(await page.getByRole('button',{name:ui('Exportar PDF'),exact:true}).isDisabled(),'residual warnings disable export');
+  assert.equal(await page.evaluate(()=>window.__privacyCalls.filter(c=>c.cmd==='generate_pdf').length),2,'residual leak blocks export');
+  await map.click();
   while(await page.getByRole('button',{name:ui('Eliminar entidad 1'),exact:true}).count())await page.getByRole('button',{name:ui('Eliminar entidad 1'),exact:true}).click();
-  assert.equal(await page.locator('.map-page .entity-row').count(),0,'Map emptied');
-  await page.getByRole('button',{name:ui('Aplicar cambios al mapa')}).click();
-  await page.getByText(ui('El mapa no tiene entidades')).waitFor();
-  await page.getByRole('button',{name:ui('← Volver al documento'),exact:true}).click();
-  assert(await page.locator('.sanitized-panel').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).isDisabled(),'Unapplied empty map blocks Edit');
-  await page.getByRole('button',{name:ui('Borrar versión protegida'),exact:true}).click();
-  assert.equal(await page.getByTestId('sanitized-document').count(),0);
-  assert((await page.getByTestId('private-original').textContent()).includes('María Pérez'));
-  assert.equal(await page.locator('.document-actions').getByRole('button',{name:ui('Abrir en Edit'),exact:true}).count(),0);
-  assert(!(await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).isDisabled()));
-  await page.getByRole('button',{name:ui('Borrar documento original'),exact:true}).click();
-  await page.getByRole('heading',{name:ui('Primero, importa un documento privado.')}).waitFor();
-  assert.equal(await page.getByTestId('private-original').count(),0);
-  assert.equal(await previewButton.count(),0);
-  assert(requests.every(url=>url.startsWith('http://localhost:1420/') || url.startsWith('http://127.0.0.1:1420/')),'No external browser requests');
-  console.log(language + ': PASS: Private Legal import, no initial-extraction UI, local analysis UI, alias edit, review gate, exact outbound payload, leak blocking, empty-map refusal, name advisory, identified private PDF export and no external requests. Native privacy logic is covered by Rust tests.');
+  await page.locator('.map-page').getByRole('button',{name:ui('Guardar cambios'),exact:true}).click();
+  await page.getByRole('alert').filter({hasText:ui('El mapa no tiene entidades: la versión protegida sería el documento original.')}).waitFor();
+  assert(await document.isDisabled(),'failed map save retains the draft');
+  assert.equal(await page.evaluate(()=>window.__privacyCalls.filter(c=>c.cmd==='generate_pdf').length),2,'empty map cannot export');
+  await page.getByRole('button',{name:ui('Restablecer cambios'),exact:true}).click();
+  assert.equal(await page.locator('.map-page .entity-row').count(),2,'restoring drafts recovers the saved map');
+  await page.getByRole('button',{name:ui('Eliminar entidad 1'),exact:true}).click();
+  await page.locator('.map-page').getByRole('button',{name:ui('Guardar cambios'),exact:true}).click();
+  await page.locator('.review-advisories summary').click();
+  await page.getByText(ui('El mapa no contiene ninguna persona. Los nombres no tienen un detector determinista: Qwen puede omitirlos y las reglas no los comprueban. Revísalos tú.'),{exact:true}).waitFor();
+  assert(requests.every(url=>url.startsWith('http://localhost:1420/')||url.startsWith('http://127.0.0.1:1420/')),'no external browser requests');
+  console.log(language+': PASS privacy workflow: progress, drafts, aliases, reviewed revision/title export, residual leak blocking, empty-map refusal, reset and name advisory');
 } finally {await browser.close();}

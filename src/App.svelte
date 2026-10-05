@@ -34,6 +34,10 @@
     format: privateEditFormat, segments: [], createdAt: new Date(), duration: 0,
     language: "es", model: "local", audioSource: "file" as const,
   } : null);
+  let settingsEl: HTMLDetailsElement;
+  function closeSettings(event: KeyboardEvent) {
+    if (event.key === "Escape" && settingsEl?.open) { settingsEl.open = false; settingsEl.querySelector("summary")?.focus(); }
+  }
   let fullScreen = $state(false);
   async function toggleFullScreen() {
     const window = getCurrentWindow();
@@ -468,6 +472,8 @@
   });
 </script>
 
+<svelte:window onkeydown={closeSettings} onpointerdown={(event) => { if (settingsEl?.open && !settingsEl.contains(event.target as Node)) settingsEl.open = false; }} />
+
 <div class="shell">
   <header class="masthead">
     <span class="brand" role="button" tabindex="0" title={p("Acerca de BeLegal")} onclick={openAbout} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAbout(); } }}>
@@ -481,23 +487,20 @@
     {/if}
     <div class="nav-right">
       <div class="nav-row">
-        <button class="nav-models" class:nav-active={workflow === "private" && !privateEditVisible} onclick={goPrivate} disabled={recorderBusy || importing || privacyBusy || modelsBusy}>Private Legal</button>
+        <button class="nav-models" class:nav-active={workflow === "private" && !privateEditVisible} onclick={goPrivate} disabled={recorderBusy || importing || privacyBusy || modelsBusy}>{p("Documentos")}</button>
         <button class="nav-models" class:nav-active={workflow === "audio" && !showModels && !activeTranscript} id="recordToggle" onclick={goHome} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title={recorderBusy || importing ? t.navigationBlocked : t.recordNav}>{t.recordNav}</button>
-        <button class="nav-models" class:nav-active={!showModels && (privateEditVisible || (workflow === "audio" && !!activeTranscript))} id="editToggle" onclick={goEdit} disabled={recorderBusy || importing || privacyBusy || modelsBusy || (!privateTranscript && !editTranscript)} title={recorderBusy || importing ? t.navigationBlocked : t.editNav}>{t.editNav}</button>
-        <button class="nav-models" class:nav-active={showModels} id="modelsToggle" onclick={openModels} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title={recorderBusy || importing ? t.navigationBlocked : t.modelsTitle}>{t.modelsTitle}</button>
-        <button class="language-toggle" id="languageToggle" aria-label={t.switchLanguage} title={t.switchLanguage} onclick={toggle}>{t.langLabel}</button>
-        <button class="theme-toggle" id="themeToggle" aria-label={theme === "dark" ? t.lightTheme : t.darkTheme} title={theme === "dark" ? t.lightTheme : t.darkTheme} onclick={toggleTheme}>
-          <svg class="sun-icon" viewBox="0 0 20 20" aria-hidden="true">
-            <circle cx="10" cy="10" r="3.2"></circle>
-            <path d="M10 2v1.5M10 16.5V18M2 10h1.5M16.5 10H18M4.3 4.3l1.1 1.1M14.6 14.6l1.1 1.1M15.7 4.3l-1.1 1.1M5.4 14.6l-1.1 1.1"></path>
-          </svg>
-          <svg class="moon-icon" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M16.2 12.8A6.7 6.7 0 0 1 7.2 3.8a6.7 6.7 0 1 0 9 9Z"></path>
-          </svg>
-        </button>
-        <button class="fullscreen-toggle" id="fullscreenToggle" aria-label={fullScreen ? p("Salir de pantalla completa") : p("Pantalla completa")} title={fullScreen ? p("Salir de pantalla completa") : p("Pantalla completa")} onclick={toggleFullScreen}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M3 13v4h4M17 13v4h-4" /></svg>
-        </button>
+        <button class="nav-models" class:nav-active={(workflow === "private" && privateEditVisible) || (!showModels && workflow === "audio" && !!activeTranscript)} id="editToggle" onclick={goEdit} disabled={recorderBusy || importing || privacyBusy || modelsBusy || (!privateTranscript && !editTranscript)} title={recorderBusy || importing ? t.navigationBlocked : t.editNav}>{t.editNav}</button>
+        <details class="settings-menu" bind:this={settingsEl}>
+          <summary>{p("Ajustes")} <span aria-hidden="true">⌄</span></summary>
+          <div class="settings-popover">
+            <button id="modelsToggle" class:nav-active={showModels && workflow !== "private"} onclick={() => { settingsEl.open = false; openModels(); }} disabled={recorderBusy || importing || privacyBusy || modelsBusy}>{t.modelsTitle}</button>
+            <button id="languageToggle" aria-label={t.switchLanguage} onclick={toggle}>{p("Idioma")} <span>{t.langLabel === "ES" ? "Español" : "English"}</span></button>
+            <button id="themeToggle" aria-label={theme === "dark" ? t.lightTheme : t.darkTheme} onclick={toggleTheme}>{p("Apariencia")} <span>{p(theme === "dark" ? "Oscuro" : "Claro")}</span></button>
+            <hr />
+            <button id="fullscreenToggle" onclick={toggleFullScreen}>{p(fullScreen ? "Salir de pantalla completa" : "Pantalla completa")}</button>
+            <button onclick={() => { settingsEl.open = false; openAbout(); }}>{p("Acerca de BeLegal")}</button>
+          </div>
+        </details>
       </div>
     </div>
   </header>
@@ -510,13 +513,11 @@
     <div class="app-toast" role="alert">{importError}</div>
   {/if}
 
-  <div class="privacy-container" class:hidden={workflow !== "private" || (privateEditVisible && !privateSession?.layoutAvailable)}>
-    <PrivateAI editing={privateEditVisible && !!privateSession?.layoutAvailable} comparisonRequest={privateComparisonRequest} externalSession={privateSession} onSessionChange={receivePrivateSession} onEdit={() => requestNavigation(() => { workflow = "private"; privateEditVisible = true; showModels = false; })} onBusyChange={(busy) => (privacyBusy = busy)} />
+  <div class="privacy-container" class:hidden={workflow !== "private"}>
+    <PrivateAI editing={privateEditVisible} comparisonRequest={privateComparisonRequest} externalSession={privateSession} textTranscript={privateTranscript} onSaveText={savePrivateEdit} onTextDirty={(dirty, save) => { editorDirty = dirty; editorSave = save; }} onConfirmReview={confirmPrivateReview} onValidateExport={validatePrivateExport} onSessionChange={receivePrivateSession} onEdit={() => requestNavigation(() => { workflow = "private"; privateEditVisible = true; showModels = false; })} onBusyChange={(busy) => (privacyBusy = busy)} />
   </div>
 
-  {#if workflow === "private" && privateEditVisible && privateTranscript && !privateSession?.layoutAvailable}
-    <TranscriptView transcript={privateTranscript} privateDocument privateReviewed={privateSession?.reviewed ?? false} privateId={privateSession?.id ?? null} privateRevision={privateSession?.revision ?? null} onBackToComparison={goPrivate} onConfirmReview={confirmPrivateReview} onValidateExport={validatePrivateExport} onSave={savePrivateEdit} onDirtyChange={(dirty, save) => { editorDirty = dirty; editorSave = save; }} />
-  {/if}
+
 
   {#if workflow !== "private"}
   {#if !hydrated}
@@ -572,6 +573,16 @@
 </div>
 
 <style>
+  .settings-menu { position:relative; margin-left:12px; }
+  .settings-menu summary { list-style:none; cursor:pointer; padding:6px 10px; color:var(--text); border-radius:5px; }
+  .settings-menu summary::-webkit-details-marker { display:none; }
+  .settings-menu summary:hover { background:var(--hover); }
+  .settings-popover { position:absolute; right:0; top:40px; z-index:100; width:260px; padding:10px; background:var(--surface); border:1px solid var(--line); border-radius:7px; box-shadow:0 10px 30px #0002; }
+  .settings-popover button { display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; padding:10px; background:transparent; border:0; border-radius:4px; color:var(--text); font:inherit; cursor:pointer; text-align:left; }
+  .settings-popover button:hover { background:var(--hover); }
+  .settings-popover button:disabled { opacity:.45; }
+  .settings-popover button span { color:var(--muted); font-size:12px; }
+  .settings-popover hr { border:0; border-top:1px solid var(--line); }
   .leave-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: rgba(0, 0, 0, .5); }
   .leave-dialog { width: min(420px, calc(100vw - 32px)); padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 12px 36px rgba(0, 0, 0, .35); }
   .leave-dialog strong { font-size: 16px; }
@@ -664,10 +675,7 @@
     justify-content: flex-end;
   }
 
-  .nav-models,
-  .theme-toggle,
-  .language-toggle,
-  .fullscreen-toggle {
+  .nav-models {
     display: grid;
     place-items: center;
     padding: 4px;
@@ -677,10 +685,7 @@
     color: var(--muted);
     cursor: pointer;
   }
-  .nav-models:hover,
-  .theme-toggle:hover,
-  .language-toggle:hover,
-  .fullscreen-toggle:hover { color: var(--text); background: var(--hover); }
+  .nav-models:hover { color: var(--text); background: var(--hover); }
 
   .nav-models {
     height: 28px;
@@ -695,21 +700,7 @@
   .nav-models:disabled { opacity: .45; cursor: default; }
   .nav-models:disabled:hover { color: var(--muted); background: transparent; }
 
-  .theme-toggle svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
-  .fullscreen-toggle svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-  @media (max-width: 1060px) { .shell { padding: 10px; } .masthead { flex-wrap: wrap; gap: 8px; } .nav-right { width: 100%; align-items: flex-start; margin-left: 0; } .nav-row { justify-content: flex-start; } }
-
-  .language-toggle {
-    width: 34px;
-    height: 28px;
-    padding: 0;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--accent);
-  }
-  .language-toggle:hover { color: var(--text); }
-
-  
+  @media (max-width:1060px) { .shell { padding:10px; } .masthead { padding:10px; gap:8px; } .nav-row { gap:4px; } .nav-models { padding:0 8px; } }
 
   .boot-error {
     display: flex;
@@ -764,7 +755,4 @@
     user-select: text;
   }
 
-  .moon-icon { display: none; }
-  :root[data-theme="light"] .sun-icon { display: none; }
-  :root[data-theme="light"] .moon-icon { display: block; }
 </style>

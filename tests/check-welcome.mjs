@@ -28,7 +28,7 @@ try {
     await page.goto('http://localhost:1420');
     await page.getByRole('button', { name: scenario.cta, exact: true }).click();
     assert.equal(await page.getByRole('dialog').count(), 0);
-    if (!scenario.voice || !scenario.privacy) await page.locator('#modelsToggle.nav-active').waitFor();
+    if (!scenario.voice || !scenario.privacy) await page.locator('.models').waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem('belegal-local-demo-welcome-seen')), 'true');
     await page.reload();
     await page.locator('.brand').waitFor();

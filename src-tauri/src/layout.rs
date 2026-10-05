@@ -56,6 +56,7 @@ pub(crate) struct LayoutPreview {
     pub redactions: Vec<Redaction>,
     pub estimated: bool,
     pub blocks: Vec<editor::TextBlock>,
+    pub unlabeled_aliases: Vec<String>,
 }
 #[derive(Serialize)]
 struct RenderPlan<'a> {
@@ -102,6 +103,85 @@ pub(crate) fn extract(path: &Path, helper: &Path) -> Result<DocumentLayout, Stri
         .map_err(|_| "Coordenadas del documento no válidas.")?;
     validate_layout(&document)?;
     Ok(document)
+}
+#[cfg(target_os = "macos")]
+pub(crate) fn named_entities(
+    text: &str,
+    helper: &Path,
+) -> Result<Vec<crate::privacy::Detection>, String> {
+    let mut child = Command::new(helper)
+        .arg("--entities")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|_| "No se pudo iniciar el detector local de nombres.")?;
+    child
+        .stdin
+        .take()
+        .ok_or("Detector local no disponible")?
+        .write_all(text.as_bytes())
+        .map_err(|_| "No se pudo leer el texto local.")?;
+    let output = child
+        .wait_with_output()
+        .map_err(|_| "El detector local no terminó.")?;
+    if !output.status.success() {
+        return Err("No se pudo ejecutar el detector local de nombres.".into());
+    }
+    serde_json::from_slice(&output.stdout).map_err(|_| "Detecciones locales no válidas.".into())
+}
+#[cfg(target_os = "macos")]
+pub(crate) fn fit_generated_aliases(
+    document: &DocumentLayout,
+    entities: &mut [Entity],
+    helper: &Path,
+) -> Result<(), String> {
+    let areas = redactions(document, entities)?;
+    let failed = alias_overflows(&areas, helper)?;
+    for index in failed {
+        let entity = entities.get(index).ok_or("Zona de alias no válida")?;
+        let old = entity.alias.clone();
+        let prefix = match entity.kind {
+            crate::privacy::Kind::Person => "P",
+            crate::privacy::Kind::Company => "C",
+            crate::privacy::Kind::Id => "I",
+            crate::privacy::Kind::Email => "E",
+            crate::privacy::Kind::Phone => "T",
+            crate::privacy::Kind::Address => "A",
+            crate::privacy::Kind::Case => "X",
+            crate::privacy::Kind::Other => "O",
+        };
+        if let Some((_, number)) = old.rsplit_once('_') {
+            let compact = format!("{prefix}{number}");
+            for member in entities.iter_mut().filter(|e| e.alias == old) {
+                member.alias = compact.clone();
+            }
+        }
+    }
+    Ok(())
+}
+fn alias_overflows(areas: &[Redaction], helper: &Path) -> Result<Vec<usize>, String> {
+    let mut child = Command::new(helper)
+        .arg("--check-aliases")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|_| "No se pudo comprobar el tamaño de los alias.")?;
+    let bytes = serde_json::to_vec(areas).map_err(|_| "Zonas de alias no válidas")?;
+    child
+        .stdin
+        .take()
+        .ok_or("Comprobación de alias no disponible")?
+        .write_all(&bytes)
+        .map_err(|_| "No se pudo comprobar el tamaño de los alias.")?;
+    let output = child
+        .wait_with_output()
+        .map_err(|_| "La comprobación de alias no terminó.")?;
+    if !output.status.success() {
+        return Err("No se pudo comprobar el tamaño de los alias.".into());
+    }
+    serde_json::from_slice(&output.stdout).map_err(|_| "Comprobación de alias no válida".into())
 }
 fn validate_layout(document: &DocumentLayout) -> Result<(), String> {
     if document.text.is_empty()
@@ -218,8 +298,16 @@ pub(crate) fn redactions(
                 return Err("Un dato privado no tiene coordenadas completas. Revisa el OCR o usa la exportación de texto; no se exportará una cobertura parcial.".into());
             }
         }
+        // A wrapped name can begin in a tiny cell/line fragment. Put the label
+        // in its widest covered segment; every other segment is still erased.
+        let label_index = occurrence
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.rect[2].total_cmp(&b.rect[2]))
+            .map(|(index, _)| index)
+            .ok_or("No se pudo localizar un dato privado en la página.")?;
         let first = occurrence
-            .first_mut()
+            .get_mut(label_index)
             .ok_or("No se pudo localizar un dato privado en la página.")?;
         first.alias = entities[index].alias.clone();
         if document.text[start..end].ends_with('.') {
@@ -367,6 +455,13 @@ pub(crate) async fn preview_private_layout(
             revision,
             pages,
             redactions: areas,
+            unlabeled_aliases: alias_overflows(
+                &redactions(&document, &session.entities)?,
+                &executable(&app)?,
+            )?
+            .into_iter()
+            .filter_map(|index| session.entities.get(index).map(|e| e.alias.clone()))
+            .collect(),
             blocks,
             estimated: document.pages.iter().any(|p| p.source == "ocr"),
         })
@@ -405,6 +500,105 @@ mod tests {
     fn helper() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/belegal-layout")
     }
+    #[test]
+    #[ignore = "Requires BELEGAL_QA_LAYOUT and BELEGAL_QA_RESULT from local inference QA"]
+    fn local_pdf_analysis_renders_all_pages() {
+        let source = std::env::var("BELEGAL_QA_LAYOUT").unwrap();
+        let result = std::env::var("BELEGAL_QA_RESULT").unwrap();
+        let document: DocumentLayout =
+            serde_json::from_slice(&std::fs::read(source).unwrap()).unwrap();
+        let qwen: Vec<Entity> = serde_json::from_slice(&std::fs::read(result).unwrap()).unwrap();
+        let blocks = editor::blocks(&document, &qwen).unwrap();
+        if let Ok(index) = std::env::var("BELEGAL_QA_EDIT_BLOCK") {
+            let block = if index == "auto" {
+                blocks
+                    .iter()
+                    .find(|b| b.html.contains("2016"))
+                    .expect("QA edit target must exist")
+            } else {
+                &blocks[index.parse::<usize>().unwrap()]
+            };
+            assert!(
+                block.html.contains("2016"),
+                "QA edit target must contain the replacement"
+            );
+            let mut edited = document.clone();
+            edited.edits.push(editor::TextEdit {
+                block_id: block.id,
+                html: block.html.replace("2016", "2016 di"),
+                font: block.font.clone(),
+                size: block.size,
+                align: block.align.clone(),
+                bounds: Some(block.bounds),
+            });
+            let (_, overlays, sanitized) = editor::compiled(&edited, &qwen).unwrap();
+            let pages = render_overlays(
+                &helper(),
+                &edited,
+                &redactions(&edited, &qwen).unwrap(),
+                &overlays,
+                "--preview",
+            )
+            .unwrap();
+            assert!(sanitized.contains("2016 di"));
+            eprintln!(
+                "LOCAL EDIT QA small correction rendered=true pages={}",
+                serde_json::from_slice::<Vec<Page>>(&pages).unwrap().len()
+            );
+        }
+        let paragraphs = blocks
+            .iter()
+            .filter(|b| b.min_height > b.size * 2.2)
+            .count();
+        eprintln!(
+            "LOCAL EDIT QA blocks={} multiline_paragraphs={paragraphs}",
+            blocks.len()
+        );
+        let names = named_entities(&document.text, &helper()).unwrap();
+        let mut map = crate::privacy::merge_detection_sources(
+            &document.text,
+            qwen.iter()
+                .map(|e| crate::privacy::Detection {
+                    kind: e.kind,
+                    text: e.original.clone(),
+                })
+                .collect(),
+            names,
+        )
+        .unwrap();
+        fit_generated_aliases(&document, &mut map, &helper()).unwrap();
+        let sanitized = crate::privacy::sanitize(&document.text, &map).unwrap();
+        // External QA expectations stay outside source control, like the input.
+        if let Ok(path) = std::env::var("BELEGAL_QA_EXPECTED_NAMES") {
+            let names: Vec<String> = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+            assert!(!names.is_empty());
+            for name in &names {
+                let pattern = crate::privacy::matching_pattern(name).unwrap();
+                assert!(
+                    pattern.is_match(&document.text),
+                    "expectation must occur in the source"
+                );
+                assert!(
+                    !pattern.is_match(&sanitized),
+                    "expected person must be protected"
+                );
+            }
+            eprintln!(
+                "LOCAL PDF QA expected_people={} all_covered=true",
+                names.len()
+            );
+        }
+        let areas = redactions(&document, &map).unwrap();
+        let rendered = render(&helper(), &document, &areas, "--preview").unwrap();
+        let pages: Vec<Page> = serde_json::from_slice(&rendered).unwrap();
+        assert_eq!(pages.len(), document.pages.len());
+        eprintln!(
+            "LOCAL PDF RENDER pages={} entities={} redaction_areas={}",
+            pages.len(),
+            map.len(),
+            areas.len()
+        );
+    }
     fn entity(kind: Kind, original: &str, alias: &str) -> Entity {
         Entity {
             kind,
@@ -412,6 +606,289 @@ mod tests {
             alias: alias.into(),
             source: "review".into(),
         }
+    }
+    #[test]
+    fn unprintable_alias_labels_still_erase_every_private_pixel() {
+        let root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/layout-document.pdf");
+        let document = extract(&root, &helper()).unwrap();
+        let map = vec![entity(
+            Kind::Person,
+            "María Pérez",
+            &format!("PERSON_{}", "A".repeat(80)),
+        )];
+        let areas = redactions(&document, &map).unwrap();
+        assert_eq!(alias_overflows(&areas, &helper()).unwrap(), vec![0]);
+        let protected: Vec<Page> =
+            serde_json::from_slice(&render(&helper(), &document, &areas, "--preview").unwrap())
+                .unwrap();
+        let mut blank = areas.clone();
+        for area in &mut blank {
+            area.alias.clear();
+        }
+        let erased: Vec<Page> =
+            serde_json::from_slice(&render(&helper(), &document, &blank, "--preview").unwrap())
+                .unwrap();
+        for (a, b) in protected.iter().zip(erased.iter()) {
+            assert_eq!(
+                a.image_base64, b.image_base64,
+                "oversized labels produce the fully erased pixels, never the original data"
+            );
+        }
+        assert!(render(&helper(), &document, &areas, "--export")
+            .unwrap()
+            .starts_with(b"%PDF-"));
+    }
+    #[test]
+    fn paragraph_edits_reject_graphics_inside_the_original_erase_region() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let path = root.join("tests/fixtures/layout-paragraph-graphics.pdf");
+        let original = std::fs::read(&path).unwrap();
+        let document = extract(&path, &helper()).unwrap();
+        let blocks = editor::blocks(&document, &[]).unwrap();
+        for page in 0..3 {
+            let block = blocks
+                .iter()
+                .find(|b| b.page == page && b.html.contains("Primera"))
+                .unwrap();
+            assert!(block.html.contains("Tercera"));
+            let mut edited = document.clone();
+            edited.edits.push(editor::TextEdit {
+                block_id: block.id,
+                html: "<p>Párrafo corregido.</p>".into(),
+                font: block.font.clone(),
+                size: block.size,
+                align: block.align.clone(),
+                bounds: Some(block.rect),
+            });
+            let (_, overlays, _) = editor::compiled(&edited, &[]).unwrap();
+            assert!(!overlays[0].erase_regions.is_empty());
+            for mode in ["--preview", "--export"] {
+                let error = render_overlays(&helper(), &edited, &[], &overlays, mode).unwrap_err();
+                assert!(
+                    error.contains("El párrafo contiene"),
+                    "page={page}, mode={mode}: {error}"
+                );
+            }
+        }
+        assert_eq!(
+            std::fs::read(path).unwrap(),
+            original,
+            "source PDF stays intact"
+        );
+    }
+    #[test]
+    fn justified_pdf_spacing_can_be_edited_and_saved_as_a_flowing_paragraph() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut document = extract(
+            &root.join("tests/fixtures/layout-paragraphs.pdf"),
+            &helper(),
+        )
+        .unwrap();
+        // Model a PDF's physical justification without changing its original
+        // pixels: extra whitespace is not represented by any physical glyph.
+        let mut positions = std::collections::HashMap::new();
+        let mut source = String::new();
+        for (offset, character) in document.text.char_indices() {
+            positions.insert(offset, source.len());
+            if character == ' ' {
+                source.push_str("\t\r \u{a0}");
+            } else {
+                source.push(character);
+            }
+        }
+        positions.insert(document.text.len(), source.len());
+        for page in &mut document.pages {
+            for glyph in &mut page.glyphs {
+                glyph.start = positions[&glyph.start];
+                glyph.end = positions[&glyph.end];
+            }
+        }
+        document.text = source;
+        let map = vec![entity(Kind::Person, "María Pérez", "PERSON_01")];
+        let block = editor::blocks(&document, &map).unwrap().remove(0);
+        assert!(!block.html.contains(['\t', '\r', '\u{a0}']));
+        document.edits.push(editor::TextEdit {
+            block_id: block.id,
+            html: block.html.replace("continúa", "continúa bien"),
+            font: block.font,
+            size: block.size,
+            align: block.align,
+            bounds: Some(block.bounds),
+        });
+        let (_, overlays, text) = editor::compiled(&document, &map).unwrap();
+        assert!(text.contains("continúa bien"));
+        assert!(!text.contains("María Pérez"));
+        assert!(render_overlays(
+            &helper(),
+            &document,
+            &redactions(&document, &map).unwrap(),
+            &overlays,
+            "--export"
+        )
+        .unwrap()
+        .starts_with(b"%PDF-"));
+    }
+    #[test]
+    fn paragraph_editing_reflows_lines_without_merging_tables_or_moving_other_content() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut document = extract(
+            &root.join("tests/fixtures/layout-paragraphs.pdf"),
+            &helper(),
+        )
+        .unwrap();
+        let map = vec![entity(Kind::Person, "María Pérez", "PERSON_01")];
+        let blocks = editor::blocks(&document, &map).unwrap();
+        let paragraph = blocks
+            .iter()
+            .find(|b| b.html.contains("Este párrafo"))
+            .unwrap();
+        assert!(paragraph.html.contains("que continúa"));
+        assert!(paragraph.html.contains("sin duplicar líneas"));
+        assert!(paragraph.html.contains("PERSON_01"));
+        assert!(!paragraph.html.contains("María Pérez"));
+        assert!(!paragraph.html.contains("otro párrafo"));
+        assert!(paragraph.min_height > 30.);
+        for title in [
+            "Cuenta origen",
+            "Cuenta destino",
+            "Primer elemento",
+            "Segundo elemento",
+        ] {
+            let block = blocks.iter().find(|b| b.html.contains(title)).unwrap();
+            assert!(
+                block.min_height < 20.,
+                "table cells and list items remain independent"
+            );
+        }
+        let bounds = [
+            paragraph.bounds[0],
+            paragraph.bounds[1],
+            380.,
+            paragraph.bounds[3],
+        ];
+        document.edits.push(editor::TextEdit { block_id: paragraph.id, bounds:Some(bounds),
+            html:format!("<div style=\"padding-left: 8px; padding-right: 12px; text-indent: 4px\">{}</div><div>Un párrafo nuevo dentro del mismo espacio disponible.</div>", "El párrafo corregido contiene PERSON_01 y palabras adicionales. ".repeat(5)),
+            font:"Helvetica".into(),size:12.,align:"left".into() });
+        let (after_blocks, overlays, text) = editor::compiled(&document, &map).unwrap();
+        assert_eq!(after_blocks[paragraph.id].bounds, bounds);
+        assert_eq!(overlays[0].paragraphs.len(), 2);
+        assert!(text.contains("Un párrafo nuevo"));
+        assert!(!text.contains("que continúa"));
+        assert!(!text.contains("María Pérez"));
+        let areas = redactions(&document, &map).unwrap();
+        let preview =
+            render_overlays(&helper(), &document, &areas, &overlays, "--preview").unwrap();
+        let pages: Vec<Page> = serde_json::from_slice(&preview).unwrap();
+        let before: Vec<Page> =
+            serde_json::from_slice(&render(&helper(), &document, &areas, "--preview").unwrap())
+                .unwrap();
+        assert_eq!(pages[1].image_base64, before[1].image_base64);
+        let directory = root.join("artifacts/layout-workflow");
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join("paragraph-edited.preview.json"), preview).unwrap();
+        std::fs::write(
+            directory.join("paragraph-before.preview.json"),
+            serde_json::to_vec(&before).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            directory.join("paragraph-blocks.json"),
+            serde_json::to_vec(&blocks).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            directory.join("paragraph-plan.json"),
+            serde_json::to_vec(&RenderPlan {
+                pages: &document.pages,
+                redactions: &areas,
+                overlays: &overlays,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            directory.join("paragraph-edited.pdf"),
+            render_overlays(&helper(), &document, &areas, &overlays, "--export").unwrap(),
+        )
+        .unwrap();
+        document.edits[0].bounds = Some([bounds[0], bounds[1], 500., bounds[3]]);
+        let (_, image_overlap, _) = editor::compiled(&document, &map).unwrap();
+        assert!(
+            render_overlays(&helper(), &document, &areas, &image_overlap, "--export")
+                .unwrap_err()
+                .contains("contenido existente"),
+            "graphics without glyph coordinates must also stop growth"
+        );
+        document.edits[0].bounds = Some([bounds[0], bounds[1], bounds[2], paragraph.min_height]);
+        let (_, tight, _) = editor::compiled(&document, &map).unwrap();
+        assert!(
+            render_overlays(&helper(), &document, &areas, &tight, "--export")
+                .unwrap_err()
+                .contains("no cabe")
+        );
+        document.edits[0].bounds =
+            Some([bounds[0], bounds[1], bounds[2], paragraph.limits[3] + 30.]);
+        assert!(
+            editor::compiled(&document, &map).is_err(),
+            "growth cannot invade the next paragraph"
+        );
+    }
+    #[test]
+    fn wider_text_area_is_rendered_and_exported_without_changing_other_pages() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut document =
+            extract(&root.join("tests/fixtures/layout-document.pdf"), &helper()).unwrap();
+        let title = editor::blocks(&document, &[]).unwrap().remove(0);
+        document.edits.push(editor::TextEdit {
+            block_id: title.id, html: "<div>Informe de prueba con una corrección más extensa que necesita espacio adicional en la página</div>".into(),
+            font: "Helvetica".into(), size: 20.0, align: "left".into(), bounds: None,
+        });
+        let (_, overlays, _) = editor::compiled(&document, &[]).unwrap();
+        assert!(
+            render_overlays(&helper(), &document, &[], &overlays, "--export")
+                .unwrap_err()
+                .contains("no cabe")
+        );
+        let expanded = [title.bounds[0], title.bounds[1], 500.0, title.bounds[3]];
+        document.edits[0].bounds = Some(expanded);
+        let (blocks, overlays, _) = editor::compiled(&document, &[]).unwrap();
+        assert_eq!(blocks[0].bounds, expanded);
+        assert_eq!(overlays[0].erase_rect, title.rect);
+        assert_eq!(overlays[0].rect, expanded);
+        let preview: Vec<Page> = serde_json::from_slice(
+            &render_overlays(&helper(), &document, &[], &overlays, "--preview").unwrap(),
+        )
+        .unwrap();
+        let original: Vec<Page> = serde_json::from_slice(
+            &render_overlays(&helper(), &document, &[], &[], "--preview").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(preview.len(), document.pages.len());
+        assert_eq!(
+            preview[1].image_base64, original[1].image_base64,
+            "untouched page pixels remain identical"
+        );
+        let pdf = render_overlays(&helper(), &document, &[], &overlays, "--export").unwrap();
+        assert!(pdf.starts_with(b"%PDF-"));
+        let output = root.join("artifacts/layout-workflow");
+        std::fs::create_dir_all(&output).unwrap();
+        std::fs::write(
+            output.join("resized-text.preview.json"),
+            serde_json::to_vec(&preview).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(output.join("resized-text.pdf"), pdf).unwrap();
+        document.edits[0].bounds = Some([
+            title.bounds[0],
+            title.bounds[1],
+            document.pages[0].width,
+            title.bounds[3],
+        ]);
+        assert!(
+            editor::compiled(&document, &[]).is_err(),
+            "cannot move text beyond the page"
+        );
     }
     #[test]
     fn document_layout_workflow_preserves_pages_and_exports_modified_pixels() {
@@ -498,7 +975,7 @@ mod tests {
             .iter()
             .find(|b| b.html.contains("Informe de prueba"))
             .unwrap();
-        document.edits.push(editor::TextEdit{block_id:title.id,html:"<div style=\"padding-left: 5px; padding-right: 3px; text-indent: 2px\"><span style=\"font-family: Georgia; font-size: 14px; color: #204080\"><b>Informe corregido</b></span></div>".into(),font:"georgia".into(),size:14.,align:"left".into()});
+        document.edits.push(editor::TextEdit{bounds:None,block_id:title.id,html:"<div style=\"padding-left: 5px; padding-right: 3px; text-indent: 2px\"><span style=\"font-family: Georgia; font-size: 14px; color: #204080\"><b>Informe corregido</b></span></div>".into(),font:"georgia".into(),size:14.,align:"left".into()});
         let (_, overlays, text) = editor::compiled(&document, &map).unwrap();
         assert!(text.starts_with("Informe corregido\n"));
         assert!(!text.contains("Informe de prueba"));
@@ -537,6 +1014,7 @@ mod tests {
             .unwrap();
         document.edits.push(editor::TextEdit {
             block_id: name.id,
+            bounds: None,
             html: "<div><b>PER</b><span>SON_01</span></div>".into(),
             font: "Helvetica".into(),
             size: 10.,

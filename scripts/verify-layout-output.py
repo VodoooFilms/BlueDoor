@@ -79,3 +79,34 @@ assert 'Informe de prueba' not in extracted
 assert 'María Pérez' not in extracted and 'maria@example.com' not in extracted
 assert '1500' in extracted
 print('PASS rich correction: visible corrected text, unchanged graphics/aliases/margins, preview=export, original text absent')
+
+# Complete paragraphs may reflow inside their available space. Table borders,
+# illustrations and all pixels outside the edited region must remain unchanged.
+plan = json.loads((root / 'paragraph-plan.json').read_text())
+before = json.loads((root / 'paragraph-before.preview.json').read_text())
+after = json.loads((root / 'paragraph-edited.preview.json').read_text())
+pdf = PdfReader(root / 'paragraph-edited.pdf')
+assert len(pdf.pages) == len(before) == len(after) == 2
+for number, (original, edited) in enumerate(zip(before, after)):
+    baseline = Image.open(io.BytesIO(base64.b64decode(original['imageBase64']))).convert('RGB')
+    applied = Image.open(io.BytesIO(base64.b64decode(edited['imageBase64']))).convert('RGB')
+    mask = Image.new('L', baseline.size, 0)
+    painter = ImageDraw.Draw(mask)
+    sx, sy = baseline.width / original['width'], baseline.height / original['height']
+    for overlay in plan['overlays']:
+        if overlay['page'] != number:
+            continue
+        for key in ['eraseRect', 'rect']:
+            x, y, w, h = overlay[key]
+            painter.rectangle((int(x*sx)-2, int(y*sy)-2, int((x+w)*sx)+2, int((y+h)*sy)+2), fill=255)
+    difference = ImageChops.difference(baseline, applied)
+    difference.paste((0, 0, 0), mask=mask)
+    assert difference.getbbox() is None, 'Paragraph edit changed unrelated content'
+    page = pdf.pages[number]
+    assert not (page.extract_text() or '').strip(), 'Original text layer survived paragraph export'
+    assert not page.get('/Annots')
+    assert abs(float(page.mediabox.width) - original['width']) < .01
+    assert abs(float(page.mediabox.height) - original['height']) < .01
+    exported = list(page.images)[0].image.convert('RGB')
+    assert ImageChops.difference(exported, applied).getbbox() is None, 'Paragraph preview differs from export'
+print('PASS paragraphs: unchanged table/illustration/other paragraphs/pages, geometry, preview=export, no source text layer')

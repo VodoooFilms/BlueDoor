@@ -88,3 +88,4 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:ui
+      - run: pnpm test:workspace:ui

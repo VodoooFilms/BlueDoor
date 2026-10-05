@@ -5,7 +5,8 @@
 | Ruta | Responsabilidad |
 | --- | --- |
 | `src/App.svelte` | Navegación, sesión privada, historial y coordinación de vistas. |
-| `src/components/PrivateAI.svelte` | Importación, análisis, revisión y mapa privado. |
+| `src/components/PrivateAI.svelte` | Espacio unificado: importación, análisis, documento, mapa privado, revisión y exportación. |
+| `src/components/DocumentLayout.svelte` | Páginas originales, selección y dimensiones de párrafos, alias y salida del editor con resultado de guardado. |
 | `src/components/ModelsView.svelte` | Catálogo, setup inicial, permisos y cola de descarga. |
 | `src/components/Recorder.svelte` | Grabación e importación de audio. |
 | `src/components/TranscriptView.svelte` | Estado, selección, formato y acciones del editor. |
@@ -24,7 +25,9 @@
 | --- | --- |
 | `privacy.rs` | Sesión privada, entidades, sanitización y puerta de exportación. |
 | `documents.rs` | Extracción acotada de TXT, DOCX y PDF, y OCR local. |
-| `llm.rs` | Inferencia Qwen y validación de su salida. |
+| `llm.rs` | Inferencia Qwen, límite de extracción, normalización del prompt y caché acotado por modelo/sesión. |
+| `layout.rs`, `layout/editor.rs` | Geometría, agrupación conservadora de párrafos, correcciones con formato, validación y planes de render privado. |
+| `ocr/belegal-layout.swift` | PDFKit/Vision, complemento local de personas, render CoreText y borrado de píxeles; comprueba etiquetas y expansión sobre gráficos. |
 | `audio.rs` | Decodificación, transcripción y segmentación. |
 | `diarization.rs` | Integración experimental de identificación de hablantes. |
 | `models.rs` | Catálogo, descarga e integridad de modelos. |

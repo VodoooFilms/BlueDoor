@@ -12,6 +12,8 @@ BeLegal es una aplicación de escritorio para preparar documentos legales y tran
 
 El propósito es darte control sobre qué información sale de tu equipo antes de enviarla a un servidor, una herramienta de IA o un destinatario. **Esta versión procesa los documentos y el audio localmente; no integra envíos a servicios de IA ni sincronización en la nube.**
 
+El último hito de código es [Flujo privado y editor de PDF estable — 4 de octubre de 2026](docs/milestones/2026-10-04-workflow-editor-stable.md), etiquetado como `milestone/2026-10-04-workflow-editor-stable`. Incluye mejoras de capacidad, caché temporal, párrafos y salida de la caja de edición. El instalador publicado más abajo sigue correspondiendo a 0.3.0.
+
 ## Qué puedes hacer
 
 | Área | Función |
@@ -29,7 +31,7 @@ La identificación de hablantes requiere el modelo de diarización y un motor co
 
 1. Importa un documento privado o pega su texto.
 2. Pulsa **Proteger documento**. En PDF e imágenes, el resultado abre directamente **Edit**.
-3. Revisa el documento conservando sus páginas, gráficos y posiciones. Corrige el texto directamente sobre la página con los controles de fuente, tamaño, estilos y sangrías del procesador existente. El mapa permite renombrar conjuntamente todas las entradas que comparten un alias.
+3. Revisa el documento y el mapa privado en Editar. Selecciona un párrafo sobre la página, escribe y ajusta fuente, estilos, ancho, altura y márgenes internos. Para salir de su caja usa un clic fuera, Escape o Terminar edición; si hay cambios pendientes, elige guardar y salir, descartar o continuar. El mapa permite renombrar conjuntamente todas las entradas que comparten un alias.
 4. Guarda las correcciones y pulsa **Exportar PDF**. La exportación conserva la distribución original en las zonas no editadas; si una corrección no cabe, se rechaza para que puedas ajustarla, sin recortarla.
 
 La edición de PDF mantiene posiciones por bloques; no redistribuye automáticamente todo el documento como Word. Las zonas OCR y las fuentes disponibles pueden limitar la fidelidad. El historial de cambios y las páginas permanecen en memoria durante la sesión. Los avances y límites de evaluación y postentrenamiento se documentan en [PRIVACY_EVALUATION.md](docs/PRIVACY_EVALUATION.md); esta versión no incluye un nuevo modelo entrenado y validado.
@@ -76,7 +78,8 @@ pnpm test:native      # pruebas Rust
 pnpm exec playwright install webkit
 pnpm test:ui          # inicia y cierra sus servidores automáticamente
 cargo test --manifest-path src-tauri/Cargo.toml --lib layout::tests  # genera fixtures de QA en macOS
-pnpm test:layout:ui   # importar → proteger → editar sobre la página → exportar
+pnpm test:layout:ui   # importar → proteger → editar párrafos → guardar/salir → exportar
+pnpm test:workspace:ui # documento, mapa privado y editor unificados
 ```
 
 La suite UI cubre privacidad en español e inglés, permisos y descargas del setup, bienvenida, editor, historial, hablantes y captura PCM. Requiere libres los puertos 1420 y 5198. En Linux, instala WebKit con `--with-deps`.

@@ -5,6 +5,38 @@ import CoreText
 import ImageIO
 import PDFKit
 import Vision
+import NaturalLanguage
+
+struct NamedEntity: Codable { var kind: String; var text: String }
+func aliasSize(_ redaction: Redaction) -> Double {
+    let name = NSFont(name: redaction.fontName, size: redaction.fontSize)?.fontName ?? "Helvetica"
+    let size = min(redaction.fontSize, redaction.rect[3] * 0.85)
+    let font = CTFontCreateWithName(name as CFString, size, nil)
+    let line = CTLineCreateWithAttributedString(NSAttributedString(string: redaction.alias, attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font]))
+    let measured = CTLineGetTypographicBounds(line, nil, nil, nil)
+    return measured > redaction.rect[2] - 1 ? size * (redaction.rect[2] - 1) / measured : size
+}
+func namedEntities(_ source: String) throws -> [NamedEntity] {
+    let text = source.components(separatedBy: "\n").map {
+        $0.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    }.joined(separator: "\n")
+    let recognizer = NLLanguageRecognizer(); recognizer.processString(text)
+    let language = recognizer.dominantLanguage ?? .spanish
+    try require(NLTagger.availableTagSchemes(for: .word, language: language).contains(.nameType), "El detector local no admite el idioma de este documento.")
+    let tagger = NLTagger(tagSchemes: [.nameType]); tagger.string = text
+    tagger.setLanguage(language, range: text.startIndex..<text.endIndex)
+    var result: [NamedEntity] = []
+    tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .nameType, options: [.omitWhitespace, .omitPunctuation, .joinNames]) { tag, range in
+        // In Spanish production tables, the organization tag labels ordinary
+        // headings such as activities as companies. Keep this fast complement
+        // focused on people; organization extraction remains with Qwen/rules.
+        if tag == .personalName {
+            result.append(NamedEntity(kind: "PERSON", text: String(text[range])))
+        }
+        return true
+    }
+    return result
+}
 
 // Local layout extraction and destructive pixel redaction. The output PDF is
 // built only from modified pixels: no source objects, metadata or text layer.
@@ -19,16 +51,49 @@ struct Page: Codable {
 }
 struct Document: Codable { var text: String; var pages: [Page] }
 struct Redaction: Codable {
+    var entityIndex: Int?
     var page: Int; var rect: [Double]; var alias: String
     var fontSize: Double; var fontName: String; var color: [Double]
 }
 struct RichRun: Codable { var text: String; var font: String; var size: Double; var color: [Double]; var bold: Bool; var italic: Bool; var underline: Bool }
 struct RichParagraph: Codable { var runs: [RichRun]; var left: Double; var right: Double; var first: Double; var align: String }
-struct RichOverlay: Codable { var page: Int; var eraseRect: [Double]; var rect: [Double]; var paragraphs: [RichParagraph] }
+struct RichOverlay: Codable { var page: Int; var eraseRect: [Double]; var eraseRegions: [[Double]]; var rect: [Double]; var paragraphs: [RichParagraph] }
 struct ExportPlan: Codable { var pages: [Page]; var redactions: [Redaction]; var overlays: [RichOverlay]? }
+// A PDF may contain illustrations or table borders without text coordinates.
+// Do not let an expanded draft overwrite those pixels merely because OCR
+// reports no neighbouring words there.
+func checkExpansion(_ image: CGImage, rect: [Double], erased: [Double], page: Page) throws {
+    let left = rect[0], top = rect[1], right = left + rect[2], bottom = top + rect[3]
+    let el = erased[0], et = erased[1], er = el + erased[2], eb = et + erased[3]
+    let overlapTop = max(top, et), overlapBottom = min(bottom, eb)
+    let strips = [[left,top,rect[2],min(bottom,et)-top],
+                  [left,max(top,eb),rect[2],bottom-max(top,eb)],
+                  [left,overlapTop,min(right,el)-left,overlapBottom-overlapTop],
+                  [max(left,er),overlapTop,right-max(left,er),overlapBottom-overlapTop]]
+    let components = try background(image, rect:erased, page:page).components ?? [1,1,1,1]
+    let expected = components.prefix(3).map { Int(($0 * 255).rounded()) }
+    let sx = Double(image.width)/page.width, sy = Double(image.height)/page.height
+    for strip in strips where strip[2] > 0.5 && strip[3] > 0.5 {
+        let crop = CGRect(x:ceil(strip[0]*sx),y:ceil(strip[1]*sy),width:floor(strip[2]*sx),height:floor(strip[3]*sy))
+        guard crop.width >= 1, crop.height >= 1, let sample = image.cropping(to:crop) else { continue }
+        let context = try bitmap(sample.width,sample.height)
+        context.draw(sample,in:CGRect(x:0,y:0,width:sample.width,height:sample.height))
+        guard let data = context.data?.assumingMemoryBound(to:UInt8.self) else { throw LayoutError.message("No se pudo comprobar el espacio libre.") }
+        var occupied = 0
+        for y in 0..<sample.height { for x in 0..<sample.width {
+            let index = y*context.bytesPerRow+x*4
+            if (0..<3).contains(where:{ abs(Int(data[index+$0])-expected[$0]) > 45 }) {
+                occupied += 1
+                try require(occupied <= 8,"El área ampliada contiene una imagen, una línea o contenido existente. Ajusta los bordes para conservarlo.")
+            }
+        } }
+    }
+}
 func drawRich(_ overlay: RichOverlay, page: Page, image: CGImage, context: CGContext) throws {
     let e = overlay.eraseRect, r = overlay.rect
     try require(e.count == 4 && r.count == 4 && (e + r).allSatisfy { $0.isFinite }, "Zona de edición no válida.")
+    try checkExpansion(image, rect:r, erased:e, page:page)
+    try checkOriginalGraphics(image, overlay:overlay, page:page)
     let erase = CGRect(x: e[0], y: page.height-e[1]-e[3], width: e[2], height: e[3])
     context.setFillColor(try background(image, rect: e, page: page)); context.fill(erase)
     let text = NSMutableAttributedString(string: "")
@@ -58,6 +123,44 @@ func drawRich(_ overlay: RichOverlay, page: Page, image: CGImage, context: CGCon
     try require(visible.length == text.length, "El texto corregido no cabe en su zona. Reduce el tamaño o acorta el texto antes de guardar.")
     context.saveGState(); context.textMatrix = .identity
     CTFrameDraw(frame,context); context.restoreGState()
+}
+// The bounding rectangle also contains spaces between letters and lines.
+// Only the immutable source glyphs may be replaced; reject other marks in
+// that rectangle before painting anything. This intentionally fails closed
+// on complex backgrounds instead of silently flattening them.
+func checkOriginalGraphics(_ image: CGImage, overlay: RichOverlay, page: Page) throws {
+    let e = overlay.eraseRect
+    let sx = Double(image.width)/page.width, sy = Double(image.height)/page.height
+    let x = max(0, floor(e[0]*sx)), y = max(0, floor(e[1]*sy))
+    let right = min(Double(image.width), ceil((e[0]+e[2])*sx))
+    let bottom = min(Double(image.height), ceil((e[1]+e[3])*sy))
+    let crop = CGRect(x:x,y:y,width:right-x,height:bottom-y)
+    guard crop.width > 0, crop.height > 0, let sample = image.cropping(to:crop) else {
+        throw LayoutError.message("Zona de edición no válida.")
+    }
+    let pixels = try bitmap(sample.width,sample.height)
+    pixels.draw(sample,in:CGRect(x:0,y:0,width:sample.width,height:sample.height))
+    let mask = try bitmap(sample.width,sample.height)
+    mask.setShouldAntialias(false); mask.setFillColor(CGColor(gray:0,alpha:1))
+    try require(!overlay.eraseRegions.isEmpty,"No se pudo comprobar el texto original.")
+    for g in overlay.eraseRegions {
+        try require(g.count == 4 && g.allSatisfy { $0.isFinite } && g[2] >= 0 && g[3] >= 0,"Zona de texto original no válida.")
+        // Match the existing 0.7pt erasure padding, including antialiasing.
+        let left = floor((g[0]-0.7)*sx)-x, top = floor((g[1]-0.7)*sy)-y
+        let width = ceil((g[0]+g[2]+0.7)*sx)-x-left
+        let height = ceil((g[1]+g[3]+0.7)*sy)-y-top
+        mask.fill(CGRect(x:left,y:Double(sample.height)-top-height,width:width,height:height))
+    }
+    let expected = (try background(image,rect:e,page:page).components ?? [1,1,1,1]).prefix(3).map { Int(($0*255).rounded()) }
+    guard let data = pixels.data?.assumingMemoryBound(to:UInt8.self), let allowed = mask.data?.assumingMemoryBound(to:UInt8.self) else {
+        throw LayoutError.message("No se pudo comprobar el contenido de la página.")
+    }
+    for row in 0..<sample.height { for column in 0..<sample.width {
+        if allowed[row*mask.bytesPerRow+column*4] == 0 { continue }
+        let index = row*pixels.bytesPerRow+column*4
+        try require(!(0..<3).contains { abs(Int(data[index+$0])-expected[$0]) > 8 },
+            "El párrafo contiene una imagen, una línea o un borde de tabla. No se guardó para conservar ese contenido.")
+    } }
 }
 enum LayoutError: Error { case message(String) }
 func fail(_ message: String) -> Never {
@@ -230,15 +333,15 @@ func export(_ plan: ExportPlan, preview: Bool = false) throws -> Data {
             context.setFillColor(try background(image, rect: r, page: page)); context.fill(rect)
             if !redaction.alias.isEmpty {
                 let name = NSFont(name: redaction.fontName, size: redaction.fontSize)?.fontName ?? "Helvetica"
-                var size = min(redaction.fontSize, rect.height * 0.85)
+                let size = aliasSize(redaction)
                 func line(_ size: Double) -> CTLine {
                     let font = CTFontCreateWithName(name as CFString, size, nil)
                     let color = redaction.color.count == 3 ? redaction.color : [0, 0, 0]
                     return CTLineCreateWithAttributedString(NSAttributedString(string: redaction.alias, attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font, NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(red: color[0], green: color[1], blue: color[2], alpha: 1)]))
                 }
-                let measured = CTLineGetTypographicBounds(line(size), nil, nil, nil)
-                if measured > rect.width - 1 { size *= (rect.width - 1) / measured }
-                try require(size >= 4, "Un alias no cabe en su zona. Acórtalo antes de exportar.")
+                // The private pixels were already erased. A microscopic label
+                // must not invalidate protection or be printed clipped.
+                if size < 4 { continue }
                 let text = line(size); var ascent: CGFloat = 0; var descent: CGFloat = 0
                 _ = CTLineGetTypographicBounds(text, &ascent, &descent, nil)
                 context.saveGState(); context.clip(to: rect); context.textMatrix = .identity
@@ -262,7 +365,18 @@ func export(_ plan: ExportPlan, preview: Bool = false) throws -> Data {
     pdf.closePDF(); return preview ? try JSONEncoder().encode(previews) : bytes as Data
 }
 do {
-    if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--layout" {
+    if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--check-aliases" {
+        let input = FileHandle.standardInput.readDataToEndOfFile()
+        try require(input.count <= 5_000_000, "Demasiadas zonas de texto.")
+        let areas = try JSONDecoder().decode([Redaction].self, from: input)
+        let failed = Set(areas.filter { !$0.alias.isEmpty && aliasSize($0) < 4 }.compactMap { $0.entityIndex })
+        FileHandle.standardOutput.write(try JSONEncoder().encode(Array(failed).sorted()))
+    } else if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--entities" {
+        let input = FileHandle.standardInput.readDataToEndOfFile()
+        try require(input.count <= 64_000, "Documento fuera del límite de texto.")
+        guard let source = String(data: input, encoding: .utf8) else { fail("Texto no válido.") }
+        FileHandle.standardOutput.write(try JSONEncoder().encode(namedEntities(source)))
+    } else if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--layout" {
         let document = try extract(URL(fileURLWithPath: CommandLine.arguments[2]))
         FileHandle.standardOutput.write(try JSONEncoder().encode(document))
     } else if CommandLine.arguments.count == 2 && ["--export", "--preview"].contains(CommandLine.arguments[1]) {

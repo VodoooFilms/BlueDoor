@@ -25,18 +25,29 @@
     pageSurface?: Snippet<[Snippet<[string]>]>;
     surfaceActive?: boolean;
     surfaceScale?: number;
+    onSurfaceExtent?: (height: number) => void;
     onSaved?: () => void;
+    onFinishEditing?: () => void;
+    onSaveOutcome?: (success: boolean, error?: string) => void;
+    actions?: Snippet;
+    externalDirty?: boolean;
+    externalCanUndo?: boolean;
+    externalUndoOrder?: number;
+    nextUndoOrder?: () => number;
+    onResetExternal?: () => void;
+    onUndoExternal?: () => void;
+    onExportAction?: (action: () => Promise<void>, busy: boolean) => void;
     privateDocument?: boolean;
     privateReviewed?: boolean;
     privateId?: string | null;
     privateRevision?: number | null;
-    onBackToComparison?: () => void;
     onConfirmReview?: () => Promise<void>;
     onValidateExport?: (text: string, title?: string) => Promise<void>;
   }
 
-  let { transcript, onSave, onDirtyChange, privateDocument = false, privateReviewed = false, privateId = null, privateRevision = null, onBackToComparison, onConfirmReview, onValidateExport, embedded = false, pageSurface, surfaceActive = true, surfaceScale = 1, onSaved }: Props = $props();
+  let { transcript, onSave, onDirtyChange, privateDocument = false, privateReviewed = false, privateId = null, privateRevision = null, onConfirmReview, onValidateExport, embedded = false, pageSurface, surfaceActive = true, surfaceScale = 1, onSurfaceExtent, onSaved, onFinishEditing, onSaveOutcome, actions, onExportAction, externalDirty = false, externalCanUndo = false, externalUndoOrder = -1, nextUndoOrder, onResetExternal, onUndoExternal }: Props = $props();
   let exporting = $state(false);
+  $effect(() => { onExportAction?.(exportAsPDF, exporting); });
   let openingServer = $state(false);
   let statusMessage = $state("");
   let correctedText = $state("");
@@ -46,7 +57,8 @@
   // Snapshot de HTML para Deshacer (recuerda un par de pasos) y Reset a la
   // transcripción original tal como vino de la grabación.
   const UNDO_DEPTH = 3;
-  let history = $state<string[]>([]);
+  let history = $state<{ html: string; order: number }[]>([]);
+  let localUndoOrder = 0;
   let speakerNames = $state<Record<string, string>>({});
   let savedSnapshot = $state("");
   let resetSnapshot = $state("");
@@ -56,7 +68,7 @@
       .sort((a, b) => a - b)
   );
   const hasSpeakers = $derived(speakerIds.length > 0);
-  let canUndo = $derived(history.length > 0);
+  let canUndo = $derived(history.length > 0 || externalCanUndo);
   /** Formato de DOCUMENTO (fuente/tamaño/alineación generales) → PDF y vista base. */
   let docFormat = $state<DocFormat>(DEFAULT_FORMAT);
 
@@ -64,7 +76,7 @@
   let editorEl = $state<HTMLDivElement | null>(null);
   let prevEditorEl: HTMLDivElement | null = null;
   let rich = $state("");
-  let canReset = $derived(resetSnapshot !== "" && editorSnapshot(rich, docFormat, speakerNames) !== resetSnapshot);
+  let canReset = $derived(externalDirty || (resetSnapshot !== "" && editorSnapshot(rich, docFormat, speakerNames) !== resetSnapshot));
   let loading = $state(true);
   let selBold = $state(false);
   let selItalic = $state(false);
@@ -122,6 +134,7 @@
   // OJO: NO debe leer `correctedText` ni `rich` (serían dependencias implícitas
   // que re-ejecutarían este efecto en cada tecleo, revirtiendo la edición).
   $effect(() => {
+    if (pageSurface) statusMessage = "";
     const names = { ...(transcript.speakerNames ?? {}) };
     const savedHtml = transcript.correctedHtml ?? null;
     const saved = transcript.corrected !== null && transcript.corrected !== undefined;
@@ -147,7 +160,7 @@
     return JSON.stringify({ html, format, names });
   }
 
-  const dirty = $derived(savedSnapshot !== "" && editorSnapshot(rich, docFormat, speakerNames) !== savedSnapshot);
+  const dirty = $derived(externalDirty || (savedSnapshot !== "" && editorSnapshot(rich, docFormat, speakerNames) !== savedSnapshot));
   $effect(() => {
     onDirtyChange(pageSurface && !surfaceActive ? false : dirty, saveCorrection);
   });
@@ -183,6 +196,22 @@
     `font-family: ${fontCss}; font-size: ${docFormat.size}px; text-align: ${docFormat.align};` +
       ` user-select: text; -webkit-user-select: text; -webkit-user-modify: read-write;`
   );
+
+  // Observe wrapping as well as typing and formatting. A bounded page editor
+  // scrolls its draft instead of drawing text over neighbouring paragraphs.
+  function reportSurfaceExtent() {
+    if (pageSurface && editorEl && surfaceActive) onSurfaceExtent?.(editorEl.scrollHeight);
+  }
+  $effect(() => {
+    rich; docFormat; surfaceScale; surfaceActive;
+    void tick().then(reportSurfaceExtent);
+  });
+  $effect(() => {
+    if (!pageSurface || !editorEl) return;
+    const observer = new ResizeObserver(reportSurfaceExtent);
+    observer.observe(editorEl);
+    return () => observer.disconnect();
+  });
 
   const displayColor = $derived(toHex(selColor));
 
@@ -232,7 +261,7 @@
   }
 
   function remember(prev: string) {
-    history.push(prev);
+    history.push({ html: prev, order: nextUndoOrder?.() ?? ++localUndoOrder });
     if (history.length > UNDO_DEPTH) history.shift();
   }
 
@@ -535,15 +564,16 @@
   }
 
   async function saveCorrection() {
-    if (savedCorrection) return;
+    if (savedCorrection && !externalDirty) { onSaveOutcome?.(true); return; }
     statusMessage = "";
     const safeHtml = sanitizeRichHtml(rich);
     rich = safeHtml;
     correctedText = htmlToPlain(safeHtml);
     try { await onSave(transcript.id, correctedText, docFormat, safeHtml, speakerNames); }
-    catch (e) { statusMessage = String(e); return; }
+    catch (e) { statusMessage = String(e); onSaveOutcome?.(false, statusMessage); return; }
     savedSnapshot = editorSnapshot(safeHtml, docFormat, speakerNames);
     savedCorrection = true;
+    onSaveOutcome?.(true);
     onSaved?.();
   }
 
@@ -575,10 +605,11 @@
 
   // Deshace el último paso del editor (restaura el snapshot previo guardado).
   function undo() {
+    if (externalCanUndo && externalUndoOrder > (history[history.length - 1]?.order ?? -1)) { onUndoExternal?.(); return; }
     const prev = history.pop();
-    if (prev === undefined) return;
-    rich = prev;
-    correctedText = htmlToPlain(prev);
+    if (prev === undefined) { onUndoExternal?.(); return; }
+    rich = prev.html;
+    correctedText = htmlToPlain(prev.html);
     savedCorrection = false;
     loading = true;
     requestAnimationFrame(() => editorEl?.focus());
@@ -586,6 +617,7 @@
 
   // Ctrl/Cmd+Z = Deshacer del editor (hueco nativo del contenteditable).
   function onUndoKeydown(e: KeyboardEvent) {
+    if (!surfaceActive || !editorEl?.contains(document.activeElement)) return;
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "z") {
       e.preventDefault();
       undo();
@@ -595,6 +627,7 @@
   // Vuelve el editor al texto original tal como salió de la transcripción,
   // descartando correcciones y pasos del historial.
   function resetToOriginal() {
+    onResetExternal?.();
     const original = normalizeSpeakerText(transcript.text, transcript.segments, speakerNames);
     rich = embedded ? sanitizeRichHtml(transcript.correctedHtml || textToHtml(original)) : conversationHtml(textToHtml(original), speakerNames, hasSpeakers);
     if (embedded) docFormat = transcript.format ?? DEFAULT_FORMAT;
@@ -610,52 +643,13 @@
 <svelte:window onpointerdown={onGlobalPointerDown} onkeydown={onUndoKeydown} />
 
 <section class="viewer" class:private-document={privateDocument} class:embedded class:page-editor={!!pageSurface}>
-  <div class="viewer-head">
+  {#if !embedded && !privateDocument}<div class="viewer-head">
     {#if !pageSurface}<div class="head-copy">
       <strong>{privateDocument ? p(transcript.title) : transcript.title}</strong>
       <span>{privateDocument ? p("Documento privado · solo en memoria") : t.meta(formatDuration(transcript.duration), transcript.language, transcript.model)}</span>
     </div>{/if}
-    <div class="head-actions">
-      <button class="head-btn" onclick={resetToOriginal} disabled={!surfaceActive || !canReset} title={t.reset}>
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-          <path d="M21 3v5h-5"></path>
-        </svg>
-        {t.reset}
-      </button>
-      <button class="head-btn" onclick={undo} disabled={!surfaceActive || !canUndo} title={`${t.undo} (Ctrl+Z)`}>
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-          <path d="M3 3v5h5"></path>
-        </svg>
-        {t.undo}
-      </button>
-      <button class="head-btn" class:copied={copied} onclick={copyToClipboard} disabled={!surfaceActive}>{copied ? t.copied : t.copy}</button>
-      <button class="head-btn save-btn" class:saved={savedCorrection} onclick={saveCorrection} disabled={!surfaceActive || savedCorrection}>
-        <span class="save-label">
-          <span class="save-label-measure" aria-hidden="true">{t.save}</span>
-          <span class="save-label-measure" aria-hidden="true">{t.saved}</span>
-          <span>{savedCorrection ? privateDocument ? p("Guardado") : t.saved : t.save}</span>
-        </span>
-      </button>
-      {#if !embedded}<button class="head-btn" onclick={openServer} disabled={openingServer} title="https://blegalcorp.com/">
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M10 13V3"></path>
-          <path d="M6 7l4-4 4 4"></path>
-          <path d="M4 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"></path>
-        </svg>
-        {t.langLabel === "ES" ? "Subir al servidor" : "Upload to server"}
-      </button>{/if}
-      {#if !embedded}<button class="head-btn primary" onclick={() => exportAsPDF()} disabled={exporting} title={privateDocument ? p("Exportar el documento actual a un PDF local") : t.exportPdf}>
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M10 13V3"></path>
-          <path d="M6 7l4-4 4 4"></path>
-          <path d="M4 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"></path>
-        </svg>
-        {exporting ? t.exportingPdf : privateDocument ? p("Exportar PDF") : t.exportPdf}
-      </button>{/if}
-    </div>
-  </div>
+
+  </div>{/if}
 
   {#if statusMessage}
     <p class="status">{p(statusMessage)}</p>
@@ -680,8 +674,9 @@
     </div>
   {/if}
 
-  <fieldset class="editor-tools" disabled={!surfaceActive}>
+  <div class="editor-tools">
   <div class="editor-toolbar" aria-label={t.alignLabel}>
+    <fieldset class="format-controls" disabled={!surfaceActive}>
       <label class="tb-field" title={t.fontLabel}>
         <select
           class="tb-font"
@@ -750,8 +745,53 @@
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5h13M9 10h8M3.5 15h13"></path></svg>
         </button>
       </div>
+    </fieldset>
+    {#if actions}{@render actions()}{:else}
+      <div class="head-actions editor-actions">
+      <button class="head-btn" onclick={resetToOriginal} disabled={!surfaceActive || !canReset} title={t.reset}>
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+          <path d="M21 3v5h-5"></path>
+        </svg>
+        {t.reset}
+      </button>
+      <button class="head-btn" onclick={undo} disabled={!surfaceActive || !canUndo} title={`${t.undo} (Ctrl+Z)`}>
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+          <path d="M3 3v5h5"></path>
+        </svg>
+        {t.undo}
+      </button>
+      <button class="head-btn" class:copied={copied} onclick={copyToClipboard} disabled={!surfaceActive}>{copied ? t.copied : t.copy}</button>
+      <button class="head-btn save-btn" class:saved={savedCorrection && !externalDirty} onclick={saveCorrection} disabled={!surfaceActive || (savedCorrection && !externalDirty)}>
+        <span class="save-label">
+          <span class="save-label-measure" aria-hidden="true">{t.save}</span>
+          <span class="save-label-measure" aria-hidden="true">{t.saved}</span>
+          <span>{savedCorrection && !externalDirty ? privateDocument ? p("Guardado") : t.saved : t.save}</span>
+        </span>
+      </button>
+      {#if !embedded && !privateDocument}<button class="head-btn" onclick={openServer} disabled={openingServer} title="https://blegalcorp.com/">
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M10 13V3"></path>
+          <path d="M6 7l4-4 4 4"></path>
+          <path d="M4 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"></path>
+        </svg>
+        {t.langLabel === "ES" ? "Subir al servidor" : "Upload to server"}
+      </button>{/if}
+      {#if onFinishEditing && surfaceActive}<button class="head-btn" onclick={onFinishEditing}>{p("Terminar edición")}</button>{/if}
+      {#if !embedded && !onExportAction}<button class="head-btn primary" onclick={() => exportAsPDF()} disabled={exporting} title={privateDocument ? p("Exportar el documento actual a un PDF local") : t.exportPdf}>
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M10 13V3"></path>
+          <path d="M6 7l4-4 4 4"></path>
+          <path d="M4 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"></path>
+        </svg>
+        {exporting ? t.exportingPdf : privateDocument ? p("Exportar PDF") : t.exportPdf}
+      </button>{/if}
+    </div>
+    {/if}
     </div>
 
+  <fieldset class="ruler-tools" disabled={!surfaceActive}>
   <div class="ruler" bind:this={rulerRef} style={privateDocument ? privateRulerStyle : undefined}>
       <div class="ruler-ticks"></div>
       <div class="ruler-nums">
@@ -765,9 +805,9 @@
     </div>
 
   </fieldset>
+  </div>
   <div class="viewer-body">
     {#if pageSurface}{@render pageSurface(richSurface)}{:else}
-    {#if privateDocument && !embedded}<button class="return-comparison" onclick={onBackToComparison} title={p("Volver a pantalla dividida")} aria-label={p("Volver a pantalla dividida")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5M7 10h10" /></svg></button>{/if}
     {@render richSurface("")}
     {/if}
   </div>
@@ -816,7 +856,7 @@
   .head-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
   .head-copy strong { font-family: var(--font-heading); font-size: 17px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .head-copy span { color: var(--muted); font-size: 13px; }
-  .head-actions { display: flex; align-items: center; justify-content:flex-end; flex-wrap:wrap; gap: 7px; }
+  .head-actions { margin-left:auto; display: flex; align-items: center; justify-content:flex-end; flex-wrap:wrap; gap: 7px; }
 
   /* Mini toolbar de formato del documento */
   .editor-toolbar {
@@ -936,9 +976,6 @@
   .speaker-field input:focus { border-color: var(--accent); }
 
 
-  .return-comparison { position:sticky; top:0; float:right; z-index:2; width:28px; height:28px; display:grid; place-items:center; padding:5px; margin-top:8px; margin-right:max(8px,calc((100% - 816px)/2 + 8px)); margin-bottom:-36px; border:1px solid var(--line); border-radius:4px; background:var(--surface); color:var(--muted); cursor:pointer; }
-  .return-comparison:hover { color:var(--text); background:var(--hover); }
-  .return-comparison svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
   .viewer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px; user-select: text; }
   .viewer-body::-webkit-scrollbar { width: 8px; }
   .viewer-body::-webkit-scrollbar-thumb { background: var(--line-dark); border-radius: 4px; }
@@ -1022,11 +1059,18 @@
   .embedded .editor-toolbar { flex-wrap:wrap; }
   .embedded .viewer-body { padding:14px; }
   .embedded .corrected { width:100%; min-height:180px; margin:0; padding:12px; box-shadow:none; background:var(--surface); line-height:1.25; }
+  .format-controls { display:flex; align-items:center; gap:7px; border:0; padding:0; margin:0; min-width:0; }
+  .ruler-tools { border:0; padding:0; margin:0; min-width:0; }
+  .ruler-tools:disabled { opacity:.45; }
   .editor-tools { border:0; padding:0; margin:0; min-width:0; flex:none; }
   .editor-tools:disabled .ruler { opacity:.45; }
   .page-editor { border:0; border-radius:0; }
   .page-editor .viewer-head { padding:6px 12px; }
-  .page-editor .head-actions { width:100%; justify-content:flex-start; }
+  .editor-actions { flex-wrap:nowrap; }
+  .editor-actions .head-btn { padding:5px 8px; font-size:12px; }
+  .editor-toolbar { flex-wrap:wrap; }
+  .page-editor .editor-toolbar { flex-wrap:nowrap; gap:5px; }
+  @media (max-width:1100px) { .page-editor .editor-actions .head-btn { padding:5px; } .page-editor .tb-font { max-width:125px; } }
   .page-editor .viewer-body { padding:22px; background:var(--panel); overflow:auto; }
   .page-editor .corrected { position:absolute; width:auto; min-height:0; margin:0; padding:0; border:0; border-radius:0; box-shadow:none; line-height:normal; background:transparent; overflow:visible; z-index:4; }
   .page-editor .ruler { overflow:hidden; }

@@ -71,15 +71,11 @@ try {
  assert.equal(await page.locator('.page-wrapper').first().evaluate(el=>el.getBoundingClientRect().width),Math.floor(pages[0].width*64)/64,'rendered width matches WebKit subpixel quantization');
  await page.getByRole('img',{name:'Página 1',exact:true}).waitFor();
  assert.equal(await page.getByRole('img',{name:'Página 2',exact:true}).count(),1,'all physical pages shown');
- await page.getByRole('button',{name:'Editar aliases',exact:true}).click();
  await page.getByRole('button',{name:'Editar alias PERSON_01, Página 1',exact:true}).first().click();
  await page.getByRole('textbox',{name:'Alias en el documento'}).fill('CLIENTE_01');
  assert(await page.getByRole('button',{name:'Exportar PDF'}).isDisabled(),'unapplied map cannot export');
- await page.getByRole('button',{name:'Private Legal',exact:true}).click();
- assert.equal(await page.getByRole('button',{name:'Exportar PDF'}).count(),0);
- await page.locator('#editToggle').click();
- assert.equal(await page.getByRole('textbox',{name:'Alias en el documento'}).inputValue(),'CLIENTE_01','draft survives navigation back to Edit');
- await page.locator('.alias-editor').getByRole('button',{name:'Aplicar cambios al mapa',exact:true}).click();
+ assert(await page.getByRole('button',{name:'Documentos',exact:true}).isDisabled(),'unsaved map blocks navigation');
+ await page.locator('.alias-actions').getByRole('button',{name:'Guardar cambios',exact:true}).click();
  await page.getByRole('button',{name:'Editar alias CLIENTE_01, Página 1',exact:true}).first().waitFor();
  assert.equal(await page.getByRole('button',{name:'Editar alias CLIENTE_01, Página 2',exact:true}).count(),1,'repeat uses same edited alias');
  await page.getByRole('button',{name:'Exportar PDF'}).click();

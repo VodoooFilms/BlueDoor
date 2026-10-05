@@ -41,7 +41,7 @@ try {
     }};
   });
   await page.goto('http://localhost:1420');
-  await page.getByRole('button',{name:'Abrir en Edit',exact:true}).click();
+  await page.getByRole('button',{name:'Mapa privado',exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Mapa privado',exact:true}).count(),1);
   await page.getByRole('button',{name:'Mapa privado',exact:true}).first().click();
   const first=page.getByRole('textbox',{name:'Alias 1',exact:true});
@@ -49,18 +49,17 @@ try {
   await first.pressSequentially('COMPANY_02_PERSONALIZADA');
   assert.equal(await page.getByRole('textbox',{name:'Alias 2',exact:true}).inputValue(),'COMPANY_02_PERSONALIZADA','distinct original follows group during typing');
   assert.equal(await page.getByRole('textbox',{name:'Alias 3',exact:true}).inputValue(),'COMPANY_02','temporary typing collision must not recruit another group');
-  await page.getByRole('button',{name:'Aplicar cambios al mapa',exact:true}).click();
+  await page.locator('.map-page').getByRole('button',{name:'Guardar cambios',exact:true}).click();
   await page.waitForFunction(()=>window.__reviewed?.revision===2);
   assert.equal(await page.evaluate(()=>window.__reviewed.sanitized),'COMPANY_02_PERSONALIZADA\nCOMPANY_02_PERSONALIZADA\nCOMPANY_02\nCOMPANY_02_PERSONALIZADA');
-  await page.getByRole('button',{name:'← Volver al documento',exact:true}).click();
+  await page.getByRole('button',{name:'Documento',exact:true}).click();
   // Edit from the other original on page 2, then verify all three occurrences.
- await page.getByRole('button',{name:'Editar aliases',exact:true}).click();
   await page.getByRole('button',{name:'Editar alias COMPANY_02_PERSONALIZADA, Página 2',exact:true}).first().click();
   const editor=page.getByRole('textbox',{name:'Alias en el documento',exact:true});
   await editor.fill('');
   await editor.pressSequentially('PROVEEDOR PRINCIPAL');
   assert(await page.getByRole('button',{name:'Exportar PDF'}).isDisabled());
-  await page.locator('.alias-editor').getByRole('button',{name:'Aplicar cambios al mapa',exact:true}).click();
+  await page.locator('.alias-actions').getByRole('button',{name:'Guardar cambios',exact:true}).click();
   await page.waitForFunction(()=>window.__reviewed?.revision===3);
   assert.deepEqual(await page.evaluate(()=>window.__reviewed.entities.map(e=>e.alias)),['PROVEEDOR PRINCIPAL','PROVEEDOR PRINCIPAL','COMPANY_02']);
   assert.equal(await page.getByRole('button',{name:'Editar alias PROVEEDOR PRINCIPAL, Página 1',exact:true}).count(),1);

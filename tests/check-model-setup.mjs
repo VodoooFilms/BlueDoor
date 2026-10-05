@@ -63,6 +63,7 @@ async function scenario(options = {}) {
     } });
   }, options);
   await page.goto('http://localhost:1420');
+  await page.locator('.settings-menu summary').click();
   await page.locator('#modelsToggle').click();
   return page;
 }
@@ -78,6 +79,7 @@ try {
   await page.evaluate(() => window.releaseSetup());
   await page.locator('.privacy-container:not(.hidden)').waitFor();
   assert.equal(await page.locator('#modelsToggle').evaluate(el => el.classList.contains('nav-active')), false);
+  await page.locator('.settings-menu summary').click();
   await page.locator('#modelsToggle').click();
   assert.deepEqual(await page.evaluate(() => window.setupCalls), ['microphone', 'stop-microphone', 'permissions', 'parakeet-tdt-0.6b-v3', 'qwen3-fast', 'nemotron3-diarization']);
   assert.equal(await page.evaluate(() => localStorage.getItem('belegal-privacy-model')), 'qwen3-fast');

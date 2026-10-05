@@ -24,6 +24,7 @@ try {
     if(args.revision!==session.revision)throw Error('Stale correction');
     if(args.edit.html.includes('Demasiado'))throw Error('El texto corregido no cabe en su zona.');
     const b=blocks.find(b=>b.id===args.edit.blockId);Object.assign(b,args.edit);
+    if(args.edit.bounds){b.bounds=[...args.edit.bounds];b.rect=[b.bounds[0],b.bounds[1],b.bounds[2],b.rect[3]];}
     session.revision++;session.edited=true;session.reviewed=false;session.sanitized='Informe corregido PERSON_01';
     window.__savedEdit=structuredClone(args.edit);return structuredClone(session);
    }
@@ -37,7 +38,7 @@ try {
   }};
  },{pages,editedPages,blocks});
  await page.goto('http://localhost:1420');
- await page.getByRole('button',{name:'Abrir en Edit',exact:true}).click();
+ await page.getByRole('button',{name:'Mapa privado',exact:true}).waitFor();
  assert(await page.locator('#editToggle').evaluate(el=>el.classList.contains('nav-active')));
  await page.getByRole('button',{name:'Editar texto 1, Página 1',exact:true}).click();
  const editor=page.locator('.page-editor .rich-editor');
@@ -50,6 +51,22 @@ try {
  const geometry=await editor.evaluate(el=>{const r=el.getBoundingClientRect(),p=el.closest('.paper-content').getBoundingClientRect(),t=document.querySelector('.editor-toolbar').getBoundingClientRect();return {left:r.left-p.left,top:r.top-p.top,toolbarBottom:t.bottom,pageTop:p.top};});
  assert(Math.abs(geometry.left-blocks[0].bounds[0])<.02 && Math.abs(geometry.top-blocks[0].bounds[1])<.02,'editor stays at original coordinates');
  assert(geometry.toolbarBottom<geometry.pageTop,'word processor controls stay above the document');
+ const originalWidth=await editor.evaluate(el=>el.getBoundingClientRect().width);
+ const rightEdge=page.getByRole('button',{name:'Borde derecho del área de texto',exact:true});
+ await rightEdge.focus();await rightEdge.press('ArrowRight');
+ assert(Math.abs(await editor.evaluate(el=>el.getBoundingClientRect().width)-originalWidth-5)<.1);
+ assert(await page.locator('.page-editor .save-btn').isEnabled(),'width-only edit must be saveable');
+ assert(await page.getByRole('button',{name:'Mapa privado',exact:true}).isDisabled(),'unsaved geometry cannot be discarded by switching views');
+ await page.getByRole('button',{name:'Deshacer',exact:true}).click();
+ assert(Math.abs(await editor.evaluate(el=>el.getBoundingClientRect().width)-originalWidth)<.1,'undo restores width');
+ await rightEdge.focus();await rightEdge.press('ArrowRight');
+ await page.getByRole('button',{name:'Restablecer',exact:true}).click();
+ assert(Math.abs(await editor.evaluate(el=>el.getBoundingClientRect().width)-originalWidth)<.1,'reset restores width');
+ const edgeRect=await rightEdge.boundingBox();
+ await page.mouse.move(edgeRect.x+edgeRect.width/2,edgeRect.y+edgeRect.height/2);
+ await page.mouse.down();await page.mouse.move(edgeRect.x+edgeRect.width/2+180,edgeRect.y+edgeRect.height/2,{steps:5});await page.mouse.up();
+ const resizedWidth=await editor.evaluate(el=>el.getBoundingClientRect().width);
+ assert(resizedWidth>originalWidth+170,'drag expands the area beyond its original fixed ink width');
  await editor.fill('Demasiado texto');
  assert(await page.getByRole('button',{name:'Mapa privado',exact:true}).isDisabled(),'do not lose draft by switching maps');
  assert(await page.locator('#editToggle').isDisabled(),'draft survives navigation attempts');
@@ -70,12 +87,14 @@ try {
  await page.waitForFunction(()=>!!window.__savedEdit);
  assert.equal(await page.locator('.page-editor .status').count(),0,'successful save clears prior error');
  const edit=await page.evaluate(()=>window.__savedEdit);
+ assert(Math.abs(edit.bounds[2]-resizedWidth)<.1,'native save carries the actual edited width');
  assert.match(edit.html,/Informe corregido/);assert.match(edit.html,/georgia/i);assert.match(edit.html,/font-weight: bold|<b>/);assert.match(edit.html,/padding-left: 5px/);assert.match(edit.html,/font-size: 14px/);
  await page.getByRole('img',{name:'Página 1',exact:true}).waitFor();
  assert.equal(await page.getByRole('img',{name:'Página 1',exact:true}).getAttribute('src'),'data:image/png;base64,'+editedPages[0].imageBase64);
  await page.getByRole('button',{name:'Editar texto 1, Página 1',exact:true}).click();
  await page.locator('.page-editor .rich-editor').waitFor();
  assert.match(await page.locator('.page-editor .rich-editor').innerHTML(),/Informe corregido/,'reopening retains rich correction');
+ assert(Math.abs(await editor.evaluate(el=>el.getBoundingClientRect().width)-resizedWidth)<.1,'reopening retains edited width');
  assert.equal(await page.locator('.page-editor .tb-font').inputValue(),'georgia','toolbar reflects the text font');
  assert.equal(await page.locator('.page-editor .tb-size').inputValue(),'14','toolbar reflects the text size');
  await page.getByRole('button',{name:'Exportar PDF',exact:true}).click();

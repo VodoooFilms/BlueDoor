@@ -38,8 +38,13 @@ try {
     servers.push(server);
     await server.listen();
   }
-  if (process.argv.includes("--layout")) {
-    for (const test of ["check-layout.mjs", "check-layout-rich.mjs", "check-alias-groups.mjs"]) await run(test);
+  if (process.argv.includes("--privacy")) {
+    for (const language of ["es", "en"]) await run("check-private-ai.mjs", language);
+  } else if (process.argv.includes("--workspace")) {
+    for (const language of ["es", "en"]) await run("check-workspace.mjs", language);
+    for (const test of ["check-alias-groups.mjs", "check-editor.mjs"]) await run(test);
+  } else if (process.argv.includes("--layout")) {
+    for (const test of ["check-layout.mjs", "check-layout-rich.mjs", "check-layout-paragraph.mjs", "check-alias-groups.mjs"]) await run(test);
   } else {
     for (const language of ["es", "en"]) await run("check-private-ai.mjs", language);
     for (const test of [

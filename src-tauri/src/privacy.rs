@@ -107,6 +107,7 @@ pub(crate) fn parse_detections(raw: &str) -> Result<Vec<Detection>, String> {
                     .to_string()
             })?
     };
+    let explicitly_empty = items.is_empty();
     let mut entities = vec![];
     for item in items {
         let Ok(raw_detection) = serde_json::from_value::<RawDetection>(item) else {
@@ -124,7 +125,7 @@ pub(crate) fn parse_detections(raw: &str) -> Result<Vec<Detection>, String> {
             text,
         });
     }
-    if entities.is_empty() {
+    if entities.is_empty() && !explicitly_empty {
         return Err("Qwen no devolvió entidades JSON válidas. No se aprobará ninguna salida; vuelve a analizar.".into());
     }
     if entities.len() > MAX_ENTITIES {
@@ -702,13 +703,22 @@ fn ground_model_detections(
 }
 
 fn merge_detections(original: &str, model: Vec<Detection>) -> Result<Vec<Entity>, String> {
+    merge_detection_sources(original, model, vec![])
+}
+pub(crate) fn merge_detection_sources(
+    original: &str,
+    model: Vec<Detection>,
+    local_names: Vec<Detection>,
+) -> Result<Vec<Entity>, String> {
     let model = ground_model_detections(original, model)?;
+    let local_names = ground_model_detections(original, local_names)?;
     let mut entities = vec![];
     let mut seen = HashSet::new();
     let mut counts: HashMap<Kind, usize> = HashMap::new();
     // Deterministic patterns take precedence on the same exact value.
     for (source, detections) in [
         ("pattern", deterministic_detections(original)),
+        ("local-ner", local_names),
         ("qwen", model),
     ] {
         for detection in detections {
@@ -1027,15 +1037,11 @@ pub(crate) fn leak_warnings(sanitized: &str, entities: &[Entity]) -> Vec<String>
 
 /// Overlapping chunks cover the entire UTF-8 input; no silent truncation.
 ///
-/// Fragment size is bounded by the *answer*, not by the prompt. Measured with
-/// the real Qwen on entity-dense Spanish legal text, whose JSON grows with the
-/// number of distinct people, companies, IDs and emails:
-///   2500 -> 910   3500 -> 1188   4000 -> 1256   5000 -> 1407 answer tokens
-///   5500 and 6000 exhaust the 2048-token budget and never close their JSON,
-///   so the fragment is lost and the app appears to loop forever.
-/// 4000 keeps a wide margin over the measured ceiling for dense pages while
-/// still covering a normal document in fewer passes than the old 2800.
-const CHUNK_CHARS: usize = 4000;
+/// Bound the response as well as the prompt. A real five-page PDF with tables
+/// exhausted 2048 answer tokens for a 4000-character block despite its prompt
+/// fitting comfortably in the context. Smaller tasks avoid repeated full-budget
+/// generations; the original source is still covered without truncation.
+const CHUNK_CHARS: usize = 2000;
 /// Characters repeated between neighbouring fragments so an entity split by a
 /// fragment boundary is still seen whole.
 const CHUNK_OVERLAP: usize = 300;
@@ -1110,24 +1116,34 @@ fn analyze_with_progress(
     let mut pending: Vec<String> = all;
     let mut read = 0usize;
     while let Some(chunk) = pending.pop() {
-        // `done + 1` counts finished fragments plus the one being read, so the
-        // label always advances even when a fragment is split and requeued.
+        // Completed blocks plus queued work. A split increases the total; do
+        // not show "1 of 1", "2 of 2" throughout a multi-block document.
         let position = read + 1;
-        let mut report = |tokens: usize| on_fragment(position, position, tokens);
+        let total = read + pending.len() + 1;
+        let mut report = |tokens: usize| on_fragment(position, total, tokens);
         report(0);
         // Two attempts: the general pass, then the exact pass. Both may fail on
         // a fragment the model cannot finish; that is local to this fragment.
         // Anchor against the whole document, not the fragment: splitting a
         // fragment can cut an entity in half, and text the model read is still
         // real text of the document even if it straddles the split.
-        let grounded = match extractor.extract(&chunk, &mut report) {
-            Ok(suggested) => ground_model_detections(original, suggested),
-            Err(_) => Err(String::new()),
-        }
-        .or_else(|_| match extractor.extract_exact(&chunk, &mut report) {
-            Ok(suggested) => ground_model_detections(original, suggested),
-            Err(reason) => Err(reason),
-        });
+        let first = extractor.extract(&chunk, &mut report);
+        // Repeating an overflowing task with a longer instruction spends the
+        // same budget again. Split it immediately instead. The exact-copy retry
+        // is reserved for malformed or ungrounded suggestions.
+        let overflowed = first
+            .as_ref()
+            .is_err_and(|reason| reason.contains("no terminó dentro del límite"));
+        let grounded = first
+            .and_then(|suggested| ground_model_detections(original, suggested))
+            .or_else(|reason| {
+                if overflowed {
+                    return Err(reason);
+                }
+                extractor
+                    .extract_exact(&chunk, &mut report)
+                    .and_then(|suggested| ground_model_detections(original, suggested))
+            });
         match grounded {
             Ok(entities) => {
                 detections.extend(entities);
@@ -1138,8 +1154,13 @@ fn analyze_with_progress(
                 let chars: Vec<char> = chunk.chars().collect();
                 if chars.len() > MIN_SPLIT_CHARS {
                     let middle = chars.len() / 2;
-                    let left: String = chars[..middle].iter().collect();
-                    let right: String = chars[middle..].iter().collect();
+                    // A name or identifier crossing the split must remain whole
+                    // in at least one child. Preserve context on both sides.
+                    let context = CHUNK_OVERLAP / 2;
+                    let left: String = chars[..(middle + context).min(chars.len())]
+                        .iter()
+                        .collect();
+                    let right: String = chars[middle.saturating_sub(context)..].iter().collect();
                     pending.push(right);
                     pending.push(left);
                 } else {
@@ -1167,6 +1188,14 @@ pub(crate) fn get_privacy_session(app: tauri::AppHandle) -> Result<Option<Sessio
 }
 #[tauri::command]
 pub(crate) fn clear_privacy_session(app: tauri::AppHandle) -> Result<(), String> {
+    let llm = app.state::<crate::llm::LlmState>();
+    let cache = llm
+        .0
+        .try_lock()
+        .map_err(|_| "Espera a que termine el análisis antes de cerrar el documento.")?;
+    if let Some((_, engine)) = cache.as_ref() {
+        engine.clear_extractions();
+    }
     *app.state::<PrivacyState>()
         .0
         .lock()
@@ -1304,7 +1333,22 @@ pub(crate) async fn analyze_private_document(
                 ),
             );
         };
-        let analysis = analyze_with_progress(engine, &original, &mut report)?;
+        let mut analysis = analyze_with_progress(engine, &original, &mut report)?;
+        // A specialized on-device name detector complements the generative
+        // model; names must not depend exclusively on its response budget.
+        #[cfg(target_os = "macos")]
+        let local_names = crate::layout::executable(&app)
+            .and_then(|helper| crate::layout::named_entities(&original, &helper));
+        #[cfg(not(target_os = "macos"))]
+        let local_names: Result<Vec<Detection>, String> = Ok(vec![]);
+        let names_unavailable = local_names.is_err();
+        analysis.entities = merge_detection_sources(&original,
+            analysis.entities.iter().map(|e| Detection { kind: e.kind, text: e.original.clone() }).collect(),
+            local_names.unwrap_or_default())?;
+        #[cfg(target_os = "macos")]
+        if let Some(document) = session.layout.as_ref() {
+            crate::layout::fit_generated_aliases(document, &mut analysis.entities, &crate::layout::executable(&app)?)?;
+        }
         let complete = analysis.complete();
         // Progress carries only operation identity; private document data stays local.
         let _ = app.emit(
@@ -1318,7 +1362,8 @@ pub(crate) async fn analyze_private_document(
         // clean document. Failing here would hide the empty map entirely.
         let mut warnings = leak_warnings(&sanitized, &analysis.entities);
         warnings.extend(analysis.coverage_warning());
-        let advisories = privacy_advisories(&analysis.entities);
+        let mut advisories = privacy_advisories(&analysis.entities);
+        if names_unavailable { advisories.push("El detector complementario de nombres no estuvo disponible. Revisa nombres y organizaciones en todo el documento.".into()); }
         let privacy = app.state::<PrivacyState>();
         let mut guard = privacy
             .0

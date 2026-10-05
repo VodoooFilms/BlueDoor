@@ -6,17 +6,18 @@
   import { ENTITY_KINDS, type EntityKind, type PrivateEntity, type PrivacySession } from "../lib/privacy";
   import belegalMark from "../assets/belegal-mark.png";
   import DocumentLayout from "./DocumentLayout.svelte";
+  import TranscriptView from "./TranscriptView.svelte";
+  import type { Transcript, DocFormat } from "../lib/types";
   import { pdfFileName } from "../lib/editor/export";
 
-  let { onBusyChange, onSessionChange, onEdit, externalSession, comparisonRequest, editing = false }: { editing?: boolean; onBusyChange: (busy: boolean) => void; onSessionChange: (session: PrivacySession | null) => void; onEdit: (session: PrivacySession) => void; externalSession: PrivacySession | null; comparisonRequest: number } = $props();
+  let { onBusyChange, onSessionChange, onEdit, externalSession, comparisonRequest, textTranscript, onSaveText, onTextDirty, onConfirmReview, onValidateExport, editing = false }: { textTranscript: Transcript | null; onSaveText: (id: string, text: string, format?: DocFormat, html?: string | null) => Promise<void>; onTextDirty: (dirty: boolean, save: () => void | Promise<void>) => void; onConfirmReview: () => Promise<void>; onValidateExport: (text: string, title?: string) => Promise<void>; editing?: boolean; onBusyChange: (busy: boolean) => void; onSessionChange: (session: PrivacySession | null) => void; onEdit: (session: PrivacySession) => void; externalSession: PrivacySession | null; comparisonRequest: number } = $props();
   let session = $state<PrivacySession | null>(null);
   let entities = $state<PrivateEntity[]>([]);
   let draftDirty = $state(false);
   let layoutDirty = $state(false);
-  function layoutEdited(dirty: boolean) { layoutDirty = dirty; onBusyChange(!!busy || dirty); }
+  function layoutEdited(dirty: boolean, save: () => void | Promise<void>) { layoutDirty = dirty; onTextDirty(dirty, save); }
   let aliasEdit: { index: number; members: number[] } | null = null;
   let busy = $state("");
-  const importingDocument = $derived(busy.startsWith("Importando"));
   let sanitizing = $state(false);
   let analysisStep = $state("");
   let analysisId: string | null = null;
@@ -44,26 +45,34 @@
   let addText = $state("");
   let addKind = $state<EntityKind>("PERSON");
   let mapOpen = $state(false);
-  let layoutOpen = $state(true);
+  let zoom = $state(100);
+  let exportReady = $state(false);
+  let pageCount = $state(0);
+  let textEditorDirty = $state(false);
+  let textExport = $state<(() => Promise<void>) | null>(null);
+  let textExportBusy = $state(false);
   let exported = $state("");
-  let originalExpanded = $state(false);
   $effect(() => {
     void comparisonRequest;
     void editing;
-    originalExpanded = false;
     mapOpen = false;
   });
   function adopt(next: PrivacySession | null) {
-    if (next?.id !== session?.id) { layoutOpen = true; exported = ""; }
-    if (next?.id !== session?.id) originalExpanded = false;
+    if (next?.id !== session?.id) { zoom = 100; exported = ""; exportReady = false; }
     if (!next?.analyzed || next.id !== session?.id) mapOpen = false;
     session = next;
     onSessionChange(next);
     entities = next?.entities.map(e => ({ ...e })) ?? [];
     draftDirty = false;
+    if (!layoutDirty && !textEditorDirty) onTextDirty(false, () => applyMap());
     aliasEdit = null;
   }
-  function edited() { draftDirty = true; error = ""; }
+  function edited() { draftDirty = true; error = ""; onTextDirty(true, () => applyMap()); }
+  function resetMap() {
+    entities = session?.entities.map(entity => ({ ...entity })) ?? [];
+    draftDirty = false; aliasEdit = null; error = "";
+    onTextDirty(false, () => applyMap());
+  }
   function beginAliasEdit(index: number) {
     const alias = entities[index]?.alias;
     if (alias === undefined) return;
@@ -94,7 +103,9 @@
     if (disposed) { stop(); return; }
     unlistenAnalysis = stop;
     try {
-      adopt(await invoke<PrivacySession | null>("get_privacy_session"));
+      const restored = await invoke<PrivacySession | null>("get_privacy_session");
+      adopt(restored);
+      if (restored?.analyzed) onEdit(restored);
     } catch { error = "Abre el demo con Tauri para importar documentos y ejecutar Qwen localmente."; }
   });
   onDestroy(() => { disposed = true; unlistenAnalysis?.(); });
@@ -128,7 +139,7 @@
       const modelId = localStorage.getItem("belegal-privacy-model") || "qwen3-fast";
       const analyzed = await invoke<PrivacySession>("analyze_private_document", { id: current.id, revision: current.revision, modelId });
       adopt(analyzed);
-      if (analyzed.layoutAvailable && analyzed.analyzed) onEdit(analyzed);
+      if (analyzed.analyzed) onEdit(analyzed);
     });
   }
   function addEntity() {
@@ -156,6 +167,7 @@
   async function clear() {
     await run("Cerrando documento…", async () => { await invoke("clear_privacy_session"); adopt(null); });
   }
+  $effect(() => { onBusyChange(!!busy || layoutDirty || draftDirty || textEditorDirty); });
   async function exportOriginalLayout() {
     if (!session || draftDirty) return;
     await run("Exportando PDF con formato original…", async () => {
@@ -179,43 +191,31 @@
 {/snippet}
 
 <section class="privacy-workflow" aria-label="Private Legal">
-  {#if !editing || mapOpen}<div class="intro">
-    <div><p class="eyebrow">{p("PRIVATE LEGAL · MOTOR LOCAL")}</p><h1>{#if editing}{p("Revisa el documento protegido.")}{:else}{#each p("Lo privado permanece aquí.").split(/\b(privado|private)\b/) as part}{#if part === "privado" || part === "private"}<em>{part}</em>{:else}{part}{/if}{/each}{/if}</h1></div>
-    <div class="intro-status">
-      <div class="status-slot">
-        {#if error}<p class="error" role="alert">{p(error)}</p>{/if}
-      </div>
+  {#if session}
+    <div class="workspace-header">
+      <div class="workspace-title"><strong>{session.fileName}</strong><span>{p(session.analyzed ? (session.reviewed ? "Revisión confirmada" : "Pendiente de revisión") : "Documento original")}{#if pageCount} · {pageCount} {p("páginas")}{/if}</span></div>
+      {#if editing && session.analyzed}
+        <div class="workspace-views" role="group" aria-label={p("Vistas de edición")}>
+          <button class="secondary" class:active-page={!mapOpen} aria-pressed={!mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = false}>{p("Documento")}</button>
+          <button class="secondary" class:active-page={mapOpen} aria-pressed={mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = true}>{p("Mapa privado")}</button>
+        </div>
+        {#if session.layoutAvailable}
+          <label class="workspace-zoom">{p("Zoom")} <select bind:value={zoom} disabled={!!busy || layoutDirty || mapOpen}><option value={75}>75%</option><option value={100}>100%</option><option value={150}>150%</option><option value={200}>200%</option></select></label>
+        {/if}
+        <button class="primary" onclick={() => session?.layoutAvailable ? exportOriginalLayout() : textExport?.()} disabled={!!busy || textExportBusy || (session.layoutAvailable && !exportReady) || (!session.layoutAvailable && !textExport) || draftDirty || layoutDirty || !session.analysisComplete || !!session.warnings.length}>{p("Exportar PDF")}</button>
+      {:else}
+        <details class="document-menu"><summary aria-label={p("Acciones del documento")}>···</summary><div>
+          {#if session.analyzed}<button class="secondary" onclick={clearResult} disabled={!!busy}>{p("Volver a analizar")}</button>{/if}
+          <button class="secondary" onclick={clear} disabled={!!busy}>{p("Borrar documento y empezar de cero")}</button>
+        </div></details>
+        <button class="secondary" onclick={importDocument} disabled={!!busy}>{p("Importar otro documento")}</button>
+        {#if session.layoutAvailable}<label class="workspace-zoom">{p("Zoom")} <select bind:value={zoom} disabled={!!busy}><option value={75}>75%</option><option value={100}>100%</option><option value={150}>150%</option><option value={200}>200%</option></select></label>{/if}
+        {#if session.analyzed}<button class="primary" onclick={() => { if (session) onEdit(session); }} disabled={!!busy}>{p("Revisar y editar")}</button>
+        {:else}<button class="primary analyze-button" onclick={analyze} disabled={!!busy}>{p("Proteger documento")}</button>{/if}
+      {/if}
     </div>
-  </div>{/if}
-
-    {#if !editing || mapOpen || busy}<div class="document-actions">
-      <div class="document-actions-left">
-        {#if !mapOpen && !editing}
-          <button class="primary import-button" onclick={importDocument} disabled={!!busy}>{p("Importar documento")}</button>
-          {#if session?.layoutAvailable}<button class="secondary" onclick={() => layoutOpen = !layoutOpen} disabled={!!busy}>{p(layoutOpen ? "Ver texto" : "Ver formato original")}</button>{/if}
-        {/if}
-        {#if importingDocument}
-          {@render processingIndicator()}
-        {/if}
-      </div>
-      <div class="document-actions-right">
-        {#if session && !mapOpen && !editing}
-          <button class="secondary analyze-button" onclick={analyze} disabled={!!busy}>{p("Proteger documento")}</button>
-        {/if}
-        {#if busy && !importingDocument}
-          {@render processingIndicator()}
-        {:else if !busy && session?.analyzed}
-          <div class="result-actions">
-            {#if editing || !session.layoutAvailable}<button class="secondary" class:active-page={mapOpen} onclick={() => { mapOpen = true; }} disabled={!session.entities.length || layoutDirty} aria-pressed={mapOpen}>{p("Mapa privado")}</button>{/if}
-            {#if !editing}<button class="secondary" onclick={() => { if (session) onEdit(session); }} disabled={draftDirty}>{p("Abrir en Edit")}</button>{/if}
-          </div>
-        {/if}
-      </div>
-    </div>{/if}
-    {#if session}
-      {#if mapOpen}
+    {#if mapOpen && editing}
         <section class="map-page" aria-label={p("Mapa privado")}>
-          <div class="panel-heading"><div><p class="eyebrow">{p("MAPA PRIVADO · SOLO EN ESTE EQUIPO")}</p><h2>{p("Revisa las entidades y sus aliases.")}</h2></div><button class="secondary" onclick={() => mapOpen = false}>{p("← Volver al documento")}</button></div>
           <div class="map-heading"><h2>{p("Mapa privado")}</h2><span>{entities.length} {p("entradas · solo local")}</span></div>
           {#if session.analyzed}
             <p class="map-help">{p("Corrige detecciones y aliases. Cambiar un alias actualiza todas las entradas que lo comparten. Para unir variantes usa el mismo alias. Eliminar una entrada restaura ese dato en la salida: revisa con cuidado.")}</p>
@@ -230,161 +230,87 @@
               {/each}
             </div>
             <div class="add-entity"><select aria-label={p("Tipo de nueva entidad")} bind:value={addKind} disabled={!!busy}>{#each ENTITY_KINDS as kind}<option value={kind.value}>{p(kind.label)}</option>{/each}</select><input aria-label={p("Nueva entidad privada")} bind:value={addText} placeholder={p("Texto exacto del original")} disabled={!!busy}/><button class="secondary" onclick={addEntity} disabled={!!busy || !addText.trim()}>{p("Añadir entidad")}</button></div>
-            <button class="secondary apply-map" onclick={() => applyMap()} disabled={!!busy || !draftDirty}>{p("Aplicar cambios al mapa")}</button>
+            <button class="secondary" onclick={resetMap} disabled={!!busy || !draftDirty}>{p("Restablecer cambios")}</button>
+            <button class="primary apply-map" onclick={() => applyMap()} disabled={!!busy || !draftDirty}>{p(draftDirty ? "Guardar cambios" : "Guardado")}</button>
           {:else}<p class="empty-note">{p("Analiza el documento con Qwen para detectar entidades y construir el mapa.")}</p>{/if}
-          {#if draftDirty}<p class="notice">{p(editing ? "Aplica los cambios al mapa para actualizar el documento." : "Aplica los cambios al mapa antes de abrir el documento en Edit.")}</p>{/if}
+          {#if draftDirty}<p class="notice">{p("Aplica los cambios al mapa para actualizar el documento.")}</p>{/if}
         </section>
-      {:else if (layoutOpen || editing) && session.layoutAvailable}
-        <DocumentLayout onMap={() => mapOpen = true} onSessionChange={adopt} onTextDirty={layoutEdited} {session} {entities} editable={editing} dirty={draftDirty} busy={!!busy} onAliasFocus={beginAliasEdit} onAliasChange={renameAlias} onApply={() => applyMap()} onExport={exportOriginalLayout} />
-        {#if exported}<p class="notice" role="status">{p("PDF guardado con el formato original.")} {exported}</p>{/if}
-      {:else}
-      <div class="boundary-grid" class:original-expanded={originalExpanded}>
-        <section class="private-panel">
-          <div class="panel-heading"><div><p class="eyebrow">{p("PRIVATE — SE QUEDA EN ESTE EQUIPO")}</p><h2>{p("Documento original")}</h2></div><div class="panel-meta"><button class="trash-button" onclick={clear} disabled={!!busy} title={p("Borrar documento y empezar de cero")} aria-label={p("Borrar documento original")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11"></path><path d="M6.5 6v10a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V6"></path><path d="M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6"></path><path d="M10 9v5"></path></svg></button></div></div>
-          <div class="text-window">
-            <button class="view-toggle" onclick={() => originalExpanded = !originalExpanded} title={p(originalExpanded ? "Volver a pantalla dividida" : "Ampliar documento original")} aria-label={p(originalExpanded ? "Volver a pantalla dividida" : "Ampliar documento original")} aria-pressed={originalExpanded}>{#if originalExpanded}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5M7 10h10" /></svg>{:else}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M3 13v4h4M17 13v4h-4" /></svg>{/if}</button>
-            <pre class="document-text original" data-testid="private-original">{session.original}</pre>
-          </div>
-          <div class="panel-footer" aria-hidden="true"></div>
-        </section>
-        <section class="sanitized-panel" class:panel-hidden={originalExpanded}>
-          <div class="panel-heading"><div><p class="eyebrow" class:eyebrow-pending={session.analyzed && !session.reviewed} data-testid="sanitized-status">{session.analyzed ? (session.reviewed ? "SAFE — PROTECTED" : p("Pendiente de revisión")) : "SAFE — PROTECTED"}</p><h2>{p("Versión para compartir")}</h2></div><div class="panel-meta"><button class="trash-button" onclick={clearResult} disabled={!!busy || !session.analyzed} title={p("Borrar versión protegida para repetir el análisis")} aria-label={p("Borrar versión protegida")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11"></path><path d="M6.5 6v10a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V6"></path><path d="M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6"></path><path d="M10 9v5"></path></svg></button></div></div>
-          {#if session.analyzed}
-            <div class="text-window">
-              <button class="view-toggle" onclick={() => { if (session) onEdit(session); }} disabled={!!busy || draftDirty} title={p("Abrir versión protegida en Edit")} aria-label={p("Abrir versión protegida en Edit")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3H3v4M13 3h4v4M3 13v4h4M17 13v4h-4" /></svg></button>
-              <pre class="document-text sanitized" data-testid="sanitized-document">{session.sanitized}</pre>
-            </div>
-            {#if session.analyzed && !session.analysisComplete}<div class="leak-alert" role="alert" data-testid="incomplete-analysis"><strong>{p("Análisis incompleto · revisión bloqueada")}</strong><p>{p("Qwen no pudo leer todo el documento. La versión protegida no está verificada en la parte no leída: vuelve a protegerlo o divide el archivo antes de aprobar.")}</p></div>{/if}
-            {#if session.warnings.length}<div class="leak-alert" role="alert"><strong>{p("Posibles filtraciones · vista previa bloqueada")}</strong>{#each session.warnings as warning}<p>{p(warning)}</p>{/each}</div>{/if}
-            {#if session.advisories.length}<div class="advisory-box" data-testid="privacy-advisories"><strong>{p("Lo que esta revisión no puede comprobar")}</strong>{#each session.advisories as advisory}<p>{p(advisory)}</p>{/each}</div>{/if}
-            {#if draftDirty}<p class="notice">{p("La salida aún corresponde al mapa anterior. Aplica los cambios para validarla de nuevo.")}</p>{/if}
-            <div class="review-controls panel-footer">
-              <button class="secondary" onclick={() => { if (session) onEdit(session); }} disabled={!!busy || draftDirty}>{p("Abrir en Edit")}</button>
-            </div>
-          {:else}<div class="empty-sanitized"><span aria-hidden="true">◇</span><p>{p("La versión protegida aparecerá aquí después del análisis local.")}</p></div>{/if}
-        </section>
-      </div>
-      {/if}
-    {:else}
-      <div class="welcome">
-        <img class="welcome-mark" src={belegalMark} alt="" />
-        <h2>{p("Primero, importa un documento privado.")}</h2>
-        <p>{p("Importa un archivo. Qwen detectará entidades en este equipo; tú revisarás qué información puede formar parte de una futura solicitud.")}</p>
-        <button class="welcome-import" onclick={importDocument} disabled={!!busy}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" /></svg>
-          <span>{p("Importa un documento")}</span>
-          <small>PDF · DOCX · PNG · JPG · TIFF · HEIC · TXT · MD</small>
-        </button>
-        </div>
     {/if}
+    <div class="document-surface" class:hidden={mapOpen}>
+      {#if session.layoutAvailable}
+        <DocumentLayout bind:zoom onExportReady={(ready, count) => { exportReady = ready; pageCount = count; }} onSessionChange={adopt} onTextDirty={layoutEdited} {session} {entities} editable={editing} dirty={draftDirty} busy={!!busy} onAliasFocus={beginAliasEdit} onAliasChange={renameAlias} onApply={() => applyMap()} />
+      {:else if editing && textTranscript}
+        <TranscriptView transcript={textTranscript} privateDocument privateReviewed={session.reviewed} privateId={session.id} privateRevision={session.revision} onSave={onSaveText} onExportAction={(action, exporting) => { textExport = action; textExportBusy = exporting; }} onDirtyChange={(dirty, save) => { textEditorDirty = dirty; onTextDirty(dirty, save); }} {onConfirmReview} {onValidateExport} />
+      {:else}
+        <div class="original-page"><pre>{session.original}</pre></div>
+      {/if}
+    </div>
+    {#if session.warnings.length}<div class="leak-alert" role="alert"><strong>{p("Posibles filtraciones · vista previa bloqueada")}</strong>{#each session.warnings as warning}<p>{p(warning)}</p>{/each}</div>{/if}
+    {#if session.analyzed && !session.analysisComplete}<div class="leak-alert" role="alert"><strong>{p("Análisis incompleto · revisión bloqueada")}</strong></div>{/if}
+    {#if session.advisories?.length}<details class="review-advisories"><summary>{p("Lo que esta revisión no puede comprobar")}</summary>{#each session.advisories as advisory}<p>{p(advisory)}</p>{/each}</details>{/if}
+    {#if exported}<p class="notice" role="status">{p("PDF guardado con el formato original.")} {exported}</p>{/if}
+  {:else}
+    <div class="welcome">
+      <img class="welcome-mark" src={belegalMark} alt="" />
+      <h2>{p("Lo privado permanece aquí.")}</h2>
+      <p>{p("Importa un archivo. Qwen detectará entidades en este equipo; tú revisarás qué información puede formar parte de una futura solicitud.")}</p>
+      <button class="welcome-import" aria-label={p("Importar documento")} onclick={importDocument} disabled={!!busy}>
+        <span>{p("Importar documento")}</span><small>PDF · DOCX · PNG · JPG · TIFF · HEIC · TXT · MD</small>
+      </button>
+    </div>
+  {/if}
+  {#if busy}{@render processingIndicator()}{/if}
+  {#if error}<p class="error" role="alert">{p(error)}</p>{/if}
 </section>
 
 <style>
-  .privacy-workflow { --ai-border: linear-gradient(110deg, #a58de2 0%, #8b9cec 28%, #caa0de 56%, #e7aa98 82%, #e4b68a 100%); display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; border:1px solid var(--line); border-top:0; border-radius:0 0 6px 6px; background:var(--background); padding:16px 22px; }
-  .intro { display:flex; justify-content:space-between; align-items:center; gap:20px; flex:none; min-height:76px; margin-bottom:8px; }
-  .intro-status { flex:0 0 clamp(240px,30vw,420px); display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
-  .status-slot { width:100%; height:34px; overflow:auto; text-align:right; }
-  .status-slot p { margin:0; font-size:12px; line-height:1.5; }
-  .error { color:var(--error); }
-
-  .eyebrow { margin:0 0 8px; font-size:11px; font-weight:500; letter-spacing:.12em; color:var(--muted); }
-  /* A document that has not been confirmed must not read like a safe one. */
-  .eyebrow-pending { color:#8a5a12; font-weight:700; }
-  h1,h2 { font-family:var(--font-heading); font-weight:400; color:var(--text); }
-  h1 em { font-family:"Newsreader",var(--font-heading); font-style:italic; font-weight:300; }
-  h1 { margin:0 0 5px; font-size:30px; line-height:1.2; } h2 { margin:0; font-size:21px; line-height:1.3; }
+  .privacy-workflow { display:flex; flex-direction:column; flex:1; min-height:0; border:1px solid var(--line); border-top:0; border-radius:0 0 6px 6px; background:var(--background); padding:16px; gap:12px; }
+  .workspace-header { display:flex; align-items:center; gap:12px; flex:none; }
+  .document-menu { position:relative; }
+  .document-menu summary { cursor:pointer; padding:8px; }
+  .document-menu > div { position:absolute; top:36px; right:0; z-index:20; background:var(--surface); border:1px solid var(--line); border-radius:5px; padding:10px; display:grid; gap:8px; }
+  .workspace-title { margin-right:auto; min-width:0; display:flex; flex-direction:column; gap:4px; }
+  .workspace-title strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .workspace-title span,.workspace-zoom { color:var(--muted); font-size:12px; }
+  .workspace-views { display:flex; gap:4px; }
+  .workspace-zoom { display:flex; gap:6px; align-items:center; }
+  .document-surface { display:flex; flex:1; min-height:0; }
+  .hidden { display:none; }
+  .original-page { flex:1; min-height:0; overflow:auto; background:var(--panel); padding:24px; }
+  .original-page pre { margin:0 auto; max-width:800px; min-height:100%; padding:36px; white-space:pre-wrap; overflow-wrap:anywhere; font:16px/1.7 Georgia,serif; background:var(--surface); color:var(--text); }
+  h2 { font-family:var(--font-heading); font-weight:400; margin:0; color:var(--text); }
   button { cursor:pointer; font-size:13px; border-radius:4px; padding:8px 12px; white-space:nowrap; }
   button:disabled { opacity:.45; cursor:default; }
-  .primary { background:var(--button); border:1px solid var(--button); color:var(--button-text); } .primary:hover:not(:disabled) { background:var(--button-hover); }
-  .secondary { background:var(--surface); border:1px solid var(--line-dark); color:var(--text); } .secondary:hover:not(:disabled) { background:var(--hover); }
-  .secondary.analyze-button {
-    border-color: transparent;
-    background: linear-gradient(var(--surface), var(--surface)) padding-box, var(--ai-border) border-box;
-  }
-  .secondary.analyze-button:hover:not(:disabled) {
-    background: linear-gradient(var(--hover), var(--hover)) padding-box, var(--ai-border) border-box;
-  }
-  .secondary.active-page { border-color:var(--text); background:var(--panel); }
-  .map-page { flex:1; min-height:0; width:100%; overflow:auto; max-width:1100px; margin:0 auto; padding:26px; background:var(--surface); border:1px solid var(--line); border-radius:5px; }
-  .map-page .panel-heading { flex-wrap:wrap; }
-  .map-page .entity-row { grid-template-columns:160px minmax(0,1fr) minmax(0,1fr) 30px; gap:12px; }
-  .map-page .entity-row input,.map-page .entity-row select { padding:10px; font-size:14px; }
-  .map-page .entity-row label:not(:first-child) span { text-align:center; font-size:15px; font-weight:500; color:var(--text); margin-bottom:8px; }
-  .map-page .entity-row input { text-align:center; }
-  .map-page .entity-list { gap:14px; margin:22px 0; }
-  @media(max-width:650px) { .map-page { padding:16px; } .map-page .entity-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr) 26px; gap:8px; } .map-page .entity-row label:first-child { grid-column:1 / -1; } }
-  .document-actions { flex:none; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:center; min-height:38px; margin:8px 0 14px; }
-  .import-button { justify-self:start; }
-  .document-actions-left { display:flex; align-items:center; gap:14px; min-width:0; }
-  .document-actions-left .processing-slot { padding-right:0; }
-  .document-actions-right { grid-column:2; display:flex; align-items:center; gap:14px; min-width:0; padding-left:1px; }
-  .result-actions { display:flex; align-items:center; gap:9px; margin-left:auto; }
-  .processing-slot { flex:1; min-width:0; padding:0 6px; align-self:stretch; display:flex; flex-direction:column; justify-content:flex-end; gap:4px; }
-  .processing-label { display:flex; align-items:center; justify-content:center; min-height:15px; font-size:11px; line-height:15px; color:var(--muted); min-width:0; }
-  .processing-copy { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .processing-dots { display:inline-flex; flex:none; width:12px; margin-left:1px; }
-  .processing-dots span { animation:processing-dot 1.4s ease-in-out infinite; }
-  .processing-dots span:nth-child(2) { animation-delay:.2s; }
-  .processing-dots span:nth-child(3) { animation-delay:.4s; }
-  @keyframes processing-dot { 0%,80%,100% { opacity:.25; } 40% { opacity:1; } }
-  .processing-track { height:5px; overflow:hidden; border-radius:999px; background:var(--line); visibility:hidden; }
-  .processing-track.processing { visibility:visible; }
-  .processing-track span { display:block; height:100%; width:38%; border-radius:inherit; background:var(--ai-border); animation:processing-slide 1.5s ease-in-out infinite; }
-  @keyframes processing-slide { from { transform:translateX(-110%); } to { transform:translateX(365%); } }
-  @media(prefers-reduced-motion:reduce) { .processing-track span { animation:none; width:100%; opacity:.65; } .processing-dots span { animation:none; opacity:1; } }
-  @media(max-width:760px) { .intro { align-items:flex-start; } .intro-status { flex-basis:200px; } }
-  @media(max-width:540px) { .intro { flex-direction:column; gap:12px; } .intro-status { flex-basis:auto; width:100%; } }
-  .boundary-grid { flex:1; min-height:0; display:grid; grid-template-rows:minmax(0,1fr); grid-template-columns:minmax(0,1fr) minmax(0,1fr); border:1px solid var(--line); border-radius:5px; overflow:hidden; }
-  .private-panel,.sanitized-panel { display:flex; flex-direction:column; min-width:0; min-height:0; padding:16px; } .private-panel { background:var(--panel); border-right:1px solid var(--line); } .sanitized-panel { background:var(--surface); }
-  .text-window { flex:1; min-height:0; position:relative; margin:8px 0; }
-  .text-window .document-text { height:100%; margin:0; padding-right:64px; }
-  .view-toggle { position:absolute; top:10px; right:28px; z-index:1; display:grid; place-items:center; width:28px; height:28px; padding:5px; border:1px solid var(--line); background:var(--surface); color:var(--muted); }
-  .view-toggle:hover:not(:disabled) { color:var(--text); background:var(--hover); }
-  .view-toggle svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
-  .boundary-grid .panel-heading { height:64px; }
-  .boundary-grid .panel-meta { height:100%; justify-content:flex-end; }
-  .panel-footer { flex:none; display:flex; flex-direction:column; justify-content:center; min-height:44px; margin:8px 0 0; }
-  .panel-meta { display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
-  .trash-button { display:grid; place-items:center; width:30px; height:30px; padding:5px; border:1px solid transparent; background:transparent; color:var(--muted); }
-  .trash-button:hover:not(:disabled) { color:var(--error); border-color:var(--line); background:var(--hover); }
-  .trash-button svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
-  .panel-heading { flex:none; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:6px; }
-  .map-help { font-size:12px; color:var(--muted); line-height:1.5; margin:4px 0; }
-  .document-text { white-space:pre-wrap; overflow-wrap:anywhere; font:400 15px/1.65 "Helvetica Neue",Arial,sans-serif; padding:16px; flex:1; min-height:0; margin:8px 0; overflow-y:auto; border:1px solid var(--line); border-radius:3px; color:var(--text); }
-  .original { background:var(--background); } .sanitized { background:var(--surface); }
-  .map-heading { display:flex; justify-content:space-between; gap:10px; align-items:center; margin-top:25px; } .map-heading span { font-size:11px; color:var(--muted); }
-  .entity-list { margin:14px 0; display:flex; flex-direction:column; gap:9px; }
-  .entity-row { display:grid; grid-template-columns:96px minmax(0,1fr) minmax(0,.85fr) 22px; gap:6px; align-items:end; }
-  .entity-row label { min-width:0; } .entity-row label span { display:block; font-size:10px; color:var(--muted); margin-bottom:3px; }
-  input,select { border:1px solid var(--line-dark); border-radius:3px; background:var(--surface); color:var(--text); padding:7px 8px; font-size:12px; min-width:0; width:100%; }
-  .entity-row input { padding:7px 6px; } .entity-row select { padding:7px 3px; } .remove { padding:5px 0; background:transparent; border:0; color:var(--muted); font-size:20px; }
-  .add-entity { display:flex; flex-wrap:wrap; gap:7px; } .add-entity select { width:110px; } .add-entity input { flex:1; min-width:110px; } .apply-map { margin-top:12px; }
-  .leak-alert { font-size:12px; padding:12px; border:1px solid var(--error); color:var(--error); background:var(--error-background); } .leak-alert p { margin:6px 0 0; }
-  .advisory-box { font-size:12px; padding:12px; margin-top:10px; border:1px solid var(--line-dark); background:var(--panel); } .advisory-box p { margin:6px 0 0; }
-  .review-controls { flex:none; display:flex; flex-direction:column; align-items:flex-start; gap:12px; margin:8px 0 0; }
-  .notice { font-size:12px; line-height:1.6; color:var(--muted); border-top:1px solid var(--line); padding-top:8px; margin:8px 0 0; }
-  .empty-note { font-size:13px; color:var(--muted); }
-  .empty-sanitized { display:grid; place-content:center; text-align:center; flex:1; min-height:0; color:var(--muted); font-size:14px; } .empty-sanitized > span { font-size:40px; }
-  .welcome-import { display:flex; flex-direction:column; align-items:center; gap:9px; width:min(100%, 430px); margin:22px auto 0; padding:20px 24px; border:1px dashed var(--line-dark); border-radius:6px; background:var(--surface); color:var(--text); cursor:pointer; font-size:15px; }
-  .welcome-import small { font-size:12px; color:var(--muted); line-height:1.5; }
-  .welcome-import:hover { background:var(--panel); border-color:var(--text); }
-  .welcome-import:focus-visible { outline:2px solid var(--text); outline-offset:4px; }
-  .welcome-import:disabled { opacity:.5; cursor:wait; }
-  .welcome { text-align:center; max-width:680px; margin:20px auto; } .welcome-mark { display:block; width:94px; height:94px; object-fit:contain; margin:0 auto 20px; filter:drop-shadow(0 4px 9px rgba(55,55,49,.16)); } .welcome h2 { font-size:27px; } .welcome p { font-size:15px; color:var(--muted); line-height:1.7; }
-  @media(min-width:761px) and (max-width:900px) {
-    .document-actions button { font-size:12px; padding:7px 8px; }
-    .document-actions-right { gap:9px; }
-    .result-actions { gap:7px; }
-  }
-  @media(max-width:760px) {
-    .document-actions { grid-template-columns:1fr; gap:10px; }
-    .document-actions-right { grid-column:1; padding-left:0; }
-    .boundary-grid { grid-template-columns:1fr; grid-template-rows:repeat(2,minmax(0,1fr)); }
-    .private-panel,.sanitized-panel { overflow:auto; }
-    .private-panel { border-right:0; border-bottom:1px solid var(--line); }
-    .intro { align-items:flex-start; }
-  }
-  .boundary-grid.original-expanded { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); }
-  .original-expanded .private-panel { border:0; }
-  .sanitized-panel.panel-hidden { display:none; }
+  .primary { background:var(--button); border:1px solid var(--button); color:var(--button-text); }
+  .secondary { background:var(--surface); border:1px solid var(--line-dark); color:var(--text); }
+  .active-page { border-color:var(--text); background:var(--panel); }
+  input,select { color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:7px; font:inherit; min-width:0; }
+  .map-page { flex:1; min-height:0; overflow:auto; background:var(--surface); border:1px solid var(--line); border-radius:5px; padding:24px; }
+  .map-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .map-heading span,.map-help { font-size:12px; color:var(--muted); }
+  .entity-list { display:grid; gap:12px; margin:20px 0; }
+  .entity-row { display:grid; grid-template-columns:150px minmax(0,1fr) minmax(0,1fr) 32px; gap:12px; align-items:end; }
+  .entity-row label { display:grid; gap:5px; font-size:12px; }
+  .entity-row input { width:100%; }
+  .remove { padding:7px; color:var(--text); background:transparent; border:1px solid var(--line); }
+  .add-entity { display:flex; gap:10px; margin-bottom:14px; }
+  .add-entity input { flex:1; }
+  .welcome { display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:18px; text-align:center; }
+  .welcome-mark { width:120px; height:120px; object-fit:contain; }
+  .welcome h2 { font-size:30px; }
+  .welcome p { max-width:620px; font-size:14px; color:var(--muted); }
+  .welcome-import { display:flex; flex-direction:column; align-items:center; gap:12px; padding:22px 48px; background:var(--surface); border:1px dashed var(--line-dark); color:var(--text); }
+  .welcome-import small { color:var(--muted); font-size:11px; }
+  .processing-slot { flex:none; padding:8px 0; }
+  .processing-label { display:flex; justify-content:center; color:var(--muted); font-size:12px; }
+  .processing-track { height:3px; margin-top:6px; overflow:hidden; background:var(--panel); }
+  .processing-track span { display:block; width:35%; height:100%; background:var(--accent); animation:processing 1.8s ease-in-out infinite alternate; }
+  @keyframes processing { to { transform:translateX(180%); } }
+  @media(prefers-reduced-motion:reduce) { .processing-track span { animation:none; width:100%; } }
+  .notice,.error,.leak-alert,.review-advisories { flex:none; font-size:12px; margin:0; }
+  .error,.leak-alert { color:var(--error); }
+  .leak-alert { padding:10px; border:1px solid var(--error); }
+  .review-advisories { color:var(--muted); }
+  .review-advisories summary { cursor:pointer; }
+  @media(max-width:1000px) { .workspace-header { gap:8px; } .workspace-title { max-width:240px; } .workspace-views button { padding:8px; } }
 </style>

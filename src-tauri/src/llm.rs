@@ -5,12 +5,34 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{AddBos, LlamaModel};
 use llama_cpp_2::sampling::LlamaSampler;
+use sha2::{Digest, Sha256};
+use std::collections::{HashMap, VecDeque};
 use std::num::NonZeroU32;
 use std::sync::Mutex;
 
+#[derive(Default)]
+struct ExtractionCache {
+    entries: HashMap<[u8; 32], Vec<crate::privacy::Detection>>,
+    order: VecDeque<[u8; 32]>,
+    split_hints: VecDeque<[u8; 32]>,
+}
+impl ExtractionCache {
+    fn insert(&mut self, key: [u8; 32], detections: Vec<crate::privacy::Detection>) {
+        if !self.entries.contains_key(&key) {
+            if self.order.len() >= 128 {
+                if let Some(old) = self.order.pop_front() {
+                    self.entries.remove(&old);
+                }
+            }
+            self.order.push_back(key);
+        }
+        self.entries.insert(key, detections);
+    }
+}
+
 const N_CTX: u32 = 8192;
-// A 4000-char fragment of dense legal text lists far fewer identifiers than
-// this, while a larger budget would eat the context the fragment needs.
+// Default ceiling for generic local generation. Entity extraction has a
+// smaller response budget and subdivides overflowing tasks without omission.
 const MAX_OUTPUT_TOKENS: usize = 2048;
 const SAMPLER_SEED: u32 = 42;
 /// Tokens between UI progress reports while a fragment is being read.
@@ -42,7 +64,7 @@ impl EntityExtractor for LlmEngine {
         progress: &mut dyn FnMut(usize),
     ) -> Result<Vec<crate::privacy::Detection>, String> {
         let prompt = privacy_prompt(document);
-        crate::privacy::parse_detections(&self.generate(&prompt, progress)?)
+        self.extract_prompt(&prompt, progress)
     }
     fn extract_exact(
         &self,
@@ -50,7 +72,7 @@ impl EntityExtractor for LlmEngine {
         progress: &mut dyn FnMut(usize),
     ) -> Result<Vec<crate::privacy::Detection>, String> {
         let prompt = privacy_prompt(document).replacen("Extract EVERY private entity", "An earlier extraction did not copy the source exactly. Do not correct spelling, accents or broken OCR. Copy only visible text spans verbatim, including truncated names and masked accounts. Never expand a fragment into a complete name. Extract EVERY private entity", 1);
-        crate::privacy::parse_detections(&self.generate(&prompt, progress)?)
+        self.extract_prompt(&prompt, progress)
     }
 }
 
@@ -86,8 +108,20 @@ fn untrusted_document(document: &str) -> String {
         .replace("|>", " | >")
 }
 
+/// PDF layout spacing is not semantic content. Keep real line boundaries and
+/// words, but do not spend context tokens on tab/CR/NBSP padding between them.
+/// Only the inference view changes; source text and native glyph offsets stay
+/// untouched, and suggestions are grounded back against that source.
+fn analysis_spacing(document: &str) -> String {
+    document
+        .lines()
+        .map(|line| line.split_whitespace().collect::<Vec<_>>().join(" "))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn privacy_prompt(document: &str) -> String {
-    let document = untrusted_document(document);
+    let document = analysis_spacing(&untrusted_document(document));
     format!(
         "system\n\
 PURPOSE: You are the redaction engine of a private legal workspace. A lawyer is \
@@ -206,9 +240,66 @@ pub struct LlmEngine {
     backend: LlamaBackend,
     model: LlamaModel,
     qwen3: bool,
+    extractions: Mutex<ExtractionCache>,
+    #[cfg(test)]
+    generations: std::sync::atomic::AtomicUsize,
 }
 
 impl LlmEngine {
+    /// Successful block results are reused for the lifetime of this model.
+    /// The key includes the complete prompt and normalized source; a different
+    /// model owns a different cache. Overflow is remembered only as a split
+    /// hint, never as a successful analysis of that source block.
+    fn extract_prompt(
+        &self,
+        prompt: &str,
+        progress: &mut dyn FnMut(usize),
+    ) -> Result<Vec<crate::privacy::Detection>, String> {
+        let key: [u8; 32] = Sha256::digest(prompt.as_bytes()).into();
+        {
+            let cache = self
+                .extractions
+                .lock()
+                .map_err(|_| "Caché local no disponible")?;
+            if let Some(cached) = cache.entries.get(&key).cloned() {
+                return Ok(cached);
+            }
+            if cache.split_hints.contains(&key) {
+                return Err(
+                    "El análisis local no terminó dentro del límite. Divide este bloque.".into(),
+                );
+            }
+        }
+        // Extraction is a small JSON task, not open-ended prose. If the model
+        // rambles, stop early and let the runner split the source without loss.
+        let raw = match self.generate_with_limit(prompt, progress, 768) {
+            Ok(raw) => raw,
+            Err(reason) => {
+                if reason.contains("no terminó dentro del límite") {
+                    let mut cache = self
+                        .extractions
+                        .lock()
+                        .map_err(|_| "Caché local no disponible")?;
+                    if cache.split_hints.len() >= 128 {
+                        cache.split_hints.pop_front();
+                    }
+                    cache.split_hints.push_back(key);
+                }
+                return Err(reason);
+            }
+        };
+        let detections = crate::privacy::parse_detections(&raw)?;
+        self.extractions
+            .lock()
+            .map_err(|_| "Caché local no disponible")?
+            .insert(key, detections.clone());
+        Ok(detections)
+    }
+    pub(crate) fn clear_extractions(&self) {
+        if let Ok(mut cache) = self.extractions.lock() {
+            *cache = ExtractionCache::default();
+        }
+    }
     pub(crate) fn suggest_ocr_prefixes(
         &self,
         document: &str,
@@ -232,6 +323,9 @@ impl LlmEngine {
             backend,
             model,
             qwen3,
+            extractions: Mutex::new(ExtractionCache::default()),
+            #[cfg(test)]
+            generations: std::sync::atomic::AtomicUsize::new(0),
         })
     }
 
@@ -251,6 +345,10 @@ impl LlmEngine {
             .str_to_token(text, bos)
             .map(|t| t.len())
             .map_err(|e| format!("No se pudo tokenizar: {}", e))
+    }
+    #[cfg(test)]
+    pub(crate) fn generations_for_test(&self) -> usize {
+        self.generations.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Prompt size in tokens for the extraction template. Used to size
@@ -280,6 +378,17 @@ impl LlmEngine {
         prompt: &str,
         on_token: &mut dyn FnMut(usize),
     ) -> Result<String, String> {
+        self.generate_with_limit(prompt, on_token, MAX_OUTPUT_TOKENS)
+    }
+    fn generate_with_limit(
+        &self,
+        prompt: &str,
+        on_token: &mut dyn FnMut(usize),
+        response_limit: usize,
+    ) -> Result<String, String> {
+        #[cfg(test)]
+        self.generations
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let threads = crate::types::auto_threads();
         let ctx_params = LlamaContextParams::default()
             .with_n_ctx(Some(NonZeroU32::new(N_CTX).expect("N_CTX is non-zero")))
@@ -314,7 +423,7 @@ impl LlmEngine {
             .str_to_token(prompt, bos)
             .map_err(|e| format!("No se pudo tokenizar el prompt: {}", e))?;
 
-        let budget = output_budget(tokens.len())?;
+        let budget = output_budget(tokens.len())?.min(response_limit);
         let n_prompt = tokens.len() as i32;
         let mut pos = n_prompt;
 
@@ -372,6 +481,25 @@ impl LlmEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn extraction_cache_is_bounded_and_accepts_empty_successes() {
+        let mut cache = ExtractionCache::default();
+        for n in 0_u16..130 {
+            let key: [u8; 32] = Sha256::digest(n.to_le_bytes()).into();
+            cache.insert(key, Vec::new());
+        }
+        let evicted: [u8; 32] = Sha256::digest(0_u16.to_le_bytes()).into();
+        let retained: [u8; 32] = Sha256::digest(129_u16.to_le_bytes()).into();
+        assert_eq!(cache.entries.len(), 128);
+        assert!(!cache.entries.contains_key(&evicted));
+        assert!(cache.entries[&retained].is_empty());
+    }
+    #[test]
+    fn pdf_spacing_is_compacted_only_for_inference() {
+        let text = "Ana\t\r\u{a0} Pérez\n\nMonto\t\r\u{a0} USD 500";
+        assert_eq!(analysis_spacing(text), "Ana Pérez\n\nMonto USD 500");
+        assert!(privacy_prompt(text).contains("Ana Pérez\n\nMonto USD 500"));
+    }
     const CHATML: [&str; 3] = ["<|im_start|>", "<|im_end|>", "/no_think"];
     const ROLES: [&str; 4] = ["system", "user", "assistant", "tool"];
 

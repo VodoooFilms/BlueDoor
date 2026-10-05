@@ -8,8 +8,8 @@ export interface PrivacySession {
 }
 export interface LayoutPage { width: number; height: number; imageBase64: string; source: "embedded" | "ocr"; }
 export interface LayoutRedaction { page: number; entityIndex: number; rect: [number, number, number, number]; alias: string; }
-export interface LayoutTextBlock { id: number; page: number; rect: number[]; bounds: number[]; html: string; font: string; size: number; align: "left" | "center" | "right"; }
-export interface LayoutPreview { id: string; revision: number; pages: LayoutPage[]; redactions: LayoutRedaction[]; estimated: boolean; blocks?: LayoutTextBlock[]; }
+export interface LayoutTextBlock { id: number; page: number; rect: number[]; bounds: number[]; limits?: number[]; minHeight?: number; html: string; font: string; size: number; align: "left" | "center" | "right"; }
+export interface LayoutPreview { id: string; revision: number; pages: LayoutPage[]; redactions: LayoutRedaction[]; estimated: boolean; blocks?: LayoutTextBlock[]; unlabeledAliases?: string[]; }
 export interface OutboundPreview { schemaVersion: number; document: string; }
 export const ENTITY_KINDS: { value: EntityKind; label: string }[] = [
   { value: "PERSON", label: "Persona" }, { value: "COMPANY", label: "Organización" },

@@ -10,6 +10,8 @@ pub(crate) struct TextEdit {
     pub font: String,
     pub size: f64,
     pub align: String,
+    #[serde(default)]
+    pub bounds: Option<[f64; 4]>,
 }
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,6 +20,8 @@ pub(crate) struct TextBlock {
     pub page: usize,
     pub rect: [f64; 4],
     pub bounds: [f64; 4],
+    pub limits: [f64; 4],
+    pub min_height: f64,
     pub html: String,
     pub font: String,
     pub size: f64,
@@ -32,6 +36,7 @@ pub(crate) struct TextBlock {
 pub(crate) struct RichOverlay {
     pub page: usize,
     pub erase_rect: [f64; 4],
+    pub erase_regions: Vec<[f64; 4]>,
     pub rect: [f64; 4],
     pub paragraphs: Vec<crate::pdf::LayoutParagraph>,
 }
@@ -84,6 +89,101 @@ fn fragment(text: &str, start: usize, end: usize, matches: &[(usize, usize, Stri
     result.push_str(&text[cursor..end]);
     result
 }
+// PDF layout often expresses justified spacing as tabs, CR and NBSP.
+// A rich paragraph needs breakable spaces instead of those physical offsets.
+fn flowing_text(source: &str) -> String {
+    let mut text = String::new();
+    let mut whitespace = false;
+    for character in source.chars() {
+        if character.is_whitespace() {
+            if !whitespace {
+                text.push(' ');
+            }
+            whitespace = true;
+        } else {
+            text.push(character);
+            whitespace = false;
+        }
+    }
+    text
+}
+fn group_rect(group: &[&Glyph]) -> [f64; 4] {
+    let x = group
+        .iter()
+        .map(|g| g.rect[0])
+        .fold(f64::INFINITY, f64::min);
+    let y = group
+        .iter()
+        .map(|g| g.rect[1])
+        .fold(f64::INFINITY, f64::min);
+    let right = group
+        .iter()
+        .map(|g| g.rect[0] + g.rect[2])
+        .fold(0., f64::max);
+    let bottom = group
+        .iter()
+        .map(|g| g.rect[1] + g.rect[3])
+        .fold(0., f64::max);
+    [x, y, right - x, bottom - y]
+}
+// Merge adjacent wrapped lines, never neighbouring table cells or separate
+// columns. Source offsets remain intact for alias coverage and leak checks.
+fn paragraph_groups<'a>(
+    groups: Vec<Vec<&'a Glyph>>,
+    page: &Page,
+    text: &str,
+) -> Vec<Vec<&'a Glyph>> {
+    let mut paragraphs: Vec<Vec<&Glyph>> = vec![];
+    for line in groups {
+        let first = line[0];
+        let r = group_rect(&line);
+        let merge = paragraphs.last().is_some_and(|previous| {
+            let last = previous.last().unwrap();
+            let previous_line: Vec<_> = previous
+                .iter()
+                .copied()
+                .filter(|g| g.line == last.line)
+                .collect();
+            let before = group_rect(&previous_line);
+            let origin = group_rect(previous);
+            let gap = r[1] - before[1] - before[3];
+            let between = text.get(last.end..first.start).unwrap_or("X");
+            let content = text
+                .get(first.start..line.last().unwrap().end)
+                .unwrap_or("")
+                .trim_start();
+            let bullet = content.starts_with(['-', '•', '–', '·'])
+                || content.split_whitespace().next().is_some_and(|w| {
+                    w.ends_with('.') && w[..w.len() - 1].chars().all(|c| c.is_ascii_digit())
+                });
+            let same_column = (r[0] - origin[0]).abs() <= first.font_size * 1.6
+                && (r[0] + r[2] - (origin[0] + origin[2])).abs() <= origin[2] * 0.65;
+            let table_row = page.glyphs.iter().any(|g| {
+                (g.end <= previous[0].start || g.start >= line.last().unwrap().end)
+                    && ((g.rect[1] - r[1]).abs() < r[3] * 0.5
+                        || (g.rect[1] - before[1]).abs() < before[3] * 0.5)
+                    && (g.rect[0] + g.rect[2] < origin[0] - 3.
+                        || g.rect[0] > origin[0] + origin[2] + 3.)
+            });
+            first.line != last.line
+                && first.start >= last.end
+                && between.trim().is_empty()
+                && between.chars().filter(|c| *c == '\n').count() <= 1
+                && gap >= -0.5
+                && gap <= first.font_size * 0.55
+                && (first.font_size - last.font_size).abs() <= 0.5
+                && same_column
+                && !bullet
+                && !table_row
+        });
+        if merge {
+            paragraphs.last_mut().unwrap().extend(line);
+        } else {
+            paragraphs.push(line);
+        }
+    }
+    paragraphs
+}
 pub(crate) fn blocks(
     document: &DocumentLayout,
     entities: &[Entity],
@@ -105,7 +205,7 @@ pub(crate) fn blocks(
                 groups.push(vec![glyph]);
             }
         }
-        for group in groups {
+        for group in paragraph_groups(groups, page, &document.text) {
             let first = group[0];
             let last = group.last().unwrap();
             let x = group
@@ -130,21 +230,40 @@ pub(crate) fn blocks(
                 (right + 0.7).min(page.width) - (x - 0.7).max(0.),
                 (bottom + 0.7).min(page.height) - (y - 0.7).max(0.),
             ];
-            // Space may grow only to the next physical line or page edge.
+            let mut left = 0.0_f64;
+            let mut right_limit = page.width;
+            for other in page
+                .glyphs
+                .iter()
+                .filter(|g| g.end <= first.start || g.start >= last.end)
+            {
+                if other.rect[1] >= rect[1] + rect[3] || other.rect[1] + other.rect[3] <= rect[1] {
+                    continue;
+                }
+                let other_right = other.rect[0] + other.rect[2];
+                if other_right <= rect[0] {
+                    left = left.max(other_right + 1.0);
+                }
+                if other.rect[0] >= rect[0] + rect[2] {
+                    right_limit = right_limit.min(other.rect[0] - 1.0);
+                }
+            }
+            left = left.min(rect[0]);
+            right_limit = right_limit.max(rect[0] + rect[2]);
             let next_y = page
                 .glyphs
                 .iter()
+                .filter(|g| g.start >= last.end || g.end <= first.start)
                 .filter(|g| {
-                    g.rect[1] > bottom + 1. && g.rect[0] < right + 2. && g.rect[0] + g.rect[2] > x
+                    g.rect[1] >= bottom - 0.01
+                        && g.rect[0] < right_limit
+                        && g.rect[0] + g.rect[2] > left
                 })
                 .map(|g| g.rect[1] - 1.)
-                .fold(page.height - 20., f64::min);
-            let bounds = [
-                rect[0],
-                rect[1],
-                rect[2],
-                (next_y - rect[1]).max(rect[3]).min(page.height - rect[1]),
-            ];
+                .fold(page.height - 12., f64::min);
+            let available = (next_y - rect[1]).max(rect[3]).min(page.height - rect[1]);
+            let bounds = [rect[0], rect[1], rect[2], available];
+            let limits = [left, rect[1], right_limit - left, available];
             let mut html = String::from("<div>");
             let mut begin = 0;
             while begin < group.len() {
@@ -162,7 +281,7 @@ pub(crate) fn blocks(
                 } else {
                     last.end
                 };
-                let text = fragment(&document.text, style.start, stop, &matches);
+                let text = flowing_text(&fragment(&document.text, style.start, stop, &matches));
                 let color = style.color.map(|v| (v * 255.).round() as u8);
                 let name = style.font_name.to_ascii_lowercase();
                 html.push_str(&format!("<span style=\"font-family: {}; font-size: {}px; color: rgb({}, {}, {}); font-weight: {}; font-style: {}\">{}</span>",escape(&style.font_name),style.font_size,color[0],color[1],color[2],if name.contains("bold") {"bold"} else {"normal"},if name.contains("italic")||name.contains("oblique") {"italic"} else {"normal"},escape(&text)));
@@ -175,6 +294,8 @@ pub(crate) fn blocks(
                 page: page_index,
                 rect,
                 bounds,
+                limits,
+                min_height: rect[3],
                 html,
                 font: first.font_name.clone(),
                 size: first.font_size,
@@ -208,6 +329,22 @@ pub(crate) fn compiled(
         let block = blocks
             .get_mut(edit.block_id)
             .ok_or("La zona de texto ya no existe.")?;
+        let erase_rect = block.rect;
+        if let Some(bounds) = edit.bounds {
+            let limit = block.limits;
+            if !bounds.iter().all(|v| v.is_finite())
+                || bounds[2] < 10.0
+                || bounds[0] < limit[0] - 0.01
+                || bounds[0] + bounds[2] > limit[0] + limit[2] + 0.01
+                || (bounds[1] - limit[1]).abs() > 0.01
+                || bounds[3] < erase_rect[3] - 0.01
+                || bounds[3] > limit[3] + 0.01
+            {
+                return Err("El área de texto debe permanecer dentro de la página y sin invadir otros textos.".into());
+            }
+            block.bounds = bounds;
+            block.rect = bounds;
+        }
         let paragraphs =
             crate::pdf::layout_paragraphs(&edit.html, &edit.font, edit.size, &edit.align);
         let text = paragraphs
@@ -222,10 +359,29 @@ pub(crate) fn compiled(
         block.align = edit.align.clone();
         overlays.push(RichOverlay {
             page: block.page,
-            erase_rect: block.rect,
+            erase_rect,
+            // Native source coordinates, never client-supplied rectangles.
+            erase_regions: document.pages[block.page]
+                .glyphs
+                .iter()
+                .filter(|g| g.start >= block.start && g.end <= block.end)
+                .map(|g| g.rect)
+                .collect(),
             rect: block.bounds,
             paragraphs,
         });
+    }
+    for (index, area) in overlays.iter().enumerate() {
+        for other in &overlays[index + 1..] {
+            if area.page == other.page
+                && area.rect[0] < other.rect[0] + other.rect[2]
+                && other.rect[0] < area.rect[0] + area.rect[2]
+                && area.rect[1] < other.rect[1] + other.rect[3]
+                && other.rect[1] < area.rect[1] + area.rect[3]
+            {
+                return Err("Las áreas de texto corregidas no pueden superponerse.".into());
+            }
+        }
     }
     let mut ordered = blocks.iter().collect::<Vec<_>>();
     ordered.sort_by_key(|b| b.start);
