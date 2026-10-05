@@ -71,8 +71,11 @@ try {
   await page.waitForFunction(()=>!document.querySelector('.workspace-views button:last-child').disabled);
   const bar=page.locator('.editor-toolbar');
   assert.equal(await page.locator('.page-editor .viewer-head').count(),0,'no duplicate action toolbar');
-  for(const width of [1440,960]){
+  // Repeated viewport changes exercise ResizeObserver delivery on WebKit;
+  // the strict pageerror assertion below must catch resize feedback loops.
+  for(const width of [1440,960,1200,960,1440,1000,1440,960]){
    await page.setViewportSize({width,height:900});
+   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
    const geometry=await bar.evaluate(el=>{const align=el.querySelector('.tb-align').getBoundingClientRect(),actions=el.querySelector('.editor-actions').getBoundingClientRect(),r=el.getBoundingClientRect();return {alignTop:align.top,actionTop:actions.top,right:actions.right,barRight:r.right,scroll:el.scrollWidth,width:el.clientWidth};});
    assert(Math.abs(geometry.alignTop-geometry.actionTop)<8,'actions share the alignment row');
    assert(geometry.right<=geometry.barRight+1&&geometry.scroll<=geometry.width+1,'toolbar fits at the minimum app width');

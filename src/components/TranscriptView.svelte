@@ -111,19 +111,28 @@
     if (!privateDocument || !editorEl || !rulerRef) return;
     const editor = editorEl;
     const ruler = rulerRef;
+    const scale = surfaceScale;
+    let frame = 0;
     function alignRuler() {
       const paper = editor.getBoundingClientRect();
       const container = ruler.parentElement!;
       const css = getComputedStyle(editor);
       const left = parseFloat(css.paddingLeft);
       const right = parseFloat(css.paddingRight);
-      privateRulerStyle = `width:${paper.width - (left + right) * surfaceScale}px; margin-left:${paper.left + left * surfaceScale - container.getBoundingClientRect().left - container.clientLeft}px; margin-right:0;`;
+      privateRulerStyle = `width:${paper.width - (left + right) * scale}px; margin-left:${paper.left + left * scale - container.getBoundingClientRect().left - container.clientLeft}px; margin-right:0;`;
     }
-    const observer = new ResizeObserver(alignRuler);
+    // Layout writes during ResizeObserver delivery can resize its ancestors
+    // and trigger WebKit's undelivered-notifications error. Coalesce them in
+    // the next frame, and cancel work when this editor is replaced.
+    function scheduleRuler() {
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = 0; alignRuler(); });
+    }
+    const observer = new ResizeObserver(scheduleRuler);
     observer.observe(editor);
     observer.observe(editor.parentElement!);
-    alignRuler();
-    return () => observer.disconnect();
+    scheduleRuler();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
   });
   let curPL = $state(0);
   let curTI = $state(0);
@@ -208,9 +217,14 @@
   });
   $effect(() => {
     if (!pageSurface || !editorEl) return;
-    const observer = new ResizeObserver(reportSurfaceExtent);
+    let frame = 0;
+    function scheduleExtent() {
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = 0; reportSurfaceExtent(); });
+    }
+    const observer = new ResizeObserver(scheduleExtent);
     observer.observe(editorEl);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
   });
 
   const displayColor = $derived(toHex(selColor));
