@@ -43,6 +43,29 @@ try {
   await page.goto('http://localhost:1420');
   await page.getByRole('button',{name:'Mapa privado',exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Mapa privado',exact:true}).count(),1);
+  await page.getByRole('combobox',{name:'Zoom',exact:true}).selectOption('400');
+  await page.getByRole('button',{name:'Editar alias COMPANY_01, Página 1',exact:true}).first().click();
+  const panel=page.getByRole('complementary',{name:'Editar alias',exact:true});
+  const alias=panel.getByRole('textbox',{name:'Alias en el documento',exact:true});
+  const previous=panel.getByRole('button',{name:'Caja de alias anterior',exact:true});
+  const next=panel.getByRole('button',{name:'Caja de alias siguiente',exact:true});
+  assert(await previous.isDisabled());assert.match(await panel.innerText(),/1 \/ 4/);
+  await alias.fill('BORRADOR');
+  await next.click();assert.match(await panel.innerText(),/Otra Sociedad/);assert.equal(await alias.inputValue(),'COMPANY_02');
+  await next.click();assert.match(await panel.innerText(),/\*EMPRESAEJEMPLO/);assert.equal(await alias.inputValue(),'BORRADOR','navigation keeps shared unsaved aliases');
+  assert.match(await panel.innerText(),/Página 2/);
+  const selected=page.locator('.alias-zone[data-alias-region].selected');
+  assert.equal(await selected.count(),1,'highlight identifies one physical box');
+  const box=await selected.boundingBox(),viewport=await page.locator('.page-editor .viewer-body').boundingBox();
+  assert(box.y+box.height/2>=viewport.y && box.y+box.height/2<=viewport.y+viewport.height,'navigation scrolls to a box on another page');
+  await next.click();assert.match(await panel.innerText(),/Empresa Ejemplo S.A./);assert(await next.isDisabled());
+  await previous.click();await previous.click();await previous.click();
+  assert.equal(await alias.inputValue(),'BORRADOR','returning to first box preserves its draft');assert(await previous.isDisabled());
+  await alias.fill('COMPANY_01');
+  await page.locator('.alias-actions').getByRole('button',{name:'Guardar cambios',exact:true}).click();
+  await page.waitForFunction(()=>window.__reviewed?.revision===2);
+  await panel.getByRole('button',{name:'Cerrar editor de alias',exact:true}).click();
+  await page.getByRole('combobox',{name:'Zoom',exact:true}).selectOption('100');
   await page.getByRole('button',{name:'Mapa privado',exact:true}).first().click();
   const first=page.getByRole('textbox',{name:'Alias 1',exact:true});
   await first.fill('');
@@ -50,7 +73,7 @@ try {
   assert.equal(await page.getByRole('textbox',{name:'Alias 2',exact:true}).inputValue(),'COMPANY_02_PERSONALIZADA','distinct original follows group during typing');
   assert.equal(await page.getByRole('textbox',{name:'Alias 3',exact:true}).inputValue(),'COMPANY_02','temporary typing collision must not recruit another group');
   await page.locator('.map-page').getByRole('button',{name:'Guardar cambios',exact:true}).click();
-  await page.waitForFunction(()=>window.__reviewed?.revision===2);
+  await page.waitForFunction(()=>window.__reviewed?.revision===3);
   assert.equal(await page.evaluate(()=>window.__reviewed.sanitized),'COMPANY_02_PERSONALIZADA\nCOMPANY_02_PERSONALIZADA\nCOMPANY_02\nCOMPANY_02_PERSONALIZADA');
   await page.getByRole('button',{name:'Documento',exact:true}).click();
   // Edit from the other original on page 2, then verify all three occurrences.
@@ -60,7 +83,7 @@ try {
   await editor.pressSequentially('PROVEEDOR PRINCIPAL');
   assert(await page.getByRole('button',{name:'Exportar PDF'}).isDisabled());
   await page.locator('.alias-actions').getByRole('button',{name:'Guardar cambios',exact:true}).click();
-  await page.waitForFunction(()=>window.__reviewed?.revision===3);
+  await page.waitForFunction(()=>window.__reviewed?.revision===4);
   assert.deepEqual(await page.evaluate(()=>window.__reviewed.entities.map(e=>e.alias)),['PROVEEDOR PRINCIPAL','PROVEEDOR PRINCIPAL','COMPANY_02']);
   assert.equal(await page.getByRole('button',{name:'Editar alias PROVEEDOR PRINCIPAL, Página 1',exact:true}).count(),1);
   assert.equal(await page.getByRole('button',{name:'Editar alias PROVEEDOR PRINCIPAL, Página 2',exact:true}).count(),2);

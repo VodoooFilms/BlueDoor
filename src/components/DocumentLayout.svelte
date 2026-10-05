@@ -6,15 +6,62 @@
   import type { DocFormat } from "../lib/types";
   import { invoke } from "@tauri-apps/api/core";
   import { privateCopy as p } from "../lib/private-i18n";
-  import type { LayoutPreview, PrivateEntity, PrivacySession } from "../lib/privacy";
-  let { session, entities, dirty, busy, onAliasFocus, onAliasChange, onApply, onSessionChange, onTextDirty, onExportReady, zoom = $bindable(100), editable = true }: {
+  import type { LayoutPreview, LayoutRedaction, PrivateEntity, PrivacySession } from "../lib/privacy";
+  let { session, entities, dirty, busy, onAliasFocus, onAliasChange, onApply, onSessionChange, onTextDirty, onExportReady, zoom = $bindable(100), fitWidth = true, editable = true }: {
     session: PrivacySession; entities: PrivateEntity[]; dirty: boolean; busy: boolean;
-    onAliasFocus: (index: number) => void; onAliasChange: (index: number, value: string) => void; onApply: () => void; onSessionChange: (session: PrivacySession) => void; onTextDirty: (dirty: boolean, save: () => void | Promise<void>) => void; onExportReady: (ready: boolean, count: number) => void; zoom?: number; editable?: boolean;
+    onAliasFocus: (index: number) => void; onAliasChange: (index: number, value: string) => void; onApply: () => void; onSessionChange: (session: PrivacySession) => void; onTextDirty: (dirty: boolean, save: () => void | Promise<void>) => void; onExportReady: (ready: boolean, count: number) => void; zoom?: number; fitWidth?: boolean; editable?: boolean;
   } = $props();
   let preview = $state<LayoutPreview | null>(null);
   let loading = $state(false);
   let error = $state("");
   let selected = $state<number | null>(null);
+  let selectedRegion = $state<string | null>(null);
+  let layoutRoot = $state<HTMLElement | null>(null);
+  $effect(() => {
+    const root = layoutRoot, pages = preview?.pages;
+    void editable; void session.analyzed;
+    if (!fitWidth || !root || !pages?.length) return;
+    const width = Math.max(...pages.map(page => page.width));
+    let cancelled = false;
+    let observer: ResizeObserver | undefined;
+    void tick().then(() => {
+      if (cancelled) return;
+      const viewer = root.querySelector<HTMLElement>(".viewer-body, .page-scroll");
+      if (!viewer) return;
+      const fit = () => {
+        const style = getComputedStyle(viewer);
+        const available = viewer.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        // Hidden map views have no width; preserve the last usable scale.
+        if (available > 0 && width > 0) zoom = Math.floor(available / width * 10000) / 100;
+      };
+      observer = new ResizeObserver(fit);
+      observer.observe(viewer);
+      fit();
+    });
+    return () => { cancelled = true; observer?.disconnect(); };
+  });
+  function regionKey(area: LayoutRedaction) { return `${area.page}:${area.entityIndex}:${area.rect.join(",")}`; }
+  const aliasRegions = $derived([...(preview?.redactions ?? [])].filter(area => !!entities[area.entityIndex])
+    .sort((a, b) => a.page - b.page || a.rect[1] - b.rect[1] || a.rect[0] - b.rect[0]));
+  const selectedPosition = $derived(aliasRegions.findIndex(area => regionKey(area) === selectedRegion));
+  function selectAlias(area: LayoutRedaction) {
+    if (busy || loading || textDirty || boundsDirty) return;
+    selectedBlock = null; selected = area.entityIndex; selectedRegion = regionKey(area);
+    onAliasFocus(area.entityIndex);
+  }
+  async function moveAlias(delta: number) {
+    const area = aliasRegions[selectedPosition + delta];
+    if (!area || selectedPosition < 0) return;
+    selectAlias(area); await tick();
+    const target = Array.from(layoutRoot?.querySelectorAll<HTMLButtonElement>("[data-alias-region]") ?? [])
+      .find(button => button.dataset.aliasRegion === regionKey(area));
+    const viewer = target?.closest<HTMLElement>(".viewer-body, .page-scroll");
+    if (target && viewer) {
+      const box = target.getBoundingClientRect(), viewport = viewer.getBoundingClientRect();
+      viewer.scrollBy({ left: box.left + box.width / 2 - viewport.left - viewport.width / 2,
+        top: box.top + box.height / 2 - viewport.top - viewport.height / 2 });
+    }
+  }
   let selectedBlock = $state<number | null>(null);
   let textDirty = $state(false);
   let backgrounds = $state<Record<number, string>>({});
@@ -73,7 +120,7 @@
     requestFinish();
   }
   function selectBlock(id: number) {
-    selected = null; selectedBlock = id; draftBounds = null; boundsHistory = []; contentHeight = 0; heightTouched = false;
+    selected = null; selectedRegion = null; selectedBlock = id; draftBounds = null; boundsHistory = []; contentHeight = 0; heightTouched = false;
   }
   function resetBounds() { draftBounds = null; boundsHistory = []; heightTouched = false; }
   function undoBounds() { const previous = boundsHistory.pop(); draftBounds = previous?.bounds ?? null; heightTouched = previous?.touched ?? false; }
@@ -153,7 +200,7 @@
     const id = session.id, revision = session.revision;
     let cancelled = false;
     loading = true; error = "";
-    untrack(() => { if (preview?.id !== id) { preview = null; selectedBlock = null; selected = null; backgrounds = {}; } });
+    untrack(() => { if (preview?.id !== id) { preview = null; selectedBlock = null; selected = null; selectedRegion = null; backgrounds = {}; } });
     void invoke<LayoutPreview>("preview_private_layout", { id, revision }).then(next => {
       if (!cancelled && next.id === id && next.revision === revision) preview = next;
     }).catch(reason => { if (!cancelled) error = String(reason); })
@@ -204,11 +251,11 @@
             {/if}
           {/if}
           {#each (editable && session.analyzed ? preview.redactions.filter(area => area.page === number) : []) as area}
-            <button class="alias-zone" class:selected={selected === area.entityIndex}
+            <button class="alias-zone" class:selected={selectedRegion === regionKey(area)} data-alias-region={regionKey(area)}
               aria-label={`${p("Editar alias")} ${entities[area.entityIndex]?.alias ?? area.alias}, ${p("Página")} ${number + 1}`}
               title={entities[area.entityIndex]?.alias ?? area.alias}
               style:left={`${area.rect[0]}px`} style:top={`${area.rect[1]}px`} style:width={`${area.rect[2]}px`} style:height={`${area.rect[3]}px`}
-              disabled={busy || loading || textDirty} onclick={() => { selectedBlock = null; selected = area.entityIndex; }}></button>
+              disabled={busy || loading || textDirty || boundsDirty} onclick={() => selectAlias(area)}></button>
           {/each}
         </div>
       </div>
@@ -219,8 +266,9 @@
 
 <svelte:window onkeydown={exitKey} onpointerdown={outsideParagraph} />
 
-<section class="layout-view" aria-label={p("Documento con formato original")}>
+<section bind:this={layoutRoot} class="layout-view" aria-label={p("Documento con formato original")}>
 
+  {#if preview?.pages.some(page => page.qrRegions?.length)}<p class="layout-note" role="status">{p("QR detectados: cubiertos en blanco al proteger y exportar. Revisa si hay otros códigos sin detectar.")}</p>{/if}
   {#if preview?.estimated}<p class="layout-note">{p("Las zonas OCR son estimaciones. Comprueba que cada dato queda cubierto por completo.")}</p>{/if}
   {#if preview?.unlabeledAliases?.length}<p class="layout-note" role="status">{p("Las zonas muy pequeñas están protegidas sin texto de alias. Consulta sus referencias en el mapa privado.")} {preview.unlabeledAliases.join(", ")}</p>{/if}
   {#if dirty}<div class="draft-notice" role="status">{p("Hay cambios sin aplicar. La página muestra la última versión aplicada.")}</div>{/if}
@@ -238,7 +286,12 @@
         <input aria-label={p("Alias en el documento")} value={entities[selected].alias}
           onfocus={() => { if (selected !== null) onAliasFocus(selected); }} oninput={event => { if (selected !== null) onAliasChange(selected, event.currentTarget.value); }} disabled={busy} maxlength="120" spellcheck="false" />
         <span>{p("El cambio se aplica a todas las entidades y apariciones que comparten este alias.")}</span>
-        <button class="secondary" aria-label={p("Cerrar editor de alias")} onclick={() => selected = null} disabled={dirty || busy}>×</button>
+        <div class="alias-navigation" role="group" aria-label={p("Navegar cajas de alias")}>
+          <button class="secondary" aria-label={p("Caja de alias anterior")} title={p("Caja de alias anterior")} onclick={() => moveAlias(-1)} disabled={busy || loading || selectedPosition <= 0}>←</button>
+          <span aria-live="polite">{selectedPosition + 1} / {aliasRegions.length}{#if selectedPosition >= 0}<br />{p("Página")} {aliasRegions[selectedPosition].page + 1}{/if}</span>
+          <button class="secondary" aria-label={p("Caja de alias siguiente")} title={p("Caja de alias siguiente")} onclick={() => moveAlias(1)} disabled={busy || loading || selectedPosition < 0 || selectedPosition >= aliasRegions.length - 1}>→</button>
+          <button class="secondary alias-close" aria-label={p("Cerrar editor de alias")} onclick={() => { selected = null; selectedRegion = null; }} disabled={dirty || busy}>×</button>
+        </div>
       </aside>
     {/if}
   {:else}
@@ -258,10 +311,10 @@
   dialog { border:1px solid var(--line); border-radius:6px; padding:22px; background:var(--surface); color:var(--text); max-width:480px; }
   dialog::backdrop { background:#0004; }
   .exit-actions { display:flex; gap:8px; flex-wrap:wrap; }
-  .layout-view { position:relative; display:flex; flex-direction:column; flex:1; min-height:0; border:1px solid var(--line); border-radius:5px; overflow:hidden; }
+  .layout-view { position:relative; display:flex; flex-direction:column; flex:1; min-height:0; min-width:0; border:1px solid var(--line); border-radius:5px; overflow:hidden; }
   .layout-note { font-size:12px; color:var(--muted); }
   .layout-note { padding:8px 16px; margin:0; }
-  .page-scroll { flex:1; min-width:0; overflow:auto; padding:22px; background:var(--panel); }
+  .page-scroll { flex:1; min-width:0; overflow:auto; scrollbar-gutter:stable; padding:22px; background:var(--panel); }
   .page-wrapper { position:relative; margin:0 auto; background:white; box-shadow:0 2px 12px #0002; }
   .paper-content { position:relative; transform-origin:top left; }
   img { display:block; width:100%; height:100%; }
@@ -274,7 +327,10 @@
   .page-number { font-size:11px; color:var(--muted); text-align:center; margin:10px 0 24px; }
   .alias-editor { position:absolute; right:16px; top:132px; z-index:10; width:260px; display:flex; flex-direction:column; gap:12px; padding:18px; border:1px solid var(--line); border-radius:6px; background:var(--surface); box-shadow:0 8px 24px #0002; }
   .alias-editor span { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
-  .alias-editor > button { align-self:flex-end; }
+  .alias-navigation { display:flex; align-items:center; gap:8px; }
+  .alias-navigation span { flex:1; text-align:center; font-size:11px; }
+  .alias-navigation button { flex:none; }
+  .alias-close { margin-left:4px; }
   .alias-actions { margin-left:auto; display:flex; align-items:center; gap:8px; }
   .alias-zone:not(.text-zone) { z-index:2; }
   input { font:inherit; color:var(--text); background:var(--background); border:1px solid var(--line); border-radius:4px; padding:7px; min-width:0; }

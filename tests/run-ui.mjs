@@ -1,6 +1,7 @@
 /** Start isolated app/harness servers, run the UI suite, then release both ports. */
 import { createServer } from "vite";
 import { spawn } from "node:child_process";
+import { existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -14,25 +15,32 @@ function interrupt() {
 process.on("SIGINT", interrupt);
 process.on("SIGTERM", interrupt);
 
-async function run(file, language = "es") {
+async function runCommand(command, args, env = process.env) {
   if (interrupted) throw new Error("UI tests interrupted");
-  console.log(`\nRunning ${file} (${language})`);
   await new Promise((resolve, reject) => {
-    child = spawn(process.execPath, [`tests/${file}`], {
-      cwd: root,
-      env: { ...process.env, BELEGAL_TEST_LANG: language },
-      stdio: "inherit",
-    });
+    child = spawn(command, args, { cwd: root, env, stdio: "inherit" });
     child.once("error", reject);
     child.once("exit", (code, signal) => {
       child = undefined;
       if (code === 0) resolve();
-      else reject(new Error(`${file} failed (${signal || code})`));
+      else reject(new Error(`${command} failed (${signal || code})`));
     });
   });
 }
+async function run(file, language = "es") {
+  console.log(`\nRunning ${file} (${language})`);
+  await runCommand(process.execPath, [`tests/${file}`], { ...process.env, BELEGAL_TEST_LANG: language });
+}
 
 try {
+  mkdirSync(`${root}artifacts`, { recursive: true });
+  const layoutInputs = ["layout-document.pdf.preview.json", "layout-document.pdf.plan.json",
+    "rich-edited.preview.json", "text-blocks.json", "paragraph-before.preview.json",
+    "paragraph-edited.preview.json", "paragraph-blocks.json"];
+  if (process.argv.includes("--layout") && layoutInputs.some(file => !existsSync(`${root}artifacts/layout-workflow/${file}`))) {
+    console.log("Regenerating native layout test inputs after cleanup...");
+    await runCommand("cargo", ["test", "--manifest-path", "src-tauri/Cargo.toml", "--lib", "layout::tests"]);
+  }
   for (const config of ["vite.config.ts", "tests/vite.config.ts"]) {
     const server = await createServer({ configFile: `${root}${config}` });
     servers.push(server);

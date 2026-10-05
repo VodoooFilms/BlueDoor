@@ -58,12 +58,53 @@ try {
  await page.goto('http://localhost:1420');
  await page.getByRole('button',{name:'Importar documento',exact:true}).click();
  await page.getByRole('img',{name:'Página 1',exact:true}).waitFor();
+ const zoom=page.getByRole('combobox',{name:'Zoom',exact:true});
+ async function checkFit(scrollSelector) {
+  assert.equal(await zoom.inputValue(),'fit','fit to width is the default');
+  await page.waitForFunction(selector=>{
+   const viewer=document.querySelector(selector);
+   if(!viewer)return false;
+   const style=getComputedStyle(viewer);
+   const available=viewer.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight);
+   const widest=Math.max(...Array.from(viewer.querySelectorAll('.page-wrapper')).map(el=>el.getBoundingClientRect().width));
+   return Math.abs(available-widest)<1 && viewer.scrollWidth<=viewer.clientWidth;
+  },scrollSelector);
+ }
+ await checkFit('.page-scroll');
+ await page.setViewportSize({width:1200,height:1000});
+ await checkFit('.page-scroll');
+ await zoom.selectOption('125');
+ await page.setViewportSize({width:1440,height:1000});
+ assert.equal(await zoom.inputValue(),'125','window resizing preserves manual zoom');
+ await zoom.selectOption('fit');
+ await checkFit('.page-scroll');
+
+ async function checkZoomViewport(scrollSelector) {
+  const bounds=await zoom.boundingBox();
+  assert(bounds.x>=0 && bounds.x+bounds.width<=1440,'zoom control remains inside the window at high zoom');
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth),'page zoom cannot widen the app shell');
+  const scroll=page.locator(scrollSelector);
+  assert(await scroll.evaluate(el=>el.scrollWidth>el.clientWidth),'large pages scroll horizontally inside the viewer');
+  const header=await page.locator('.workspace-header').boundingBox();
+  await scroll.evaluate(el=>{el.scrollLeft=el.scrollWidth;el.scrollTop=100;});
+  assert(await scroll.evaluate(el=>el.scrollLeft>0),'document can pan to its right edge');
+  const after=await page.locator('.workspace-header').boundingBox();
+  assert.equal(after.x,header.x);assert.equal(after.y,header.y);assert.equal(after.width,header.width,'panning never moves the controls');
+ }
+ for(const level of ['600','800']) {await zoom.selectOption(level);await checkZoomViewport('.page-scroll');}
+ await zoom.selectOption('100');
  assert.equal(await page.getByRole('button',{name:'Exportar PDF'}).count(),0,'export belongs to Edit');
  assert.equal(await page.getByRole('button',{name:'Mapa privado',exact:true}).count(),0,'import stage has no duplicate map controls');
  await page.getByRole('button',{name:'Proteger documento',exact:true}).click();
  await page.getByRole('button',{name:'Exportar PDF',exact:true}).waitFor();
  assert(await page.locator('#editToggle').evaluate(el=>el.classList.contains('nav-active')),'protection leads to Edit');
+ await checkFit('.page-editor .viewer-body');
+ await page.setViewportSize({width:1200,height:1000});
+ await checkFit('.page-editor .viewer-body');
+ await page.setViewportSize({width:1440,height:1000});
+ await checkFit('.page-editor .viewer-body');
  assert.equal(await page.getByRole('button',{name:'Mapa privado',exact:true}).count(),1,'exactly one map entry point in Edit');
+ await zoom.selectOption('800');await checkZoomViewport('.page-editor .viewer-body');await zoom.selectOption('100');
  assert.equal(await page.locator('[contenteditable=true]').count(),0,'PDF Edit must not flatten into the transcript editor');
  assert.equal(await page.getByRole('img',{name:'Página 1',exact:true}).getAttribute('src'),'data:image/png;base64,'+pages[0].imageBase64,'Edit uses the native page rendering with original margins and graphics');
  assert.equal(await page.locator('.page-wrapper').first().evaluate(el=>el.style.width),`${pages[0].width}px`,'original page width is passed unchanged to CSS');

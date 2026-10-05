@@ -1,6 +1,9 @@
 import { getLang } from "./i18n-store.svelte";
 
 const ENGLISH: Record<string, string> = {
+  "Navegar cajas de alias": "Navigate alias boxes",
+  "Caja de alias anterior": "Previous alias box",
+  "Caja de alias siguiente": "Next alias box",
   "No se guardó el párrafo. Puedes seguir editando o descartar el borrador para salir.": "The paragraph was not saved. Keep editing or discard the draft to close it.",
   "Terminar edición": "Finish editing",
   "Salir de la edición del párrafo": "Leave paragraph editing",
@@ -27,6 +30,8 @@ const ENGLISH: Record<string, string> = {
   "Restablecer alias": "Reset alias",
   "Edita directamente sobre la página. Guarda las correcciones antes de exportar.": "Edit directly on the page. Save corrections before exporting.",
   "Editar texto": "Edit text",
+  "Ajustar al ancho": "Fit to width",
+  "QR detectados: cubiertos en blanco al proteger y exportar. Revisa si hay otros códigos sin detectar.": "Detected QR codes: covered in white when protecting and exporting. Check for other undetected codes.",
   "Las zonas muy pequeñas están protegidas sin texto de alias. Consulta sus referencias en el mapa privado.": "Very small areas are protected without an alias label. See their references in the private map.",
   "El detector complementario de nombres no estuvo disponible. Revisa nombres y organizaciones en todo el documento.": "The complementary name detector was unavailable. Review names and organizations throughout the document.",
   "Borde izquierdo del área de texto": "Left edge of text area",

@@ -31,6 +31,7 @@ try {
   }};
  },{pages,editedPages,blocks});
  await page.goto('http://localhost:1420');
+ await page.getByRole('combobox',{name:'Zoom',exact:true}).selectOption('100');
  await page.getByRole('button',{name:'Editar texto 1, Página 1',exact:true}).click();
  const editor=page.locator('.page-editor .rich-editor');await editor.waitFor();
  assert.match(await editor.innerText(),/Este párrafo.*que continúa.*sin duplicar líneas/s,'select the complete paragraph');

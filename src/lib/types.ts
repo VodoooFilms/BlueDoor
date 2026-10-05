@@ -34,13 +34,6 @@ export const FONT_OPTIONS: FontOption[] = [
 
 export const SIZE_OPTIONS = [10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24];
 
-// Coincide con genpdf::Alignment (Left / Right / Center).
-export const ALIGN_OPTIONS: { id: Align; label: string }[] = [
-  { id: "left", label: "Izquierda" },
-  { id: "center", label: "Centro" },
-  { id: "right", label: "Derecha" },
-];
-
 export interface Transcript {
   id: string;
   title: string;
@@ -67,12 +60,6 @@ export interface Segment {
   end: number;
   text: string;
   speaker?: number;
-}
-
-export interface WhisperConfig {
-  model: SttModel;
-  language: string;
-  threads: number;
 }
 
 type WhisperModel = "tiny" | "base" | "small" | "medium" | "large-v3-turbo" | "large-v3" | "large-v3-q5" | "latam-turbo-q5";

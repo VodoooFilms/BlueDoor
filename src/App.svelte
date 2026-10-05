@@ -696,7 +696,7 @@
   }
   .nav-models:hover { color: var(--text); }
   .nav-active { background: var(--surface); border-bottom: 1px solid var(--text); }
-  .privacy-container { display: flex; flex: 1; min-height: 0; }
+  .privacy-container { display: flex; flex: 1; min-height: 0; min-width: 0; }
   .nav-models:disabled { opacity: .45; cursor: default; }
   .nav-models:disabled:hover { color: var(--muted); background: transparent; }
 

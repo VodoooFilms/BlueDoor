@@ -1,6 +1,6 @@
 [package]
 name = "belegal-local-demo"
-version = "0.3.0"
+version = "0.4.0"
 description = "Local & Private Belegal local demo Transcription"
 authors = ["Belegal _ Local demo"]
 edition = "2021"

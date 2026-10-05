@@ -1,5 +1,16 @@
 # Cambios de BeLegal
 
+## 0.4.0 — 5 de octubre de 2026
+
+- Limpieza de cachés, temporales y compilaciones antiguas; una sola app actual en Aplicaciones. Eliminadas cinco definiciones frontend sin uso y regeneración automática de entradas QA para las pruebas de layout.
+
+- Ajuste automático al ancho al importar y entrar en Editar, con recálculo al redimensionar la ventana. La opción «Ajustar al ancho» permite volver al modo automático; los porcentajes manuales se conservan al redimensionar. Verificado en ambos visores.
+
+- Los QR detectados localmente se cubren por completo en blanco al proteger, editar y exportar. Solo se conservan sus coordenadas; el original permanece intacto. Prueba nativa de dos páginas sin alias textuales. La detección automática requiere revisión visual; marcado manual pendiente.
+- Zoom hasta 800% en Documentos y Editar, con pasos intermedios y disponible durante la edición de un borrador.
+- El documento ampliado se desplaza dentro del visor sin ensanchar la app ni sacar Zoom y Exportar de la ventana. Pruebas a 600% y 800%, alineación y redimensionamiento a escala.
+- El panel de alias permite recorrer las cajas con flechas anterior/siguiente, contador y número de página. Lleva el visor hasta la caja seleccionada y conserva los aliases pendientes al cambiar de selección.
+
 ## Hito — 4 de octubre de 2026: flujo privado y editor estable
 
 Etiqueta: `milestone/2026-10-04-workflow-editor-stable`. Base de aplicación: 0.3.0; hito de código sin instalador nuevo.

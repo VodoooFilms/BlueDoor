@@ -28,6 +28,8 @@ pub(crate) struct Page {
     pub image_base64: String,
     pub glyphs: Vec<Glyph>,
     pub source: String,
+    #[serde(default)]
+    pub qr_regions: Vec<[f64; 4]>,
 }
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct DocumentLayout {
@@ -202,6 +204,9 @@ fn validate_layout(document: &DocumentLayout) -> Result<(), String> {
         {
             return Err("Tamaño de página no válido.".into());
         }
+        if page.qr_regions.len() > 1000 || page.qr_regions.iter().any(|r| !valid_rect(r, page)) {
+            return Err("Coordenadas QR no válidas.".into());
+        }
         for glyph in &page.glyphs {
             if glyph.start >= glyph.end
                 || glyph.end > document.text.len()
@@ -358,6 +363,11 @@ fn plan(session: &Session) -> Result<(DocumentLayout, Vec<Redaction>), String> {
     if !session.edited {
         active.edits.clear();
     }
+    if !session.analyzed {
+        for page in &mut active.pages {
+            page.qr_regions.clear();
+        }
+    }
     Ok((
         active,
         if session.analyzed {
@@ -430,7 +440,10 @@ pub(crate) async fn preview_private_layout(
         let session = snapshot(&app, &id, revision)?;
         let (document, areas) = plan(&session)?;
         let (blocks, overlays, _) = editor::compiled(&document, &session.entities)?;
-        let pages = if areas.is_empty() && overlays.is_empty() {
+        let pages = if areas.is_empty()
+            && overlays.is_empty()
+            && document.pages.iter().all(|p| p.qr_regions.is_empty())
+        {
             document
                 .pages
                 .iter()
@@ -499,6 +512,61 @@ mod tests {
     use crate::privacy::Kind;
     fn helper() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/belegal-layout")
+    }
+    #[test]
+    fn qr_codes_are_erased_in_preview_and_export_without_text_redactions() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/layout-qr.pdf");
+        let original = std::fs::read(&root).unwrap();
+        let document = extract(&root, &helper()).unwrap();
+        assert_eq!(document.pages.len(), 2);
+        assert!(document.pages.iter().all(|p| p.qr_regions.len() == 1));
+        let mut session = Session::new("fixture.pdf".into(), document.text.clone()).unwrap();
+        session.layout = Some(document.clone().into());
+        assert!(plan(&session)
+            .unwrap()
+            .0
+            .pages
+            .iter()
+            .all(|p| p.qr_regions.is_empty()));
+        session.analyzed = true;
+        assert!(plan(&session)
+            .unwrap()
+            .0
+            .pages
+            .iter()
+            .all(|p| p.qr_regions.len() == 1));
+        let temp = tempfile::tempdir().unwrap();
+        let bytes = render(&helper(), &document, &[], "--export").unwrap();
+        let output = temp.path().join("protected.pdf");
+        std::fs::write(&output, &bytes).unwrap();
+        let exported = extract(&output, &helper()).unwrap();
+        assert!(exported.pages.iter().all(|p| p.qr_regions.is_empty()));
+        let preview: Vec<Page> =
+            serde_json::from_slice(&render(&helper(), &document, &[], "--preview").unwrap())
+                .unwrap();
+        for (index, page) in preview.iter().enumerate() {
+            assert_eq!(page.qr_regions, document.pages[index].qr_regions);
+            // Re-encode the actual preview pixels to a PDF, with no second mask,
+            // so scanning that file verifies the preview itself was erased.
+            let preview_document = DocumentLayout {
+                edits: vec![],
+                text: document.text.clone(),
+                pages: vec![Page {
+                    qr_regions: vec![],
+                    ..page.clone()
+                }],
+            };
+            let file = temp.path().join(format!("preview-{index}.pdf"));
+            std::fs::write(
+                &file,
+                render(&helper(), &preview_document, &[], "--export").unwrap(),
+            )
+            .unwrap();
+            assert!(extract(&file, &helper()).unwrap().pages[0]
+                .qr_regions
+                .is_empty());
+        }
+        assert_eq!(std::fs::read(root).unwrap(), original);
     }
     #[test]
     #[ignore = "Requires BELEGAL_QA_LAYOUT and BELEGAL_QA_RESULT from local inference QA"]

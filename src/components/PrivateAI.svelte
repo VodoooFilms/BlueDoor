@@ -45,7 +45,15 @@
   let addText = $state("");
   let addKind = $state<EntityKind>("PERSON");
   let mapOpen = $state(false);
+  const ZOOM_LEVELS = [75, 100, 125, 150, 200, 250, 300, 400, 500, 600, 800];
   let zoom = $state(100);
+  let fitWidth = $state(true);
+  $effect(() => { void editing; fitWidth = true; });
+  function chooseZoom(event: Event) {
+    const value = (event.currentTarget as HTMLSelectElement).value;
+    fitWidth = value === "fit";
+    if (!fitWidth) zoom = Number(value);
+  }
   let exportReady = $state(false);
   let pageCount = $state(0);
   let textEditorDirty = $state(false);
@@ -58,7 +66,7 @@
     mapOpen = false;
   });
   function adopt(next: PrivacySession | null) {
-    if (next?.id !== session?.id) { zoom = 100; exported = ""; exportReady = false; }
+    if (next?.id !== session?.id) { zoom = 100; fitWidth = true; exported = ""; exportReady = false; }
     if (!next?.analyzed || next.id !== session?.id) mapOpen = false;
     session = next;
     onSessionChange(next);
@@ -200,7 +208,7 @@
           <button class="secondary" class:active-page={mapOpen} aria-pressed={mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = true}>{p("Mapa privado")}</button>
         </div>
         {#if session.layoutAvailable}
-          <label class="workspace-zoom">{p("Zoom")} <select bind:value={zoom} disabled={!!busy || layoutDirty || mapOpen}><option value={75}>75%</option><option value={100}>100%</option><option value={150}>150%</option><option value={200}>200%</option></select></label>
+          <label class="workspace-zoom">{p("Zoom")} <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy || mapOpen}><option value="fit">{p("Ajustar al ancho")}</option>{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>
         {/if}
         <button class="primary" onclick={() => session?.layoutAvailable ? exportOriginalLayout() : textExport?.()} disabled={!!busy || textExportBusy || (session.layoutAvailable && !exportReady) || (!session.layoutAvailable && !textExport) || draftDirty || layoutDirty || !session.analysisComplete || !!session.warnings.length}>{p("Exportar PDF")}</button>
       {:else}
@@ -209,7 +217,7 @@
           <button class="secondary" onclick={clear} disabled={!!busy}>{p("Borrar documento y empezar de cero")}</button>
         </div></details>
         <button class="secondary" onclick={importDocument} disabled={!!busy}>{p("Importar otro documento")}</button>
-        {#if session.layoutAvailable}<label class="workspace-zoom">{p("Zoom")} <select bind:value={zoom} disabled={!!busy}><option value={75}>75%</option><option value={100}>100%</option><option value={150}>150%</option><option value={200}>200%</option></select></label>{/if}
+        {#if session.layoutAvailable}<label class="workspace-zoom">{p("Zoom")} <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy}><option value="fit">{p("Ajustar al ancho")}</option>{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>{/if}
         {#if session.analyzed}<button class="primary" onclick={() => { if (session) onEdit(session); }} disabled={!!busy}>{p("Revisar y editar")}</button>
         {:else}<button class="primary analyze-button" onclick={analyze} disabled={!!busy}>{p("Proteger documento")}</button>{/if}
       {/if}
@@ -238,7 +246,7 @@
     {/if}
     <div class="document-surface" class:hidden={mapOpen}>
       {#if session.layoutAvailable}
-        <DocumentLayout bind:zoom onExportReady={(ready, count) => { exportReady = ready; pageCount = count; }} onSessionChange={adopt} onTextDirty={layoutEdited} {session} {entities} editable={editing} dirty={draftDirty} busy={!!busy} onAliasFocus={beginAliasEdit} onAliasChange={renameAlias} onApply={() => applyMap()} />
+        <DocumentLayout bind:zoom {fitWidth} onExportReady={(ready, count) => { exportReady = ready; pageCount = count; }} onSessionChange={adopt} onTextDirty={layoutEdited} {session} {entities} editable={editing} dirty={draftDirty} busy={!!busy} onAliasFocus={beginAliasEdit} onAliasChange={renameAlias} onApply={() => applyMap()} />
       {:else if editing && textTranscript}
         <TranscriptView transcript={textTranscript} privateDocument privateReviewed={session.reviewed} privateId={session.id} privateRevision={session.revision} onSave={onSaveText} onExportAction={(action, exporting) => { textExport = action; textExportBusy = exporting; }} onDirtyChange={(dirty, save) => { textEditorDirty = dirty; onTextDirty(dirty, save); }} {onConfirmReview} {onValidateExport} />
       {:else}
@@ -264,17 +272,17 @@
 </section>
 
 <style>
-  .privacy-workflow { display:flex; flex-direction:column; flex:1; min-height:0; border:1px solid var(--line); border-top:0; border-radius:0 0 6px 6px; background:var(--background); padding:16px; gap:12px; }
-  .workspace-header { display:flex; align-items:center; gap:12px; flex:none; }
+  .privacy-workflow { display:flex; flex-direction:column; flex:1; min-height:0; min-width:0; border:1px solid var(--line); border-top:0; border-radius:0 0 6px 6px; background:var(--background); padding:16px; gap:12px; }
+  .workspace-header { display:flex; flex-wrap:wrap; align-items:center; gap:12px; flex:none; }
   .document-menu { position:relative; }
   .document-menu summary { cursor:pointer; padding:8px; }
   .document-menu > div { position:absolute; top:36px; right:0; z-index:20; background:var(--surface); border:1px solid var(--line); border-radius:5px; padding:10px; display:grid; gap:8px; }
-  .workspace-title { margin-right:auto; min-width:0; display:flex; flex-direction:column; gap:4px; }
+  .workspace-title { flex:1; margin-right:auto; min-width:0; display:flex; flex-direction:column; gap:4px; }
   .workspace-title strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .workspace-title span,.workspace-zoom { color:var(--muted); font-size:12px; }
   .workspace-views { display:flex; gap:4px; }
-  .workspace-zoom { display:flex; gap:6px; align-items:center; }
-  .document-surface { display:flex; flex:1; min-height:0; }
+  .workspace-zoom { flex-shrink:0; display:flex; gap:6px; align-items:center; }
+  .document-surface { display:flex; flex:1; min-height:0; min-width:0; }
   .hidden { display:none; }
   .original-page { flex:1; min-height:0; overflow:auto; background:var(--panel); padding:24px; }
   .original-page pre { margin:0 auto; max-width:800px; min-height:100%; padding:36px; white-space:pre-wrap; overflow-wrap:anywhere; font:16px/1.7 Georgia,serif; background:var(--surface); color:var(--text); }

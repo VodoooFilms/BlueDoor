@@ -1085,7 +1085,7 @@
   .editor-toolbar { flex-wrap:wrap; }
   .page-editor .editor-toolbar { flex-wrap:nowrap; gap:5px; }
   @media (max-width:1100px) { .page-editor .editor-actions .head-btn { padding:5px; } .page-editor .tb-font { max-width:125px; } }
-  .page-editor .viewer-body { padding:22px; background:var(--panel); overflow:auto; }
+  .page-editor .viewer-body { scrollbar-gutter:stable; padding:22px; background:var(--panel); overflow:auto; }
   .page-editor .corrected { position:absolute; width:auto; min-height:0; margin:0; padding:0; border:0; border-radius:0; box-shadow:none; line-height:normal; background:transparent; overflow:visible; z-index:4; }
   .page-editor .ruler { overflow:hidden; }
 </style>

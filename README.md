@@ -12,7 +12,7 @@ BeLegal es una aplicación de escritorio para preparar documentos legales y tran
 
 El propósito es darte control sobre qué información sale de tu equipo antes de enviarla a un servidor, una herramienta de IA o un destinatario. **Esta versión procesa los documentos y el audio localmente; no integra envíos a servicios de IA ni sincronización en la nube.**
 
-El último hito de código es [Flujo privado y editor de PDF estable — 4 de octubre de 2026](docs/milestones/2026-10-04-workflow-editor-stable.md), etiquetado como `milestone/2026-10-04-workflow-editor-stable`. Incluye mejoras de capacidad, caché temporal, párrafos y salida de la caja de edición. El instalador publicado más abajo sigue correspondiendo a 0.3.0.
+La versión de código actual es **0.4.0**: protección de QR, ajuste automático al ancho, zoom hasta 800%, navegación entre alias y limpieza del proyecto. Incluye el [hito del editor estable](docs/milestones/2026-10-04-workflow-editor-stable.md). El instalador disponible más abajo corresponde a 0.3.0; esta versión de código no publica un instalador nuevo.
 
 ## Qué puedes hacer
 
@@ -48,7 +48,7 @@ La exportación privada valida el contenido y el título contra la sesión revis
 
 ## Instalación en macOS
 
-**Versión actual: 0.3.0 · Apple Silicon · macOS 13.4 o posterior.**
+**Instalador disponible: 0.3.0 · Apple Silicon · macOS 13.4 o posterior.**
 
 Abre el DMG y arrastra **Belegal _ Local demo.app** a **Aplicaciones**. En la primera apertura, el botón de bienvenida lleva a Models si faltan los modelos requeridos; si están instalados, permite comenzar.
 
@@ -78,7 +78,7 @@ pnpm test:native      # pruebas Rust
 pnpm exec playwright install webkit
 pnpm test:ui          # inicia y cierra sus servidores automáticamente
 cargo test --manifest-path src-tauri/Cargo.toml --lib layout::tests  # genera fixtures de QA en macOS
-pnpm test:layout:ui   # importar → proteger → editar párrafos → guardar/salir → exportar
+pnpm test:layout:ui   # regenera QA si falta; importar → proteger → editar → exportar
 pnpm test:workspace:ui # documento, mapa privado y editor unificados
 ```
 

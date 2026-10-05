@@ -48,6 +48,7 @@ struct Glyph: Codable {
 struct Page: Codable {
     var width: Double; var height: Double; var imageBase64: String
     var glyphs: [Glyph]; var source: String
+    var qrRegions: [[Double]]? = nil
 }
 struct Document: Codable { var text: String; var pages: [Page] }
 struct Redaction: Codable {
@@ -243,6 +244,22 @@ func embedded(_ page: PDFPage, text: String, transform: CGAffineTransform, width
     }
     return result
 }
+// Coordinates only: never retain or log the QR payload. Detection errors
+// stop import instead of silently treating a failed scan as a clean page.
+func qrRegions(_ image: CGImage, width: Double, height: Double) throws -> [[Double]] {
+    let request = VNDetectBarcodesRequest()
+    request.symbologies = [.qr]
+    try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+    return (request.results ?? []).map { observation in
+        let b = observation.boundingBox
+        let padding = max(2, min(b.width * width, b.height * height) * 0.04)
+        let left = max(0, b.minX * width - padding)
+        let top = max(0, (1 - b.maxY) * height - padding)
+        let right = min(width, b.maxX * width + padding)
+        let bottom = min(height, (1 - b.minY) * height + padding)
+        return [left, top, right - left, bottom - top]
+    }
+}
 func extract(_ url: URL) throws -> Document {
     var document = Document(text: "", pages: []); var totalPixels = 0
     if url.pathExtension.lowercased() == "pdf" {
@@ -271,7 +288,7 @@ func extract(_ url: URL) throws -> Document {
             let selected = useOCR ? recognized : native
             let glyphs = useOCR ? recognizedGlyphs : embedded(page, text: native, transform: transform, width: width, height: height, offset: offset)
             document.text += selected
-            document.pages.append(Page(width: width, height: height, imageBase64: try png(image), glyphs: glyphs, source: useOCR ? "ocr" : "embedded"))
+            document.pages.append(Page(width: width, height: height, imageBase64: try png(image), glyphs: glyphs, source: useOCR ? "ocr" : "embedded", qrRegions: try qrRegions(image, width: width, height: height)))
             try require(document.text.utf8.count <= 64_000, "El texto supera 64 KB. Divide el documento.")
         }
     } else {
@@ -287,7 +304,7 @@ func extract(_ url: URL) throws -> Document {
             let width = Double(image.width) / 4; let height = Double(image.height) / 4
             let (text, glyphs) = try ocr(image, width: width, height: height, offset: document.text.utf8.count, lineOffset: 0)
             document.text += text
-            document.pages.append(Page(width: width, height: height, imageBase64: try png(image), glyphs: glyphs, source: "ocr"))
+            document.pages.append(Page(width: width, height: height, imageBase64: try png(image), glyphs: glyphs, source: "ocr", qrRegions: try qrRegions(image, width: width, height: height)))
             try require(document.text.utf8.count <= 64_000, "El texto supera 64 KB. Divide el documento.")
         }
     }
@@ -352,10 +369,20 @@ func export(_ plan: ExportPlan, preview: Bool = false) throws -> Data {
         for overlay in plan.overlays ?? [] where overlay.page == number {
             try drawRich(overlay, page:page, image:image, context:context)
         }
+        // Last pass wins over every text edit. This erases the source pixels,
+        // rather than adding a removable PDF annotation over a readable code.
+        context.saveGState()
+        context.setShouldAntialias(false)
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        for r in page.qrRegions ?? [] {
+            try require(r.count == 4 && r.allSatisfy { $0.isFinite } && r[0] >= 0 && r[1] >= 0 && r[2] > 0 && r[3] > 0 && r[0] + r[2] <= page.width + 0.01 && r[1] + r[3] <= page.height + 0.01, "Zona QR no válida.")
+            context.fill(CGRect(x: r[0], y: page.height - r[1] - r[3], width: r[2], height: r[3]))
+        }
+        context.restoreGState()
         guard let modified = context.makeImage() else { throw LayoutError.message("No se pudo proteger la página.") }
         let box = CGRect(x: 0, y: 0, width: page.width, height: page.height)
         if preview {
-            previews.append(Page(width: page.width, height: page.height, imageBase64: try png(modified), glyphs: [], source: page.source))
+            previews.append(Page(width: page.width, height: page.height, imageBase64: try png(modified), glyphs: [], source: page.source, qrRegions: page.qrRegions))
         } else {
             let boxData = withUnsafeBytes(of: box) { Data($0) }
             pdf.beginPDFPage([kCGPDFContextMediaBox as String: boxData] as CFDictionary)
