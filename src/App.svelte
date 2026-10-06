@@ -14,6 +14,7 @@
   import { generateId } from "./lib/utils";
   import { onMount, tick, untrack } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { enterView } from "./lib/motion";
 
   let t = $derived(getCopy());
 
@@ -513,13 +514,14 @@
     <div class="app-toast" role="alert">{importError}</div>
   {/if}
 
-  <div class="privacy-container" class:hidden={workflow !== "private"}>
+  <div class="privacy-container" class:hidden={workflow !== "private"} use:enterView={workflow}>
     <PrivateAI editing={privateEditVisible} comparisonRequest={privateComparisonRequest} externalSession={privateSession} textTranscript={privateTranscript} onSaveText={savePrivateEdit} onTextDirty={(dirty, save) => { editorDirty = dirty; editorSave = save; }} onConfirmReview={confirmPrivateReview} onValidateExport={validatePrivateExport} onSessionChange={receivePrivateSession} onEdit={() => requestNavigation(() => { workflow = "private"; privateEditVisible = true; showModels = false; })} onBusyChange={(busy) => (privacyBusy = busy)} />
   </div>
 
 
 
   {#if workflow !== "private"}
+  <div class="audio-container" use:enterView={`${showModels}:${activeTranscript?.id ?? "record"}`}>
   {#if !hydrated}
     <section class="boot-error" role="alert">
       <strong>{t.startupError}</strong>
@@ -549,7 +551,7 @@
   {:else}
     <Recorder onTranscribe={handleNewTranscript} transcripts={transcripts} onSelect={handleSelectTranscript} onDelete={handleDeleteTranscript} activeTranscript={activeTranscript} onImport={handleImportAudio} importing={importing} onBusyChange={(busy) => (recorderBusy = busy)} />
   {/if}
-
+  </div>
   {/if}
 
   {#if welcomeVisible}
@@ -697,6 +699,7 @@
   .nav-models:hover { color: var(--text); }
   .nav-active { background: var(--surface); border-bottom: 1px solid var(--text); }
   .privacy-container { display: flex; flex: 1; min-height: 0; min-width: 0; }
+  .audio-container { display:flex; flex-direction:column; flex:1; min-height:0; min-width:0; }
   .nav-models:disabled { opacity: .45; cursor: default; }
   .nav-models:disabled:hover { color: var(--muted); background: transparent; }
 

@@ -10,6 +10,9 @@
   import TranscriptView from "./TranscriptView.svelte";
   import type { Transcript, DocFormat } from "../lib/types";
   import { pdfFileName } from "../lib/editor/export";
+  import { enterView } from "../lib/motion";
+  import SaveNotice from "./SaveNotice.svelte";
+  let saveSequence = $state(0);
 
   let { onBusyChange, onSessionChange, onEdit, externalSession, comparisonRequest, textTranscript, onSaveText, onTextDirty, onConfirmReview, onValidateExport, editing = false }: { textTranscript: Transcript | null; onSaveText: (id: string, text: string, format?: DocFormat, html?: string | null) => Promise<void>; onTextDirty: (dirty: boolean, save: () => void | Promise<void>) => void; onConfirmReview: () => Promise<void>; onValidateExport: (text: string, title?: string) => Promise<void>; editing?: boolean; onBusyChange: (busy: boolean) => void; onSessionChange: (session: PrivacySession | null) => void; onEdit: (session: PrivacySession) => void; externalSession: PrivacySession | null; comparisonRequest: number } = $props();
   let session = $state<PrivacySession | null>(null);
@@ -182,6 +185,7 @@
     const current = session;
     await run("Validando el mapa local…", async () => {
       adopt(await invoke<PrivacySession>(current.layoutAvailable ? "review_private_layout" : "review_private_document", { id: current.id, revision: current.revision, entities: $state.snapshot(entities), confirm }));
+      saveSequence++;
     });
   }
   async function clearResult() {
@@ -211,13 +215,14 @@
 {#snippet processingIndicator()}
   <div class="processing-slot">
     <div class="processing-label" role="status" aria-live="polite">
-      <span class="processing-copy" title={stepLabel || processingLabel}>{stepLabel || processingLabel}</span><span class="processing-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+      <span class="processing-orbit" aria-hidden="true"></span><span class="processing-copy" title={stepLabel || processingLabel}>{stepLabel || processingLabel}</span>
     </div>
     <div class="processing-track processing" role="progressbar" aria-label={p("Procesando documento")} aria-busy="true"><span></span></div>
   </div>
 {/snippet}
 
-<section class="privacy-workflow" aria-label="Private Legal">
+<section class="privacy-workflow" aria-label="Private Legal" use:enterView={`${session?.id ?? "welcome"}:${editing}:${mapOpen}`}>
+  <SaveNotice sequence={saveSequence} />
   {#if session}
     <div class="workspace-header">
       <div class="workspace-title"><strong>{session.fileName}</strong><span>{p(session.analyzed ? (session.reviewed ? "Revisión confirmada" : "Pendiente de revisión") : "Documento original")}{#if pageCount} · {pageCount} {p("páginas")}{/if}</span></div>
@@ -294,7 +299,7 @@
 </section>
 
 <style>
-  .privacy-workflow { display:flex; flex-direction:column; flex:1; min-height:0; min-width:0; border:1px solid var(--line); border-top:0; border-radius:0 0 6px 6px; background:var(--background); padding:16px; gap:12px; }
+  .privacy-workflow { position:relative; display:flex; flex-direction:column; flex:1; min-height:0; min-width:0; border:1px solid var(--line); border-top:0; border-radius:0 0 6px 6px; background:var(--background); padding:16px; gap:12px; }
   .workspace-header { display:flex; flex-wrap:wrap; align-items:center; gap:12px; flex:none; }
   .document-menu { position:relative; }
   .document-menu summary { cursor:pointer; padding:8px; }
@@ -329,15 +334,25 @@
   .welcome-mark { width:120px; height:120px; object-fit:contain; }
   .welcome h2 { font-size:30px; }
   .welcome p { max-width:620px; font-size:14px; color:var(--muted); }
-  .welcome-import { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; width:min(100%,620px); min-height:220px; padding:28px 24px; background:var(--panel); border:2px dashed var(--line-dark); border-radius:12px; color:var(--text); white-space:normal; transition:background .15s,border-color .15s; }
+  .welcome-import { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; width:min(100%,620px); min-height:220px; padding:28px 24px; background:var(--panel); border:2px dashed var(--line-dark); border-radius:12px; color:var(--text); white-space:normal; transition:background 180ms ease,border-color 180ms ease,transform 180ms ease,box-shadow 180ms ease; }
   .welcome-import > span:first-of-type { font-size:20px; font-family:var(--font-heading); }
   .welcome-import .import-click { font-size:13px; color:var(--muted); }
   .welcome-import small { color:var(--muted); font-size:11px; line-height:1.6; }
   .import-icon { color:var(--muted); }
   .welcome-import:hover:not(:disabled),.welcome-import.dragging-document { background:var(--surface); border-color:var(--text); }
   .welcome-import:focus-visible { outline:2px solid var(--text); outline-offset:4px; }
+  .welcome-import.dragging-document { transform:scale(1.015); box-shadow:0 0 0 5px var(--accent-soft); }
+  .import-icon { transition:transform 180ms ease; }
+  .dragging-document .import-icon { transform:translateY(-4px); }
+  .processing-orbit { width:12px; height:12px; flex:none; border:1.5px solid var(--line-dark); border-top-color:var(--text); border-radius:50%; animation:processing-orbit 1.1s linear infinite; }
+  @keyframes processing-orbit { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion:reduce) {
+    .welcome-import,.import-icon { transition:none; }
+    .welcome-import.dragging-document,.dragging-document .import-icon { transform:none; }
+    .processing-orbit { animation:none; }
+  }
   .processing-slot { flex:none; padding:8px 0; }
-  .processing-label { display:flex; justify-content:center; color:var(--muted); font-size:12px; }
+  .processing-label { display:flex; align-items:center; gap:8px; justify-content:center; color:var(--muted); font-size:12px; }
   .processing-track { height:3px; margin-top:6px; overflow:hidden; background:var(--panel); }
   .processing-track span { display:block; width:35%; height:100%; background:var(--accent); animation:processing 1.8s ease-in-out infinite alternate; }
   @keyframes processing { to { transform:translateX(180%); } }

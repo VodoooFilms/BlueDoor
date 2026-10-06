@@ -2,6 +2,8 @@
   import { tick, untrack, onDestroy, type Snippet } from "svelte";
   import { DEFAULT_FORMAT } from "../lib/types";
   import TranscriptView from "./TranscriptView.svelte";
+  import SaveNotice from "./SaveNotice.svelte";
+  let saveSequence = $state(0);
   import { htmlToPlain } from "../lib/editor/content";
   import type { DocFormat } from "../lib/types";
   import { invoke } from "@tauri-apps/api/core";
@@ -23,6 +25,7 @@
     if (!fitWidth || !root || !pages?.length) return;
     const width = Math.max(...pages.map(page => page.width));
     let cancelled = false;
+    let frame = 0;
     let observer: ResizeObserver | undefined;
     void tick().then(() => {
       if (cancelled) return;
@@ -34,11 +37,14 @@
         // Hidden map views have no width; preserve the last usable scale.
         if (available > 0 && width > 0) zoom = Math.floor(available / width * 10000) / 100;
       };
-      observer = new ResizeObserver(fit);
+      // Fit changes page geometry; write outside ResizeObserver delivery.
+      observer = new ResizeObserver(() => {
+        if (!frame) frame = requestAnimationFrame(() => { frame = 0; if (!cancelled) fit(); });
+      });
       observer.observe(viewer);
       fit();
     });
-    return () => { cancelled = true; observer?.disconnect(); };
+    return () => { cancelled = true; observer?.disconnect(); cancelAnimationFrame(frame); };
   });
   function regionKey(area: LayoutRedaction) { return `${area.page}:${area.entityIndex}:${area.rect.join(",")}`; }
   const aliasRegions = $derived([...(preview?.redactions ?? [])].filter(area => !!entities[area.entityIndex])
@@ -178,6 +184,7 @@
     const next = await invoke<PrivacySession>("save_private_layout_text", { id: session.id, revision: session.revision,
       edit: { blockId: block.id, html, font: format.font, size: format.size, align: format.align, bounds: activeBounds ? [...activeBounds] : undefined } });
     textChanged(false); onSessionChange(next);
+    saveSequence++;
   }
   function sampleBackground(event: Event, pageNumber: number) {
     const img = event.currentTarget as HTMLImageElement;
@@ -267,6 +274,7 @@
 <svelte:window onkeydown={exitKey} onpointerdown={outsideParagraph} />
 
 <section bind:this={layoutRoot} class="layout-view" aria-label={p("Documento con formato original")}>
+  <SaveNotice sequence={saveSequence} />
 
   {#if preview?.pages.some(page => page.qrRegions?.length)}<p class="layout-note" role="status">{p("QR detectados: cubiertos en blanco al proteger y exportar. Revisa si hay otros códigos sin detectar.")}</p>{/if}
   {#if preview?.estimated}<p class="layout-note">{p("Las zonas OCR son estimaciones. Comprueba que cada dato queda cubierto por completo.")}</p>{/if}

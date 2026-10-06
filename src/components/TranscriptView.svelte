@@ -6,6 +6,8 @@
   import { formatDuration, sanitizeRichHtml } from "../lib/utils";
   import { conversationHtml, defaultSpeakerLabel, escapeHtml, htmlToPlain, normalizeSpeakerText, renameSpeakerHtml, textToHtml } from "../lib/editor/content";
   import { pdfFileName } from "../lib/editor/export";
+  import SaveNotice from "./SaveNotice.svelte";
+  let saveSequence = $state(0);
   import { getCopy } from "../lib/i18n-store.svelte";
   import { invoke } from "@tauri-apps/api/core";
 
@@ -587,6 +589,7 @@
     catch (e) { statusMessage = String(e); onSaveOutcome?.(false, statusMessage); return; }
     savedSnapshot = editorSnapshot(safeHtml, docFormat, speakerNames);
     savedCorrection = true;
+    saveSequence++;
     onSaveOutcome?.(true);
     onSaved?.();
   }
@@ -657,6 +660,7 @@
 <svelte:window onpointerdown={onGlobalPointerDown} onkeydown={onUndoKeydown} />
 
 <section class="viewer" class:private-document={privateDocument} class:embedded class:page-editor={!!pageSurface}>
+  {#if !embedded}<SaveNotice sequence={saveSequence} />{/if}
   {#if !embedded && !privateDocument}<div class="viewer-head">
     {#if !pageSurface}<div class="head-copy">
       <strong>{privateDocument ? p(transcript.title) : transcript.title}</strong>
@@ -847,6 +851,7 @@
 
 <style>
   .viewer {
+    position: relative;
     flex: 1;
     min-height: 0;
     display: flex;
