@@ -1,8 +1,9 @@
 <script lang="ts">
   import { privateCopy as p } from "../lib/private-i18n";
   import { onMount, onDestroy } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
+  import { invoke, isTauri } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { ENTITY_KINDS, type EntityKind, type PrivateEntity, type PrivacySession } from "../lib/privacy";
   import belegalMark from "../assets/belegal-mark.png";
   import DocumentLayout from "./DocumentLayout.svelte";
@@ -24,6 +25,24 @@
   let analysisRevision: number | null = null;
   let unlistenAnalysis: (() => void) | undefined;
   let disposed = false;
+  let importZone = $state<HTMLButtonElement>();
+  let draggingDocument = $state(false);
+  let unlistenDrop: (() => void) | undefined;
+  onMount(() => {
+    if (!isTauri()) return;
+    getCurrentWebview().onDragDropEvent(event => {
+      const drop = event.payload;
+      if (drop.type === "leave") { draggingDocument = false; return; }
+      const bounds = importZone?.getBoundingClientRect();
+      const x = drop.position.x / window.devicePixelRatio;
+      const y = drop.position.y / window.devicePixelRatio;
+      const inside = !session && !busy && !!bounds && x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
+      draggingDocument = inside && drop.type !== "drop";
+      if (drop.type !== "drop" || !inside) return;
+      if (drop.paths.length !== 1) { error = "Arrastra un solo documento a la vez."; return; }
+      void importDocument(drop.paths[0]);
+    }).then(stop => { if (disposed) stop(); else unlistenDrop = stop; }).catch(() => {});
+  });
   const stepLabel = $derived.by(() => {
     const match = /^(reading|ocr):(\d+)\/(\d+)(?::(\d+))?$/.exec(analysisStep);
     if (!match) return "";
@@ -116,7 +135,7 @@
       if (restored?.analyzed) onEdit(restored);
     } catch { error = "Abre el demo con Tauri para importar documentos y ejecutar Qwen localmente."; }
   });
-  onDestroy(() => { disposed = true; unlistenAnalysis?.(); });
+  onDestroy(() => { disposed = true; unlistenAnalysis?.(); unlistenDrop?.(); });
 
   async function run(label: string, action: () => Promise<void>) {
     if (busy) return;
@@ -130,9 +149,9 @@
     }
     finally { busy = ""; sanitizing = false; analysisId = null; analysisRevision = null; onBusyChange(false); }
   }
-  async function importDocument() {
+  async function importDocument(path?: string) {
     await run("Importando documento local…", async () => {
-      const next = await invoke<PrivacySession | null>("import_private_document");
+      const next = await invoke<PrivacySession | null>("import_private_document", { path: path ?? null });
       if (next) adopt(next);
     });
   }
@@ -216,7 +235,7 @@
           {#if session.analyzed}<button class="secondary" onclick={clearResult} disabled={!!busy}>{p("Volver a analizar")}</button>{/if}
           <button class="secondary" onclick={clear} disabled={!!busy}>{p("Borrar documento y empezar de cero")}</button>
         </div></details>
-        <button class="secondary" onclick={importDocument} disabled={!!busy}>{p("Importar otro documento")}</button>
+        <button class="secondary" onclick={() => importDocument()} disabled={!!busy}>{p("Importar otro documento")}</button>
         {#if session.layoutAvailable}<label class="workspace-zoom">{p("Zoom")} <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy}><option value="fit">{p("Ajustar al ancho")}</option>{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>{/if}
         {#if session.analyzed}<button class="primary" onclick={() => { if (session) onEdit(session); }} disabled={!!busy}>{p("Revisar y editar")}</button>
         {:else}<button class="primary analyze-button" onclick={analyze} disabled={!!busy}>{p("Proteger documento")}</button>{/if}
@@ -262,8 +281,11 @@
       <img class="welcome-mark" src={belegalMark} alt="" />
       <h2>{p("Lo privado permanece aquí.")}</h2>
       <p>{p("Importa un archivo. Qwen detectará entidades en este equipo; tú revisarás qué información puede formar parte de una futura solicitud.")}</p>
-      <button class="welcome-import" aria-label={p("Importar documento")} onclick={importDocument} disabled={!!busy}>
-        <span>{p("Importar documento")}</span><small>PDF · DOCX · PNG · JPG · TIFF · HEIC · TXT · MD</small>
+      <button bind:this={importZone} class="welcome-import" class:dragging-document={draggingDocument} aria-label={p("Importar documento")} onclick={() => importDocument()} disabled={!!busy}>
+        <svg class="import-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" /></svg>
+        <span>{p(draggingDocument ? "Suelta el documento aquí" : "Arrastra tu documento aquí")}</span>
+        <span class="import-click">{p("o haz clic para seleccionar un archivo")}</span>
+        <small>PDF · DOCX · PNG · JPG · TIFF · HEIC · TXT · MD</small>
       </button>
     </div>
   {/if}
@@ -307,8 +329,13 @@
   .welcome-mark { width:120px; height:120px; object-fit:contain; }
   .welcome h2 { font-size:30px; }
   .welcome p { max-width:620px; font-size:14px; color:var(--muted); }
-  .welcome-import { display:flex; flex-direction:column; align-items:center; gap:12px; padding:22px 48px; background:var(--surface); border:1px dashed var(--line-dark); color:var(--text); }
-  .welcome-import small { color:var(--muted); font-size:11px; }
+  .welcome-import { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; width:min(100%,620px); min-height:220px; padding:28px 24px; background:var(--panel); border:2px dashed var(--line-dark); border-radius:12px; color:var(--text); white-space:normal; transition:background .15s,border-color .15s; }
+  .welcome-import > span:first-of-type { font-size:20px; font-family:var(--font-heading); }
+  .welcome-import .import-click { font-size:13px; color:var(--muted); }
+  .welcome-import small { color:var(--muted); font-size:11px; line-height:1.6; }
+  .import-icon { color:var(--muted); }
+  .welcome-import:hover:not(:disabled),.welcome-import.dragging-document { background:var(--surface); border-color:var(--text); }
+  .welcome-import:focus-visible { outline:2px solid var(--text); outline-offset:4px; }
   .processing-slot { flex:none; padding:8px 0; }
   .processing-label { display:flex; justify-content:center; color:var(--muted); font-size:12px; }
   .processing-track { height:3px; margin-top:6px; overflow:hidden; background:var(--panel); }

@@ -138,24 +138,29 @@ fn extract(path: &Path, ocr_executable: Option<&Path>) -> Result<String, String>
 #[tauri::command]
 pub(crate) async fn import_private_document(
     app: tauri::AppHandle,
+    path: Option<String>,
 ) -> Result<Option<Session>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let selected = app
-            .dialog()
-            .file()
-            .add_filter(
-                "Documentos locales",
-                &[
-                    "txt", "md", "docx", "pdf", "png", "jpg", "jpeg", "tif", "tiff", "heic",
-                ],
-            )
-            .blocking_pick_file();
-        let Some(selected) = selected else {
-            return Ok(None);
+        let path = if let Some(path) = path {
+            std::path::PathBuf::from(path)
+        } else {
+            let selected = app
+                .dialog()
+                .file()
+                .add_filter(
+                    "Documentos locales",
+                    &[
+                        "txt", "md", "docx", "pdf", "png", "jpg", "jpeg", "tif", "tiff", "heic",
+                    ],
+                )
+                .blocking_pick_file();
+            let Some(selected) = selected else {
+                return Ok(None);
+            };
+            selected
+                .into_path()
+                .map_err(|_| "Selecciona un documento local.")?
         };
-        let path = selected
-            .into_path()
-            .map_err(|_| "Selecciona un documento local.")?;
         #[cfg(target_os = "macos")]
         let ocr = ocr_executable(&app);
         #[cfg(not(target_os = "macos"))]

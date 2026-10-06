@@ -14,18 +14,22 @@ try {
   page.on('request',r=>requests.push(r.url()));
   await page.addInitScript(lang => { localStorage.setItem('belegal-local-demo-language',lang); localStorage.setItem('belegal-local-demo-welcome-seen','true'); }, language);
   await page.addInitScript(() => {
+    window.isTauri=true;
     const original='María Pérez demanda a Banco Andino. Email: maria@example.com. Reclama USD 1500 el 2026-09-30.';
     // El OCR perdió una letra; la extracción inicial difiere del texto actual.
     const extracted=original.replace('demanda','0demanda');
     let session=null;
     const calls=[];window.__privacyCalls=calls;
     let callbackId=0;const callbacks=new Map();
+    const dropCallbacks=new Map();
+    window.__emitDrop=(event,payload)=>dropCallbacks.get(event)?.({event,id:1,payload});
     window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},transformCallback:callback=>{callbacks.set(++callbackId,callback);return callbackId;},invoke:async(cmd,args)=>{
       calls.push({cmd,args});
       if(cmd==='check_installation')return;
       if(cmd==='load_transcripts')return [];
       if(cmd==='save_transcripts')return;
       if(cmd==='plugin:event|listen'){
+        if(args.event.startsWith('tauri://drag-'))dropCallbacks.set(args.event,callbacks.get(args.handler));
         if(args.event==='private-analysis-progress')window.__emitAnalysisProgress=payload=>callbacks.get(args.handler)?.({event:args.event,id:1,payload});
         return 1;
       }
@@ -104,7 +108,26 @@ try {
   await page.getByRole('heading',{name:ui('Lo privado permanece aquí.'),exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).count(),0,'no protection without a document');
   assert.equal(await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).count(),0);
-  await page.getByRole('button',{name:ui('Importar documento'),exact:true}).click();
+  const importZone=page.getByRole('button',{name:ui('Importar documento'),exact:true});
+  const zone=await importZone.boundingBox();
+  assert(zone.width>=500 && zone.height>=220,'import area is a large drop zone');
+  const emitDrop=async(event,paths=[],inside=true)=>page.evaluate(({event,paths,zone,inside})=>{
+    const position={x:(inside?zone.x+zone.width/2:0)*devicePixelRatio,y:(inside?zone.y+zone.height/2:0)*devicePixelRatio};
+    window.__emitDrop(event,{paths,position});
+  },{event,paths,zone,inside});
+  await emitDrop('tauri://drag-enter',['/tmp/client.pdf']);
+  await page.getByText(ui('Suelta el documento aquí'),{exact:true}).waitFor();
+  await emitDrop('tauri://drag-over',[],false);
+  assert.equal(await importZone.evaluate(el=>el.classList.contains('dragging-document')),false,'drag outside clears highlight');
+  await emitDrop('tauri://drag-drop',['/tmp/outside.pdf'],false);
+  assert.equal(await page.evaluate(()=>window.__privacyCalls.filter(c=>c.cmd==='import_private_document').length),0,'outside drop does not import');
+  await emitDrop('tauri://drag-drop',['/tmp/one.pdf','/tmp/two.pdf']);
+  await page.getByRole('alert').filter({hasText:ui('Arrastra un solo documento a la vez.')}).waitFor();
+  await emitDrop('tauri://drag-enter',['/tmp/client.pdf']);
+  await page.screenshot({path:`artifacts/import-dropzone-${language}.png`});
+  await emitDrop('tauri://drag-drop',['/tmp/client.pdf']);
+  await page.locator('.original-page').waitFor();
+  assert.equal(await page.evaluate(()=>window.__privacyCalls.find(c=>c.cmd==='import_private_document').args.path),'/tmp/client.pdf','drop imports native path directly');
   assert.equal(await page.getByRole('heading',{name:ui('Lo privado permanece aquí.'),exact:true}).count(),0,'welcome copy is not part of the workspace');
   assert((await page.locator('.original-page').innerText()).includes('María Pérez'));
   assert.equal(await page.getByTestId('private-initial-extraction').count(),0);

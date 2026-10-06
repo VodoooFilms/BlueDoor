@@ -1,6 +1,10 @@
 import { getLang } from "./i18n-store.svelte";
 
 const ENGLISH: Record<string, string> = {
+  "Arrastra tu documento aquí": "Drag your document here",
+  "Suelta el documento aquí": "Drop your document here",
+  "o haz clic para seleccionar un archivo": "or click to choose a file",
+  "Arrastra un solo documento a la vez.": "Drag one document at a time.",
   "Navegar cajas de alias": "Navigate alias boxes",
   "Caja de alias anterior": "Previous alias box",
   "Caja de alias siguiente": "Next alias box",
