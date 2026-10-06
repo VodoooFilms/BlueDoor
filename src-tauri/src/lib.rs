@@ -84,7 +84,6 @@ pub fn run() {
             diagnostics::prepare_local_setup,
             platform::open_server_home,
             documents::import_private_document,
-            documents::paste_private_document,
             layout::preview_private_layout,
             layout::save_private_layout_text,
             layout::review_private_layout,

@@ -213,15 +213,6 @@ pub(crate) async fn import_private_document(
     .await
     .map_err(|_| "La importación local se interrumpió.")?
 }
-#[tauri::command]
-pub(crate) fn paste_private_document(
-    text: String,
-    state: State<'_, PrivacyState>,
-) -> Result<Session, String> {
-    let session = Session::new("Texto local".into(), text)?;
-    *state.0.lock().map_err(|_| "Sesión privada no disponible")? = Some(session.clone());
-    Ok(session)
-}
 #[cfg(test)]
 mod tests {
     use super::*;

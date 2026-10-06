@@ -1887,3 +1887,93 @@ fn the_language_and_model_line_cannot_carry_private_data() {
     // An empty label is missing metadata, not a leak.
     assert!(check_export_labels(&session, &[("el modelo", "")]).is_ok());
 }
+
+/// The layout export path (`export_private_layout`) calls the gate with fixed
+/// strings: no HTML payload, the literal title "Protected" and no labels. That
+/// shape must keep failing closed exactly like the transcript writer does: an
+/// unreviewed or analysis-incomplete session can never be exported through it,
+/// regardless of how clean those hardcoded values look.
+#[test]
+fn the_layout_gate_shape_fails_closed_for_unconfirmed_sessions() {
+    let labels: [(&str, &str); 0] = [];
+    // A reviewed session passes with the exact arguments the layout exporter sends.
+    let session = reviewed_session();
+    let matching = crate::pdf::PrivateExport {
+        id: session.id.clone(),
+        revision: session.revision,
+    };
+    assert!(
+        check_export_authorization(
+            Some(&session),
+            Some(&matching),
+            &session.sanitized,
+            None,
+            "Protected",
+            &labels,
+        )
+        .is_ok(),
+        "la sesión revisada debe poder exportarse por el flujo de layout"
+    );
+    // Unreviewed: the flag alone is what the layout gate checks first.
+    let mut unreviewed = reviewed_session();
+    unreviewed.reviewed = false;
+    let err = check_export_authorization(
+        Some(&unreviewed),
+        Some(&crate::pdf::PrivateExport {
+            id: unreviewed.id.clone(),
+            revision: unreviewed.revision,
+        }),
+        &unreviewed.sanitized,
+        None,
+        "Protected",
+        &labels,
+    )
+    .unwrap_err();
+    assert!(err.contains("revisión confirmada"), "got: {err}");
+    // Analysis cleared after review: stale sanitized text must not export.
+    let mut incomplete = reviewed_session();
+    incomplete.analysis_complete = false;
+    assert!(check_export_authorization(
+        Some(&incomplete),
+        Some(&crate::pdf::PrivateExport {
+            id: incomplete.id.clone(),
+            revision: incomplete.revision,
+        }),
+        &incomplete.sanitized,
+        None,
+        "Protected",
+        &labels,
+    )
+    .is_err());
+    // Revision mismatch: the session moved while the export was being prepared.
+    let mut moved = reviewed_session();
+    moved.revision += 1;
+    assert!(check_export_authorization(
+        Some(&moved),
+        Some(&crate::pdf::PrivateExport {
+            id: moved.id.clone(),
+            revision: moved.revision - 1,
+        }),
+        &moved.sanitized,
+        None,
+        "Protected",
+        &labels,
+    )
+    .is_err());
+    // Text tampering still fails even with the hardcoded safe title/labels.
+    let session = reviewed_session();
+    let tampered = format!("{} DATO EXTRA", session.sanitized);
+    let err = check_export_authorization(
+        Some(&session),
+        Some(&crate::pdf::PrivateExport {
+            id: session.id.clone(),
+            revision: session.revision,
+        }),
+        &tampered,
+        None,
+        "Protected",
+        &labels,
+    )
+    .unwrap_err();
+    assert!(err.contains("sin revisar"), "got: {err}");
+}
