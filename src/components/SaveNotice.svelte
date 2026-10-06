@@ -10,7 +10,7 @@
   });
 </script>
 
-<div class="save-feedback" role="status" aria-live="polite" aria-atomic="true">
+<div class="save-feedback" role={visible ? "status" : undefined} aria-live="polite" aria-atomic="true">
   {#if visible}
     {#key sequence}
       <span class="save-confirmation"><span aria-hidden="true">✓</span> {p("Guardado")}</span>
