@@ -2,7 +2,7 @@
 use crate::privacy::{PrivacyState, Session, MAX_DOCUMENT_BYTES};
 use std::io::Read;
 use std::path::Path;
-use tauri::{Manager, State};
+use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 const MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
