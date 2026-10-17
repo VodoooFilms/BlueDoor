@@ -1,7 +1,8 @@
 <script lang="ts">
   let { name, size = 24 }: { name: string; size?: number } = $props();
   const paths: Record<string, string> = {
-    door: "M5 5 19 2v18L5 23V5Z",
+    // Exact Dock master path; crop includes its miter joins without distortion.
+    door: "m424.5 387.5 175-43v292l-175 43Z",
     document: "M6 2h9l5 5v15H6V2Zm9 0v6h5M9 12h8M9 16h8",
     audio: "M3 11v2m4-6v10m5-15v20m5-15v10m4-6v2",
     edit: "m15 4 5 5M4 20l4-1L21 6l-5-5L3 14l1 6Z",
@@ -19,4 +20,4 @@
     upload: "M12 17V2m-6 6 6-6 6 6M3 15v7h18v-7", history: "M3 4v6h6M3 10a9 9 0 1 1 2 8m7-13v7l4 2",
   };
 </script>
-<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={paths[name] ?? paths.document} /></svg>
+<svg width={name === "door" ? size * 211 / 381 : size} height={size} viewBox={name === "door" ? "406.5 321.5 211 381" : "0 0 24 24"} fill="none" stroke="currentColor" stroke-width={name === "door" ? 36 : 1.7} stroke-linecap={name === "door" ? "butt" : "round"} stroke-linejoin={name === "door" ? "miter" : "round"} aria-hidden="true"><path d={paths[name] ?? paths.document} /></svg>
