@@ -45,13 +45,14 @@ def verify(app: Path) -> None:
         raise SystemExit(f"Missing or invalid macOS icon: {SOURCE_ICNS}")
 
     plist_path = app / "Contents/Info.plist"
-    bundled = app / "Contents/Resources/icon.icns"
+    icon_name = f"icon-{sha256(SOURCE_ICNS)[:12]}.icns"
+    bundled = app / "Contents/Resources" / icon_name
     if not plist_path.is_file() or not bundled.is_file():
         raise SystemExit("Bundle is missing Info.plist or icon.icns")
     with plist_path.open("rb") as handle:
         plist = plistlib.load(handle)
-    if plist.get("CFBundleIconFile") != "icon.icns":
-        raise SystemExit("CFBundleIconFile does not select icon.icns")
+    if plist.get("CFBundleIconFile") != icon_name:
+        raise SystemExit("CFBundleIconFile does not select the content-addressed icon")
     if sha256(bundled) != sha256(SOURCE_ICNS):
         raise SystemExit("Bundled icon.icns differs from src-tauri/icons/icon.icns")
     print(

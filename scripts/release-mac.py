@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import plistlib
 from pathlib import Path
 import re
 import shutil
@@ -60,6 +61,18 @@ def prepare_bundle():
     if not APP.is_dir():
         raise SystemExit(f"Missing exact build output: {APP}")
 
+    # Give changed artwork a new resource identity so IconServices cannot reuse
+    # a prior icon.icns cached for this app path and bundle identifier.
+    icon = ROOT / "src-tauri/icons/icon.icns"
+    icon_name = f"icon-{hashlib.sha256(icon.read_bytes()).hexdigest()[:12]}.icns"
+    shutil.copyfile(icon, APP / "Contents/Resources" / icon_name)
+    info_path = APP / "Contents/Info.plist"
+    with info_path.open("rb") as handle:
+        info = plistlib.load(handle)
+    info["CFBundleIconFile"] = icon_name
+    info["CFBundleIconName"] = Path(icon_name).stem
+    with info_path.open("wb") as handle:
+        plistlib.dump(info, handle)
     run([sys.executable, ROOT / "scripts/package-local-ai.py", APP, REL])
     verifier = load_verifier()
     binary = APP / "Contents/MacOS/bluedoor"

@@ -24,7 +24,8 @@
     "macOS": {
       "entitlements": "entitlements.mac.plist",
       "minimumSystemVersion": "13.4",
-      "infoPlist": "Info.plist"
+      "infoPlist": "Info.plist",
+      "bundleVersion": "0.4.1"
     },
     "resources": {
       "resources/runtime/": "runtime/"
