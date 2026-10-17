@@ -143,9 +143,9 @@
 }
 
 :root .blue-import-screen .import-action { display:flex; align-items:center; justify-content:center; gap:12px; }
-:root .shell .download-btn,:root .shell .setup-download { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+:root .shell .download-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
 :root .shell .download-btn svg,:root .blue-import-screen .import-action svg,:root .shell .state-title svg { flex:none; }
-:root .shell .setup-btn { display:flex; flex-direction:column; gap:3px; }
+:root .shell .setup-btn { display:flex; flex-direction:row; gap:12px; width:280px; }
 
 /* Action/progress replacements occupy the same footprint. */
 :root .shell .mic-panel .download-btn,:root .shell .mic-panel .download-progress { width:150px; min-height:40px; }

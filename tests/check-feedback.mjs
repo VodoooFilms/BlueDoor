@@ -15,7 +15,7 @@ try {
       window.__TAURI_INTERNALS__ = {
         metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}}, transformCallback:()=>1,
         invoke:async cmd => {
-          if(cmd==='list_models')return {whisper:[{id:'small',installed:true,path:'/tmp/small.bin'}],parakeet:[],privacy:[{id:'qwen3-fast',name:'Qwen',size:'1 GB',installed:true}],diarization:[]};
+          if(cmd==='list_models')return {whisper:[{id:'small',installed:!window.modelsEmpty,path:'/tmp/small.bin'}],parakeet:[],privacy:[{id:'qwen3-fast',name:'Qwen',size:'1 GB',installed:!window.modelsEmpty}],diarization:[]};
           if(cmd==='load_transcripts')return [];
           if(cmd==='get_privacy_session')return null;
           if(cmd==='diarization_available')return false;
@@ -73,7 +73,7 @@ try {
     assert.match(await page.locator('.feedback-error').innerText(),lang==='es'?/formato de documento no es compatible/:/document format is not supported/);
     assert.deepEqual(await importAction.boundingBox(),before,'document errors never move import action');
     await dismiss();
-    await page.evaluate(()=>localStorage.setItem('bluedoor-setup-pending','true'));
+    await page.evaluate(()=>window.modelsEmpty=true);
     await page.locator('.settings-menu summary').click();
     await page.locator('#modelsToggle').click();
     const cards=()=>page.locator('.models .card,.models .head-copy').evaluateAll(els=>els.map(el=>{
@@ -82,6 +82,14 @@ try {
     await page.locator('.models .card').first().waitFor();
     const modelBefore=await cards();
     await page.evaluate(()=>window.micFailure=null);
+    const icon = await page.locator('.setup-btn > svg').boundingBox();
+    const lines = page.locator('.setup-copy > span');
+    const firstLine = await lines.first().boundingBox(), secondLine = await lines.last().boundingBox();
+    assert(icon.x + icon.width < firstLine.x, 'setup icon sits to the left of both lines');
+    assert(Math.abs(firstLine.x - secondLine.x) < 1, 'setup lines have the same left edge');
+    assert.deepEqual(await lines.evaluateAll(els => els.map(el => getComputedStyle(el).fontWeight)), ['700','700']);
+    assert.deepEqual(await lines.allTextContents(), lang === 'es' ? ['Descargar todos los modelos','Aprobar todos los permisos'] : ['Download all models','Approve all permissions']);
+    await page.screenshot({path:`artifacts/feedback/setup-button-${lang}.png`});
     await page.locator('.setup-btn').click();
     await page.waitForFunction(()=>!!window.rejectSetup);
     assert.deepEqual(await cards(),modelBefore,'setup progress never moves the heading or cards');

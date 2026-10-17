@@ -250,10 +250,6 @@
     untrack(() => persistTranscripts());
   });
 
-  function toggleTheme() {
-    theme = theme === "dark" ? "light" : "dark";
-  }
-
   function requestNavigation(action: () => void) {
     if ((editorDirty || pendingWrites > 0 || storageError) && (activeTranscript || privateEditVisible)) {
       pendingNavigation = action;
@@ -491,7 +487,6 @@
           <div class="settings-popover">
             <button id="modelsToggle" class:nav-active={showModels && workflow !== "private"} onclick={() => { settingsEl.open = false; openModels(); }} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="download" /><span class="settings-label">{t.modelsTitle}</span></button>
             <button id="languageToggle" aria-label={t.switchLanguage} onclick={toggle}><Icon name="globe" /><span class="settings-label">{p("Idioma")}</span><span class="settings-value">{t.langLabel === "ES" ? "Español" : "English"}</span></button>
-            <button id="themeToggle" aria-label={theme === "dark" ? t.lightTheme : t.darkTheme} onclick={toggleTheme}><Icon name="moon" /><span class="settings-label">{p("Apariencia")}</span><span class="settings-value">{p(theme === "dark" ? "Oscuro" : "Claro")}</span></button>
             <hr />
             <button id="fullscreenToggle" onclick={toggleFullScreen}><Icon name="expand" /><span class="settings-label">{p(fullScreen ? "Salir de pantalla completa" : "Pantalla completa")}</span></button>
             <button onclick={() => { settingsEl.open = false; openAbout(); }}><Icon name="info" /><span class="settings-label">{p("Acerca de BlueDoor")}</span></button>

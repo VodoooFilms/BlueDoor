@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 
 const browser = await webkit.launch();
-const startLabel = 'Descargar todos los modelos y aprobar permisos';
+const startLabel = 'Descargar todos los modelos y aprobar todos los permisos';
 async function scenario(options = {}) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   await page.addInitScript(options => {
@@ -132,7 +132,7 @@ try {
   await preview.screenshot({ path: 'artifacts/model-setup-initial.png' });
   await preview.close();
   const english = await scenario({ lang: 'en', engine: true });
-  await english.getByRole('button', { name: 'Download all models and approve permissions', exact: true }).click();
+  await english.getByRole('button', { name: 'Download all models and approve all permissions', exact: true }).click();
   await english.locator('.privacy-container:not(.hidden)').waitFor();
   await english.close();
   console.log('Setup: permissions before sequential default downloads, stopped microphone, navigation locks, denial, failure/retry, cancellation, reload resume, visibility and automatic navigation to Private Legal passed.');

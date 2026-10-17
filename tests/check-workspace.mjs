@@ -100,9 +100,7 @@ try {
   const settings=page.locator('.settings-menu summary');
   await settings.click();
   assert(await page.locator('#modelsToggle').isVisible());
-  await page.locator('#themeToggle').click();
-  assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
-  await page.locator('#themeToggle').click();
+  assert.equal(await page.locator('#themeToggle').count(),0,'appearance toggle removed');
   await page.locator('#languageToggle').click();
   assert.equal(await page.locator('.workspace-views button:last-child').getAttribute('aria-label'),english?'Mapa privado':'Private map');
   await page.locator('#languageToggle').click();

@@ -118,10 +118,9 @@ try {
   });
   const formatted=await editor.innerHTML();
   await page.locator('.settings-menu summary').click();
-  await page.locator('#themeToggle').click();
+  assert.equal(await page.locator('#themeToggle').count(),0,'appearance toggle removed');
   assert.equal(await editor.innerHTML(),formatted,'theme never rewrites document HTML');
   assert.deepEqual(await editor.locator('p').evaluate(el=>({color:getComputedStyle(el).color,font:getComputedStyle(el).fontFamily,size:getComputedStyle(el).fontSize})),{color:'rgb(157, 28, 64)',font:'Georgia',size:'22px'});
-  await page.locator('#themeToggle').click();
   await page.keyboard.press('Escape');
   // Restore the fixture before leaving its unsaved draft.
   await page.getByRole('button',{name:'Restablecer',exact:true}).click();

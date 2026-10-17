@@ -251,12 +251,15 @@
     {#if offerSetup || setupRunning || installingId}
       <div class="head-actions">
         {#if offerSetup || setupRunning}
-          <button class="download-btn setup-btn" onclick={setupAll} disabled={busy} aria-label={setupRunning ? (t.langLabel === "ES" ? "Preparando…" : "Preparing…") : setupPending ? (t.langLabel === "ES" ? "Reanudar preparación" : "Resume setup") : (t.langLabel === "ES" ? "Descargar todos los modelos y aprobar permisos" : "Download all models and approve permissions")}>
+          <button class="download-btn setup-btn" onclick={setupAll} disabled={busy} aria-label={setupRunning ? (t.langLabel === "ES" ? "Preparando…" : "Preparing…") : setupPending ? (t.langLabel === "ES" ? "Reanudar preparación" : "Resume setup") : (t.langLabel === "ES" ? "Descargar todos los modelos y aprobar todos los permisos" : "Download all models and approve all permissions")}>
             {#if setupRunning}{t.langLabel === "ES" ? "Preparando…" : "Preparing…"}
             {:else if setupPending}{t.langLabel === "ES" ? "Reanudar preparación" : "Resume setup"}
             {:else}
-              <span class="setup-download"><Icon name="download" size={22} /><span>{t.langLabel === "ES" ? "Descargar modelos" : "Download models"}</span></span>
-              <span class="setup-permissions">{t.langLabel === "ES" ? "Aprobar permisos" : "Approve permissions"}</span>
+              <Icon name="download" size={24} />
+              <span class="setup-copy">
+                <span>{t.langLabel === "ES" ? "Descargar todos los modelos" : "Download all models"}</span>
+                <span>{t.langLabel === "ES" ? "Aprobar todos los permisos" : "Approve all permissions"}</span>
+              </span>
             {/if}
           </button>
         {/if}
@@ -465,8 +468,8 @@
   .head-top { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
   .head-copy { flex: 1; min-width: 0; }
   .head-actions { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-height: 60px; }
-  .download-btn.setup-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; flex: none; width:240px; max-width:320px; height:auto; min-height:66px; padding: 10px 16px; line-height: 1.4; text-align: center; white-space: normal; }
-  .setup-permissions { font-weight:500; }
+  .download-btn.setup-btn { display:flex; flex-direction:row; align-items:center; justify-content:center; gap:12px; flex: none; width:280px; max-width:320px; height:auto; min-height:66px; padding: 10px 16px; line-height: 1.4; text-align: center; white-space: normal; }
+  .setup-copy { display:flex; flex-direction:column; gap:2px; text-align:left; font-weight:700; }
   .back-btn:disabled { opacity: .55; cursor: default; }
   .head-copy { display: flex; flex-direction: column; gap: 8px; }
   .head-copy strong { font-family: var(--font-heading); font-size: 28px; font-weight: 400; line-height: 1.2; }
