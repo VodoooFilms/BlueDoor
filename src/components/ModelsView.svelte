@@ -251,7 +251,7 @@
     {#if offerSetup || setupRunning || installingId}
       <div class="head-actions">
         {#if offerSetup || setupRunning}
-          <button class="download-btn setup-btn" onclick={setupAll} disabled={busy} aria-label={setupRunning ? (t.langLabel === "ES" ? "Preparando…" : "Preparing…") : setupPending ? (t.langLabel === "ES" ? "Reanudar preparación" : "Resume setup") : (t.langLabel === "ES" ? "Descargar todos los modelos y aprobar todos los permisos" : "Download all models and approve all permissions")}>
+          <button class="download-btn setup-btn" style:--setup-width={t.langLabel === "ES" ? "264px" : "248px"} onclick={setupAll} disabled={busy} aria-label={setupRunning ? (t.langLabel === "ES" ? "Preparando…" : "Preparing…") : setupPending ? (t.langLabel === "ES" ? "Reanudar preparación" : "Resume setup") : (t.langLabel === "ES" ? "Descargar todos los modelos y aprobar todos los permisos" : "Download all models and approve all permissions")}>
             {#if setupRunning}{t.langLabel === "ES" ? "Preparando…" : "Preparing…"}
             {:else if setupPending}{t.langLabel === "ES" ? "Reanudar preparación" : "Resume setup"}
             {:else}
@@ -468,8 +468,8 @@
   .head-top { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
   .head-copy { flex: 1; min-width: 0; }
   .head-actions { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-height: 60px; }
-  .download-btn.setup-btn { display:flex; flex-direction:row; align-items:center; justify-content:center; gap:12px; flex: none; width:280px; max-width:320px; height:auto; min-height:66px; padding: 10px 16px; line-height: 1.4; text-align: center; white-space: normal; }
-  .setup-copy { display:flex; flex-direction:column; gap:2px; text-align:left; font-weight:700; }
+  .download-btn.setup-btn { display:flex; flex-direction:row; align-items:center; justify-content:center; gap:12px; flex: none; width:var(--setup-width,248px); max-width:320px; height:auto; min-height:66px; padding: 10px 16px; line-height: 1.4; text-align: center; white-space: normal; }
+  .setup-copy { display:flex; flex-direction:column; gap:2px; text-align:center; font-weight:700; flex:none; white-space:nowrap; }
   .back-btn:disabled { opacity: .55; cursor: default; }
   .head-copy { display:flex; flex-direction:row; align-items:center; gap:14px; }
   .head-copy h1 { margin:0; font-family:var(--font-heading); font-size:20px; font-weight:650; line-height:1.2; white-space:nowrap; }

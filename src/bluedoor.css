@@ -145,7 +145,7 @@
 :root .blue-import-screen .import-action { display:flex; align-items:center; justify-content:center; gap:12px; }
 :root .shell .download-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
 :root .shell .download-btn svg,:root .blue-import-screen .import-action svg,:root .shell .state-title svg { flex:none; }
-:root .shell .setup-btn { display:flex; flex-direction:row; gap:12px; width:280px; }
+:root .shell .setup-btn { display:flex; flex-direction:row; gap:12px; width:var(--setup-width,248px); }
 
 /* Action/progress replacements occupy the same footprint. */
 :root .shell .mic-panel .download-btn,:root .shell .mic-panel .download-progress { width:150px; min-height:40px; }
@@ -154,3 +154,5 @@
 /* Equal space before each download icon and between the icon and its label. */
 :root .shell .models .download-btn,:root .shell .models .right-actions > .download-btn { justify-content:flex-start; padding-inline:16px; gap:16px; }
 :root .shell .models .setup-btn:not(:has(svg)) { justify-content:center; }
+
+:root .shell .models .setup-btn { width:var(--setup-width,248px); justify-content:center; gap:12px; }
