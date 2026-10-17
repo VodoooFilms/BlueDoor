@@ -6,16 +6,16 @@ const pages=JSON.parse(readFileSync('artifacts/layout-workflow/layout-document.p
 const plan=JSON.parse(readFileSync('artifacts/layout-workflow/layout-document.pdf.plan.json'));
 const originalPlan=structuredClone(plan);
 originalPlan.redactions=[];
-const originalPages=JSON.parse(execFileSync('src-tauri/resources/runtime/belegal-layout',['--preview'],{input:JSON.stringify(originalPlan),maxBuffer:64*1024*1024}));
+const originalPages=JSON.parse(execFileSync('src-tauri/resources/runtime/local-legal-layout',['--preview'],{input:JSON.stringify(originalPlan),maxBuffer:64*1024*1024}));
 const editedPlan=structuredClone(plan);
 for(const area of editedPlan.redactions)if(area.entityIndex===0&&area.alias)area.alias='CLIENTE_01';
-const editedPages=JSON.parse(execFileSync('src-tauri/resources/runtime/belegal-layout',['--preview'],{input:JSON.stringify(editedPlan),maxBuffer:64*1024*1024}));
+const editedPages=JSON.parse(execFileSync('src-tauri/resources/runtime/local-legal-layout',['--preview'],{input:JSON.stringify(editedPlan),maxBuffer:64*1024*1024}));
 const browser=await webkit.launch();
 try {
  const page=await browser.newPage({viewport:{width:1440,height:1000}});
  page.setDefaultTimeout(15000);
  await page.addInitScript(({pages,originalPages,editedPages,redactions})=>{
-  localStorage.setItem('belegal-local-demo-language','es');localStorage.setItem('belegal-local-demo-welcome-seen','true');
+  localStorage.setItem('local-legal-language','es');localStorage.setItem('local-legal-welcome-seen','true');
   const entities=[{kind:'PERSON',original:'María Pérez',alias:'PERSON_01',source:'review'},{kind:'EMAIL',original:'maria@example.com',alias:'EMAIL_01',source:'review'},{kind:'ID',original:'0912345678',alias:'ID_01',source:'review'}];
   const analyzedSession={id:'layout-1',revision:3,fileName:'layout-document.pdf',original:'María Pérez maria@example.com 0912345678',entities,sanitized:'PERSON_01 EMAIL_01 ID_01',warnings:[],advisories:[],analyzed:true,analysisComplete:true,reviewed:false,edited:false,layoutAvailable:true};
   let session=null;

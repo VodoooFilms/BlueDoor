@@ -33,4 +33,4 @@ class PcmCapture extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor("belegal-local-demo-pcm", PcmCapture);
+registerProcessor("local-legal-pcm", PcmCapture);

@@ -1,10 +1,10 @@
 {
-  "productName": "Belegal _ Local demo Diarization Test",
-  "identifier": "com.belegal.localdemo.diarizationtest",
+  "productName": "Local Legal Diarization Test",
+  "identifier": "com.locallegal.desktop.diarizationtest",
   "app": {
     "windows": [
       {
-        "title": "Belegal _ Local demo Diarization Test"
+        "title": "Local Legal Diarization Test"
       }
     ]
   }

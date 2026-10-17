@@ -9,12 +9,12 @@ a failure.
 
 Record tester/date, Mac model/chip/RAM, exact macOS build, source commit, DMG
 filename and SHA-256. Test at least macOS 13.4 and one current macOS release on
-Apple Silicon. Use a fresh macOS user or machine with no prior Belegal _ Local demo data.
+Apple Silicon. Use a fresh macOS user or machine with no prior Local Legal data.
 Download the DMG through a browser so quarantine is authentic.
 
 ## Primary journey
 
-1. Mount the DMG, drag Belegal _ Local demo to Applications, eject it, then open from
+1. Mount the DMG, drag Local Legal to Applications, eject it, then open from
    Applications. Gatekeeper must allow normal launch and show no missing-library
    or damaged-app dialog.
 2. Start recording and follow the native microphone prompt. Record 30 seconds

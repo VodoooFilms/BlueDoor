@@ -23,10 +23,10 @@ def rpaths(binary):
 
 def verify(app):
     app = app.resolve()
-    main = app / "Contents/MacOS/belegal-local-demo"
+    main = app / "Contents/MacOS/local-legal"
     resources = app / "Contents/Resources"
     errors = []
-    required = [main, resources / "runtime/ffmpeg", resources / "runtime/belegal-ocr", resources / "runtime/belegal-layout", resources / "runtime/ffmpeg-build.json",
+    required = [main, resources / "runtime/ffmpeg", resources / "runtime/local-legal-ocr", resources / "runtime/local-legal-layout", resources / "runtime/ffmpeg-build.json",
                 resources / "runtime/FFmpeg-LICENSE.txt", resources / "runtime/ffmpeg-source.tar.xz",
                 resources / "runtime/THIRD_PARTY_NOTICES.md", resources / "runtime/licenses/inventory.json"]
     for p in required:
@@ -34,7 +34,7 @@ def verify(app):
     if not main.is_file(): return errors
     with (app / "Contents/Info.plist").open("rb") as f:
         info = plistlib.load(f)
-    if info.get("CFBundleExecutable") != "belegal-local-demo": errors.append("Unexpected bundle executable")
+    if info.get("CFBundleExecutable") != "local-legal": errors.append("Unexpected bundle executable")
     if info.get("LSMinimumSystemVersion") != "13.4": errors.append("Unexpected deployment target")
     for p in app.rglob("*"):
         if p.is_symlink() and not p.resolve().is_relative_to(app): errors.append(f"External bundle symlink: {p}")
@@ -47,7 +47,7 @@ def verify(app):
     for binary in binaries:
         arch = subprocess.check_output(["lipo", "-archs", str(binary)], text=True).split()
         if arch != ["arm64"]: errors.append(f"{binary.name}: expected only arm64, found {arch}")
-        if not os.access(binary, os.X_OK) and binary in {resources / "runtime/ffmpeg", resources / "runtime/belegal-ocr"}: errors.append(f"Runtime helper is not executable: {binary.name}")
+        if not os.access(binary, os.X_OK) and binary in {resources / "runtime/ffmpeg", resources / "runtime/local-legal-ocr"}: errors.append(f"Runtime helper is not executable: {binary.name}")
         loads = subprocess.check_output(["otool", "-l", str(binary)], text=True)
         minimums = re.findall(r"\bminos ([\d.]+)", loads) + re.findall(r"cmd LC_VERSION_MIN_MACOSX\s+cmdsize \d+\s+version ([\d.]+)", loads)
         if not minimums: errors.append(f"{binary.name}: missing deployment metadata")
@@ -87,7 +87,7 @@ def verify(app):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2: sys.exit("Usage: verify-bundle.py /path/to/Belegal _ Local demo.app")
+    if len(sys.argv) != 2: sys.exit("Usage: verify-bundle.py /path/to/Local Legal.app")
     failures = verify(Path(sys.argv[1]))
     if failures: sys.exit("Bundle verification FAILED:\n" + "\n".join(failures))
     print("Bundle verification PASS: arm64, resources, deployment target, local dependencies and file-only decoder")

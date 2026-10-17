@@ -9,7 +9,7 @@ try {
   ]) {
     const page = await browser.newPage({ viewport: { width: 1370, height: 800 } });
     await page.addInitScript(({ voice, privacy, lang }) => {
-      localStorage.setItem('belegal-local-demo-language', lang);
+      localStorage.setItem('local-legal-language', lang);
       window.__TAURI_INTERNALS__ = {
         metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
         transformCallback: () => 1,
@@ -29,14 +29,14 @@ try {
     await page.getByRole('button', { name: scenario.cta, exact: true }).click();
     assert.equal(await page.getByRole('dialog').count(), 0);
     if (!scenario.voice || !scenario.privacy) await page.locator('.models').waitFor();
-    assert.equal(await page.evaluate(() => localStorage.getItem('belegal-local-demo-welcome-seen')), 'true');
+    assert.equal(await page.evaluate(() => localStorage.getItem('local-legal-welcome-seen')), 'true');
     await page.reload();
     await page.locator('.brand').waitFor();
     await page.waitForTimeout(250);
     assert.equal(await page.getByRole('dialog').count(), 0, 'welcome must not reopen automatically');
     await page.locator('.brand').click();
     await page.getByRole('button', { name: scenario.cta, exact: true }).waitFor();
-    if (scenario.voice && scenario.privacy) await page.screenshot({ path: 'artifacts/belegal-welcome.png' });
+    if (scenario.voice && scenario.privacy) await page.screenshot({ path: 'artifacts/local-legal-welcome.png' });
     await page.keyboard.press('Escape');
     assert.equal(await page.getByRole('dialog').count(), 0);
     await page.locator('.brand').click();

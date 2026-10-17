@@ -71,7 +71,7 @@ const ENGLISH: Record<string, string> = {
   "Bienvenido a": "Welcome to",
   "Prepara y protege documentos y audio localmente de manera privada antes de enviarlos al servidor.": "Prepare and protect documents and audio privately on your device before sending them to the server.",
   "Cerrar bienvenida": "Close welcome",
-  "Acerca de BeLegal": "About BeLegal",
+  "Acerca de Local Legal": "About Local Legal",
   "Comprobando modelos…": "Checking models…",
   "Comenzar": "Get started",
   "Descargar modelos locales": "Download local models",

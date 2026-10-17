@@ -1,13 +1,13 @@
 [package]
-name = "belegal-local-demo"
+name = "local-legal"
 version = "0.4.0"
-description = "Local & Private Belegal local demo Transcription"
-authors = ["Belegal _ Local demo"]
+description = "Local & Private Local Legal Transcription"
+authors = ["Local Legal"]
 edition = "2021"
 license = "MIT"
 
 [lib]
-name = "belegal_local_demo_lib"
+name = "local_legal_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

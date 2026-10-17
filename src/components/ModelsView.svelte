@@ -38,7 +38,7 @@
   let setupRunning = $state(false);
   let setupCancelled = false;
   let setupStatus = $state("");
-  const setupKey = "belegal-local-demo-setup-pending";
+  const setupKey = "local-legal-setup-pending";
   let setupPending = $state(localStorage.getItem(setupKey) === "true");
   const busy = $derived(setupRunning || installingId !== null);
   const offerSetup = $derived(loaded && (setupPending || !Object.values(installed).some(Boolean)));
@@ -52,7 +52,7 @@
   const ready = $derived(STT_OPTIONS.some((o) => installed[o.id]));
 
   onMount(async () => {
-    privacySelected = localStorage.getItem("belegal-privacy-model") || "qwen3-fast";
+    privacySelected = localStorage.getItem("local-legal-privacy-model") || "qwen3-fast";
     // Si venía guardado un modelo que ya no ofrecemos (tiny/base), volver al recomendado.
     if (!STT_OPTIONS.some((o) => o.id === getSttModel())) setSttModel(sttCurrent.id);
     unlistenProgress = await listen<[string, number]>("model-download-progress", (event) => {
@@ -226,7 +226,7 @@
   function pickPrivacy(id: string) {
     menu = null;
     privacySelected = id;
-    localStorage.setItem("belegal-privacy-model", id);
+    localStorage.setItem("local-legal-privacy-model", id);
   }
 </script>
 

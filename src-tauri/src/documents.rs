@@ -85,14 +85,18 @@ fn ocr_text(path: &Path, executable: Option<&Path>) -> Result<String, String> {
 
 #[cfg(target_os = "macos")]
 fn ocr_executable(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
-    let bundled = app.path().resource_dir().ok()?.join("runtime/belegal-ocr");
+    let bundled = app
+        .path()
+        .resource_dir()
+        .ok()?
+        .join("runtime/local-legal-ocr");
     if bundled.is_file() {
         return Some(bundled);
     }
     #[cfg(debug_assertions)]
     {
         let development =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/belegal-ocr");
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/local-legal-ocr");
         if development.is_file() {
             return Some(development);
         }
@@ -291,7 +295,7 @@ mod tests {
     #[test]
     fn local_ocr_reads_image_and_scanned_pdf() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let helper = root.join("resources/runtime/belegal-ocr");
+        let helper = root.join("resources/runtime/local-legal-ocr");
         for name in ["private-scan.png", "private-scan.pdf"] {
             let source = root.join("../tests/fixtures").join(name);
             let result = extract(&source, Some(&helper)).unwrap();

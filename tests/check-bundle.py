@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory(prefix="vtp-bundle-") as directory:
     assert any("Missing resource" in e for e in verifier.verify(app))
     decoder.write_bytes(saved)
     decoder.chmod(0o755)
-    binary = app / "Contents/MacOS/belegal-local-demo"
+    binary = app / "Contents/MacOS/local-legal"
     subprocess.run(["install_name_tool", "-add_rpath", "/opt/homebrew/lib", str(binary)], check=True, capture_output=True)
     assert any("forbidden LC_RPATH" in e for e in verifier.verify(app))
     subprocess.run(["install_name_tool", "-delete_rpath", "/opt/homebrew/lib", str(binary)], check=True, capture_output=True)

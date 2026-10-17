@@ -63,7 +63,7 @@ before enabling the option by default.
 ## Desktop prototype
 
 ```sh
-export BELEGAL_LOCAL_DEMO_NEMO_BIN="$PWD/experiments/diarization/local/nemo-speech-src/build/metal-diar/bin/nemo-speech"
+export LOCAL_LEGAL_NEMO_BIN="$PWD/experiments/diarization/local/nemo-speech-src/build/metal-diar/bin/nemo-speech"
 pnpm tauri dev --config src-tauri/tauri.diarization.conf.json
 ```
 

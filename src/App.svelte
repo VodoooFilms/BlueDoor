@@ -45,7 +45,7 @@
     fullScreen = !(await window.isFullscreen());
     await window.setFullscreen(fullScreen);
   }
-  const welcomeSeenKey = "belegal-local-demo-welcome-seen";
+  const welcomeSeenKey = "local-legal-welcome-seen";
   let welcomeVisible = $state(false);
   let welcomeReady = $state(false);
   let welcomeLoading = $state(true);
@@ -53,7 +53,7 @@
     welcomeLoading = true;
     try {
       const all = await invoke<{ whisper: { installed: boolean }[]; parakeet: { installed: boolean }[]; privacy: { id: string; installed: boolean }[] }>("list_models");
-      const selected = localStorage.getItem("belegal-privacy-model") || "qwen3-fast";
+      const selected = localStorage.getItem("local-legal-privacy-model") || "qwen3-fast";
       welcomeReady = (all.whisper.some(m => m.installed) || all.parakeet.some(m => m.installed))
         && all.privacy.some(m => m.id === selected && m.installed);
     } catch { welcomeReady = false; }
@@ -209,11 +209,11 @@
   }
 
   onMount(async () => {
-    const storedTheme = localStorage.getItem("belegal-local-demo-theme");
+    const storedTheme = localStorage.getItem("local-legal-theme");
     if (storedTheme === "light" || storedTheme === "dark") theme = storedTheme;
     await hydrate();
     if (localStorage.getItem(welcomeSeenKey) !== "true") openAbout();
-    editId = localStorage.getItem("belegal-local-demo-edit-id");
+    editId = localStorage.getItem("local-legal-edit-id");
   });
 
   onMount(() => {
@@ -238,7 +238,7 @@
 
   $effect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("belegal-local-demo-theme", theme);
+    localStorage.setItem("local-legal-theme", theme);
   });
 
   $effect(() => {
@@ -318,8 +318,8 @@
   $effect(() => {
     editId;
     if (!hydrated) return;
-    if (editId) localStorage.setItem("belegal-local-demo-edit-id", editId);
-    else localStorage.removeItem("belegal-local-demo-edit-id");
+    if (editId) localStorage.setItem("local-legal-edit-id", editId);
+    else localStorage.removeItem("local-legal-edit-id");
   });
 
   function handleNewTranscript(transcript: Transcript) {
@@ -477,8 +477,8 @@
 
 <div class="shell">
   <header class="masthead">
-    <span class="brand" role="button" tabindex="0" title={p("Acerca de BeLegal")} onclick={openAbout} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAbout(); } }}>
-      <span class="brand-wordmark">Be<i>Legal</i></span>
+    <span class="brand" role="button" tabindex="0" title={p("Acerca de Local Legal")} onclick={openAbout} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAbout(); } }}>
+      <span class="brand-wordmark">Local&nbsp;<i>Legal</i></span>
       <span class="brand-demo">Local demo</span>
     </span>
     {#if workflow === "audio" && activeTranscript && !showModels}
@@ -499,7 +499,7 @@
             <button id="themeToggle" aria-label={theme === "dark" ? t.lightTheme : t.darkTheme} onclick={toggleTheme}>{p("Apariencia")} <span>{p(theme === "dark" ? "Oscuro" : "Claro")}</span></button>
             <hr />
             <button id="fullscreenToggle" onclick={toggleFullScreen}>{p(fullScreen ? "Salir de pantalla completa" : "Pantalla completa")}</button>
-            <button onclick={() => { settingsEl.open = false; openAbout(); }}>{p("Acerca de BeLegal")}</button>
+            <button onclick={() => { settingsEl.open = false; openAbout(); }}>{p("Acerca de Local Legal")}</button>
           </div>
         </details>
       </div>

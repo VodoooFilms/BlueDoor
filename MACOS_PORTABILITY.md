@@ -10,7 +10,7 @@
 | Local AI | llama/ggml dynamic libraries | manually copied into Frameworks |
 | llama common | OpenSSL libssl/libcrypto | absolute /opt/homebrew paths in Mach-O |
 | PDF | Arial/Times/etc. system fonts | /System/Library/Fonts/Supplemental (macOS-owned) |
-| Models/history | app-owned downloaded models and user JSON | Application Support/com.belegal.localdemo |
+| Models/history | app-owned downloaded models and user JSON | Application Support/com.locallegal.desktop |
 | Frontend | WKWebView and embedded JS/CSS | macOS framework and app executable |
 
 No runtime ffprobe call exists. Rust, Node, pnpm, Python, CMake and Xcode are build tools only. The previous scripts' Homebrew include/library variables were build-time inputs whose OpenSSL linkage leaked into the runtime bundle. Repository-relative runtime lookup is not acceptable.
@@ -62,7 +62,7 @@ pnpm release:mac
 
 The command builds/caches the pinned decoder, gathers and audits dependency notices/source, builds the locked arm64 Tauri app in a dedicated `src-tauri/target/portable` tree, bundles native dependencies, removes build rpaths, adds the Frameworks rpath and verifies the icon/bundle. It then signs nested code and the app with Developer ID plus hardened runtime and secure timestamp, notarizes/staples the app and DMG, runs Gatekeeper assessments, verifies the image and emits SHA-256. `pnpm release:mac:dev` produces a separately named ad-hoc local test image.
 
-Artifact: `src-tauri/target/portable/aarch64-apple-darwin/release/bundle/dmg/Belegal _ Local demo_0.2.0_aarch64.dmg` (commercial), or `Belegal _ Local demo_0.2.0_development_aarch64.dmg` (development). Dated GitHub previews use an additional timestamp in the asset name.
+Artifact: `src-tauri/target/portable/aarch64-apple-darwin/release/bundle/dmg/Local Legal_0.2.0_aarch64.dmg` (commercial), or `Local Legal_0.2.0_development_aarch64.dmg` (development). Dated GitHub previews use an additional timestamp in the asset name.
 
 `build-dmg.sh` is a compatibility wrapper for that same command. `build-install.sh` uses it too, stages and verifies the app, keeps rollback until replacement succeeds, and launches. It is a developer convenience, not an end-user install requirement. No stale “newest app” discovery or skip-build distribution path. Tauri is configured to build only `.app`; plain `tauri build` is not the release entry point because post-processing remains necessary.
 
@@ -82,9 +82,9 @@ The offered correction models are Qwen3 1.7B and 4B Q4_K_M blobs identified by O
 
 ## Signing and remaining gates
 
-The canonical production pipeline is implemented but has not completed on this Mac because no valid Developer ID Application identity or notarization credential is installed. It signs FFmpeg and ggml modules/dylibs first, then the app with hardened runtime, secure timestamp and the audio-input entitlement; it adds no broad library-validation exception. It submits a zipped app and the final DMG with `notarytool --wait`, saves Apple rejection evidence, staples/validates both, then requires `codesign`, `spctl` and `hdiutil` checks. Configure either `BELEGAL_LOCAL_DEMO_NOTARY_PROFILE` or the documented API-key environment variables; credentials are never stored in the repository.
+The canonical production pipeline is implemented but has not completed on this Mac because no valid Developer ID Application identity or notarization credential is installed. It signs FFmpeg and ggml modules/dylibs first, then the app with hardened runtime, secure timestamp and the audio-input entitlement; it adds no broad library-validation exception. It submits a zipped app and the final DMG with `notarytool --wait`, saves Apple rejection evidence, staples/validates both, then requires `codesign`, `spctl` and `hdiutil` checks. Configure either `LOCAL_LEGAL_NOTARY_PROFILE` or the documented API-key environment variables; credentials are never stored in the repository.
 
-For App Store Connect API authentication, set `BELEGAL_LOCAL_DEMO_NOTARY_KEY_ID`, `BELEGAL_LOCAL_DEMO_NOTARY_ISSUER_ID` and `BELEGAL_LOCAL_DEMO_NOTARY_KEY_PATH`. For a Keychain profile, create it outside the repository with `xcrun notarytool store-credentials` and expose only its name as `BELEGAL_LOCAL_DEMO_NOTARY_PROFILE`. If more than one Developer ID identity exists, set `BELEGAL_LOCAL_DEMO_SIGNING_IDENTITY` to a unique name substring.
+For App Store Connect API authentication, set `LOCAL_LEGAL_NOTARY_KEY_ID`, `LOCAL_LEGAL_NOTARY_ISSUER_ID` and `LOCAL_LEGAL_NOTARY_KEY_PATH`. For a Keychain profile, create it outside the repository with `xcrun notarytool store-credentials` and expose only its name as `LOCAL_LEGAL_NOTARY_PROFILE`. If more than one Developer ID identity exists, set `LOCAL_LEGAL_SIGNING_IDENTITY` to a unique name substring.
 
 The clean-machine procedure and results ledger are in `MACOS_CLEAN_TEST.md`. **Runtime dependency and license engineering gates PASS; complete plug-and-play acceptance remains open.** Missing evidence: credentialed notarization and a genuine clean Apple Silicon Mac covering actual microphone/TCC, minimum-OS Metal, offline real inference/import/export, restart persistence, recovery scenarios and browser-downloaded Gatekeeper acceptance.
 

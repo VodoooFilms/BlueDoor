@@ -5,7 +5,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { ENTITY_KINDS, type EntityKind, type PrivateEntity, type PrivacySession } from "../lib/privacy";
-  import belegalMark from "../assets/belegal-mark.png";
+  import localLegalMark from "../assets/local-legal-mark.svg";
   import DocumentLayout from "./DocumentLayout.svelte";
   import TranscriptView from "./TranscriptView.svelte";
   import type { Transcript, DocFormat } from "../lib/types";
@@ -166,7 +166,7 @@
     sanitizing = false;
     analysisStep = "";
     await run("Analizando documento local…", async () => {
-      const modelId = localStorage.getItem("belegal-privacy-model") || "qwen3-fast";
+      const modelId = localStorage.getItem("local-legal-privacy-model") || "qwen3-fast";
       const analyzed = await invoke<PrivacySession>("analyze_private_document", { id: current.id, revision: current.revision, modelId });
       adopt(analyzed);
       if (analyzed.analyzed) onEdit(analyzed);
@@ -283,7 +283,7 @@
     {#if exported}<p class="notice" role="status">{p("PDF guardado con el formato original.")} {exported}</p>{/if}
   {:else}
     <div class="welcome">
-      <img class="welcome-mark" src={belegalMark} alt="" />
+      <img class="welcome-mark" src={localLegalMark} alt="" />
       <h2>{p("Lo privado permanece aquí.")}</h2>
       <p>{p("Importa un archivo. Qwen detectará entidades en este equipo; tú revisarás qué información puede formar parte de una futura solicitud.")}</p>
       <button bind:this={importZone} class="welcome-import" class:dragging-document={draggingDocument} aria-label={p("Importar documento")} onclick={() => importDocument()} disabled={!!busy}>

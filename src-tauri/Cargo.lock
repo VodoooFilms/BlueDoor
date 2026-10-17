@@ -265,35 +265,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
-name = "belegal-local-demo"
-version = "0.4.0"
-dependencies = [
- "chrono",
- "encoding_rs",
- "fs2",
- "genpdf",
- "hound",
- "llama-cpp-2",
- "llama-cpp-sys-2",
- "pdf-extract",
- "quick-xml 0.37.5",
- "regex",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "tempfile",
- "transcribe-cpp",
- "ureq",
- "uuid",
- "zip",
-]
-
-[[package]]
 name = "bindgen"
 version = "0.72.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2369,6 +2340,35 @@ dependencies = [
  "find_cuda_helper",
  "glob",
  "walkdir",
+]
+
+[[package]]
+name = "local-legal"
+version = "0.4.0"
+dependencies = [
+ "chrono",
+ "encoding_rs",
+ "fs2",
+ "genpdf",
+ "hound",
+ "llama-cpp-2",
+ "llama-cpp-sys-2",
+ "pdf-extract",
+ "quick-xml 0.37.5",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tempfile",
+ "transcribe-cpp",
+ "ureq",
+ "uuid",
+ "zip",
 ]
 
 [[package]]

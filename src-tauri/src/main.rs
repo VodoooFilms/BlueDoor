@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    belegal_local_demo_lib::run()
+    local_legal_lib::run()
 }

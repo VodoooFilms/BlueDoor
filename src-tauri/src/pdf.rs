@@ -457,7 +457,7 @@ impl genpdf::PageDecorator for ReportDecorator {
                 .bold()
                 .with_font_size(9)
                 .with_color(genpdf::style::Color::Greyscale(70)),
-            "Belegal _ Local demo",
+            "Local Legal",
         );
         // Titulo alineado a la derecha (recortado para que siempre quepa).
         let header_style = genpdf::style::Style::new()
@@ -504,7 +504,7 @@ impl genpdf::PageDecorator for ReportDecorator {
             &context.font_cache,
             genpdf::Position::new(left, page - 7.0),
             footer_style,
-            "Generado por Belegal _ Local demo — Local y privado",
+            "Generado por Local Legal — Local y privado",
         );
         let page_label = format!("Página {}", self.page);
         let pw: f64 = footer_style

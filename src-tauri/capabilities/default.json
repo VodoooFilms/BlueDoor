@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Belegal _ Local demo default capability",
+  "description": "Local Legal default capability",
   "windows": ["main"],
   "permissions": [
     "core:default",

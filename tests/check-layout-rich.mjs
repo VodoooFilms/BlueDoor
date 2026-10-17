@@ -8,7 +8,7 @@ const browser=await webkit.launch();
 try {
  const page=await browser.newPage({viewport:{width:1600,height:1050}});page.setDefaultTimeout(15000);
  await page.addInitScript(({pages,editedPages,blocks})=>{
-  localStorage.setItem('belegal-local-demo-language','es');localStorage.setItem('belegal-local-demo-welcome-seen','true');
+  localStorage.setItem('local-legal-language','es');localStorage.setItem('local-legal-welcome-seen','true');
   let session={id:'rich-layout',revision:1,fileName:'layout-document.pdf',original:'Informe de prueba María Pérez maria@example.com 0912345678',entities:[{kind:'PERSON',original:'María Pérez',alias:'PERSON_01',source:'review'}],sanitized:'Informe de prueba PERSON_01',warnings:[],advisories:[],analyzed:true,analysisComplete:true,reviewed:false,edited:false,layoutAvailable:true};
   window.__layoutCalls=[];
   window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},transformCallback:()=>1,invoke:async(cmd,args)=>{

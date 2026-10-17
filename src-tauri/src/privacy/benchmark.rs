@@ -7,17 +7,17 @@ use std::path::Path;
 #[ignore = "Requires downloaded validation data and verified local Qwen weights"]
 fn measure_dataset_workflow() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../artifacts/benchmark");
-    let fixture_name = std::env::var("BELEGAL_BENCHMARK_FILE")
+    let fixture_name = std::env::var("LOCAL_LEGAL_BENCHMARK_FILE")
         .unwrap_or_else(|_| "openpii-validation.jsonl".into());
-    let output_name = std::env::var("BELEGAL_BENCHMARK_OUTPUT")
+    let output_name = std::env::var("LOCAL_LEGAL_BENCHMARK_OUTPUT")
         .unwrap_or_else(|_| "baseline-results.json".into());
     let fixture = std::fs::read_to_string(root.join(fixture_name)).unwrap();
-    let model = match std::env::var("BELEGAL_BENCHMARK_MODEL") {
+    let model = match std::env::var("LOCAL_LEGAL_BENCHMARK_MODEL") {
         Ok(path) => {
             use sha2::{Digest, Sha256};
             use std::io::Read;
             let path = std::path::PathBuf::from(path);
-            let expected = std::env::var("BELEGAL_BENCHMARK_MODEL_SHA256")
+            let expected = std::env::var("LOCAL_LEGAL_BENCHMARK_MODEL_SHA256")
                 .expect("External evaluation weights require an explicit SHA-256");
             let mut hash = Sha256::new();
             let mut file = std::fs::File::open(&path).unwrap();
@@ -39,7 +39,7 @@ fn measure_dataset_workflow() {
         }
     };
     let engine = crate::llm::LlmEngine::load(model.to_str().unwrap()).unwrap();
-    if let Ok(destination) = std::env::var("BELEGAL_EXPORT_TRAINING_CONTRACT") {
+    if let Ok(destination) = std::env::var("LOCAL_LEGAL_EXPORT_TRAINING_CONTRACT") {
         std::fs::write(destination, engine.privacy_prompt_for_test("{{DOCUMENT}}")).unwrap();
         return;
     }
@@ -47,8 +47,9 @@ fn measure_dataset_workflow() {
         .lines()
         .map(|s| serde_json::from_str(s).unwrap())
         .collect();
-    if let Ok(path) = std::env::var("BELEGAL_PAYPAL_DOCUMENT") {
-        let helper = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/belegal-ocr");
+    if let Ok(path) = std::env::var("LOCAL_LEGAL_PAYPAL_DOCUMENT") {
+        let helper =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/local-legal-ocr");
         let output = std::process::Command::new(helper)
             .arg(path)
             .output()

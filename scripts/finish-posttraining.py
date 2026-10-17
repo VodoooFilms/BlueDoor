@@ -53,8 +53,8 @@ def finish():
         output = f"trained-{name}-results.json"
         stage(f"evaluate-{name}", ["cargo", "test", "--manifest-path", "src-tauri/Cargo.toml", "--lib",
               "measure_dataset_workflow", "--", "--ignored", "--nocapture"],
-              dict(BELEGAL_BENCHMARK_FILE=fixture, BELEGAL_BENCHMARK_OUTPUT=output,
-                   BELEGAL_BENCHMARK_MODEL=str(trained), BELEGAL_BENCHMARK_MODEL_SHA256=trained_hash))
+              dict(LOCAL_LEGAL_BENCHMARK_FILE=fixture, LOCAL_LEGAL_BENCHMARK_OUTPUT=output,
+                   LOCAL_LEGAL_BENCHMARK_MODEL=str(trained), LOCAL_LEGAL_BENCHMARK_MODEL_SHA256=trained_hash))
         stage(f"score-{name}", [PYTHON, "scripts/score-privacy-benchmark.py", ROOT/"artifacts/benchmark"/output])
         before = json.loads((ROOT/f"artifacts/benchmark/{baseline}-score.json").read_text())
         after = json.loads((ROOT/f"artifacts/benchmark/trained-{name}-score.json").read_text())
@@ -95,7 +95,7 @@ def finish():
     stage("frontend-check", ["pnpm", "check"])
     stage("native-check", ["cargo", "clippy", "--manifest-path", "src-tauri/Cargo.toml", "--all-targets", "--", "-D", "warnings"])
     stage("build-app", [sys.executable, "scripts/build-local-demo.py", "--no-open"])
-    models = Path.home()/"Library/Application Support/com.belegal.localdemo/models"
+    models = Path.home()/"Library/Application Support/com.locallegal.desktop/models"
     destination = models/trained.name
     if destination.exists():
         assert sha(destination) == trained_hash, "A different trained model is installed; preserve it before replacement"
@@ -104,11 +104,11 @@ def finish():
         shutil.copy2(trained, temporary)
         assert sha(temporary) == trained_hash
         temporary.replace(destination)
-    built = ROOT/"src-tauri/target/debug/bundle/macos/Belegal _ Local demo.app"
-    installed = Path("/Applications/Belegal _ Local demo.app")
+    built = ROOT/"src-tauri/target/debug/bundle/macos/Local Legal.app"
+    installed = Path("/Applications/Local Legal.app")
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    staging = Path(f"/Applications/Belegal-posttraining-{stamp}.app")
-    backup = Path.home()/f"Downloads/BeLegal/Belegal antes del postentrenamiento {stamp}.app"
+    staging = Path(f"/Applications/Local Legal-posttraining-{stamp}.app")
+    backup = Path.home()/f"Downloads/Local Legal/Local Legal antes del postentrenamiento {stamp}.app"
     assert not staging.exists() and not backup.exists()
     subprocess.run(["ditto", str(built), str(staging)], check=True)
     subprocess.run(["codesign", "--verify", "--deep", "--strict", str(staging)], check=True)

@@ -3,14 +3,14 @@
 <plist version="1.0">
 <dict>
     <key>NSDocumentsFolderUsageDescription</key>
-    <string>Belegal prepara el acceso a Documentos para importar y analizar archivos locales y exportar tus documentos.</string>
+    <string>Local Legal prepara el acceso a Documentos para importar y analizar archivos locales y exportar tus documentos.</string>
     <key>NSDesktopFolderUsageDescription</key>
-    <string>Belegal prepara el acceso al Escritorio para importar archivos locales y exportar tus documentos.</string>
+    <string>Local Legal prepara el acceso al Escritorio para importar archivos locales y exportar tus documentos.</string>
     <key>NSDownloadsFolderUsageDescription</key>
-    <string>Belegal prepara el acceso a Descargas para importar archivos locales y exportar tus documentos.</string>
+    <string>Local Legal prepara el acceso a Descargas para importar archivos locales y exportar tus documentos.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Belegal _ Local demo usa el micrófono para grabar tu voz y convertirla en un documento PDF. Todo el audio permanece en tu dispositivo.</string>
+    <string>Local Legal usa el micrófono para grabar tu voz y convertirla en un documento PDF. Todo el audio permanece en tu dispositivo.</string>
     <key>NSAudioCaptureUsageDescription</key>
-    <string>Belegal _ Local demo graba tu voz para transcribirla a un documento PDF. Todo el audio permanece en tu dispositivo.</string>
+    <string>Local Legal graba tu voz para transcribirla a un documento PDF. Todo el audio permanece en tu dispositivo.</string>
 </dict>
 </plist>

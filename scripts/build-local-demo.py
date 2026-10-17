@@ -7,7 +7,7 @@ import sys
 
 root = Path(__file__).resolve().parent.parent
 build = root / "src-tauri/target/debug"
-app = build / "bundle/macos/Belegal _ Local demo.app"
+app = build / "bundle/macos/Local Legal.app"
 def run(args):
     subprocess.run([str(arg) for arg in args], cwd=root, check=True)
 

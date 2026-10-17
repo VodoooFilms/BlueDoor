@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { privateCopy as p } from "../lib/private-i18n";
-  import mark from "../assets/belegal-mark.png";
+  import mark from "../assets/local-legal-mark.svg";
 
   let { ready, loading, onClose, onContinue }: {
     ready: boolean; loading: boolean; onClose: () => void; onContinue: () => void;
@@ -29,7 +29,7 @@
   </button>
   <div class="content">
     <h1 id="welcome-title">{p("Bienvenido a")}</h1>
-    <img src={mark} alt="BeLegal" />
+    <img src={mark} alt="Local Legal" />
     <p>{p("Prepara y protege documentos y audio localmente de manera privada antes de enviarlos al servidor.")}</p>
     <button class="continue" onclick={onContinue} disabled={loading}>{loading ? p("Comprobando modelos…") : ready ? p("Comenzar") : p("Descargar modelos locales")}</button>
   </div>

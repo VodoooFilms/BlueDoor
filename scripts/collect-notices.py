@@ -188,7 +188,7 @@ def collect():
         "missing_license_expression": sum(not item["license"] for item in inventory),
         "runtime_missing_license_file": sum(
             item["scope"].startswith("runtime")
-            and item["name"] != "belegal-local-demo"
+            and item["name"] != "local-legal"
             and not item["license_files"]
             for item in inventory
         ),
@@ -197,7 +197,7 @@ def collect():
         json.dumps(summary, indent=2) + "\n"
     )
     shutil.copyfile(ROOT / "THIRD_PARTY_NOTICES.md", OUT / "THIRD_PARTY_NOTICES.md")
-    shutil.copyfile(ROOT / "LICENSE", OUT / "Belegal _ Local demo-LICENSE.txt")
+    shutil.copyfile(ROOT / "LICENSE", OUT / "Local Legal-LICENSE.txt")
     shutil.copyfile(ROOT / "scripts/build-ffmpeg.py", OUT / "ffmpeg-build.py")
     shutil.copyfile(
         ROOT / ".build-cache/ffmpeg-8.1.2.tar.xz", OUT / "ffmpeg-source.tar.xz"

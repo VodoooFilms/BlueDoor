@@ -7,7 +7,7 @@ and counsel, not a legal opinion.
 
 | Component | Exact version/source | Delivery | License and attribution | Redistribution / commercial conclusion |
 |---|---|---|---|---|
-| Belegal _ Local demo | repository version 0.1.0 | Bundled | MIT, copyright Belegal _ Local demo contributors | **Allowed**; retain MIT notice. |
+| Local Legal | repository version 0.1.0 | Bundled | MIT; original Belegal _ Local demo contributors attribution retained in LICENSE | **Allowed**; retain MIT notice. |
 | FFmpeg audio decoder | 8.1.2; SHA-256 pinned official tarball | Bundled executable | LGPL-2.1-or-later; FFmpeg project | **Allowed with obligations**. The build disables GPL, nonfree, version3, network and external autodetection. Bundle the unmodified corresponding source archive, build recipe and LGPL text. Codec patent review remains market-specific. |
 | whisper.cpp and Rust bindings | `whisper-rs` 0.12.0 / `whisper-rs-sys` 0.10.0 | Linked code | whisper.cpp MIT; bindings Unlicense | **Allowed with obligations**; retain notices. |
 | Tauri, Svelte and remaining runtime packages | exact versions in `runtime/licenses/inventory.json` generated from Cargo.lock and pnpm lock | Linked/bundled | Per-package SPDX expression, source, authors and license files in inventory | **Allowed with recorded obligations** for the current closure. The release gate fails if a runtime package lacks an expression or license evidence. MPL-covered `selectors` source remains available at its recorded upstream revision. |

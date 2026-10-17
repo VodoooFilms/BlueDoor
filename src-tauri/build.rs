@@ -6,7 +6,7 @@ fn main() {
             Ok("x86_64") => "x86_64",
             _ => panic!("unsupported macOS OCR target"),
         };
-        for helper in ["belegal-ocr", "belegal-layout"] {
+        for helper in ["local-legal-ocr", "local-legal-layout"] {
             let source = PathBuf::from(format!("ocr/{helper}.swift"));
             let destination = PathBuf::from(format!("resources/runtime/{helper}"));
             println!("cargo:rerun-if-changed={}", source.display());

@@ -72,11 +72,11 @@ pub(crate) fn executable(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .path()
         .resource_dir()
         .map_err(|_| "Componente de formato no disponible.")?
-        .join("runtime/belegal-layout");
+        .join("runtime/local-legal-layout");
     #[cfg(debug_assertions)]
     if !bundled.is_file() {
         let development =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/belegal-layout");
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/local-legal-layout");
         if development.is_file() {
             return Ok(development);
         }
@@ -514,7 +514,7 @@ mod tests {
     use super::*;
     use crate::privacy::Kind;
     fn helper() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/belegal-layout")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/local-legal-layout")
     }
     #[test]
     fn qr_codes_are_erased_in_preview_and_export_without_text_redactions() {
@@ -572,15 +572,15 @@ mod tests {
         assert_eq!(std::fs::read(root).unwrap(), original);
     }
     #[test]
-    #[ignore = "Requires BELEGAL_QA_LAYOUT and BELEGAL_QA_RESULT from local inference QA"]
+    #[ignore = "Requires LOCAL_LEGAL_QA_LAYOUT and LOCAL_LEGAL_QA_RESULT from local inference QA"]
     fn local_pdf_analysis_renders_all_pages() {
-        let source = std::env::var("BELEGAL_QA_LAYOUT").unwrap();
-        let result = std::env::var("BELEGAL_QA_RESULT").unwrap();
+        let source = std::env::var("LOCAL_LEGAL_QA_LAYOUT").unwrap();
+        let result = std::env::var("LOCAL_LEGAL_QA_RESULT").unwrap();
         let document: DocumentLayout =
             serde_json::from_slice(&std::fs::read(source).unwrap()).unwrap();
         let qwen: Vec<Entity> = serde_json::from_slice(&std::fs::read(result).unwrap()).unwrap();
         let blocks = editor::blocks(&document, &qwen).unwrap();
-        if let Ok(index) = std::env::var("BELEGAL_QA_EDIT_BLOCK") {
+        if let Ok(index) = std::env::var("LOCAL_LEGAL_QA_EDIT_BLOCK") {
             let block = if index == "auto" {
                 blocks
                     .iter()
@@ -640,7 +640,7 @@ mod tests {
         fit_generated_aliases(&document, &mut map, &helper()).unwrap();
         let sanitized = crate::privacy::sanitize(&document.text, &map).unwrap();
         // External QA expectations stay outside source control, like the input.
-        if let Ok(path) = std::env::var("BELEGAL_QA_EXPECTED_NAMES") {
+        if let Ok(path) = std::env::var("LOCAL_LEGAL_QA_EXPECTED_NAMES") {
             let names: Vec<String> = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
             assert!(!names.is_empty());
             for name in &names {

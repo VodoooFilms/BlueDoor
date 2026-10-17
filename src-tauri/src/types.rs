@@ -156,7 +156,7 @@ impl AppState {
         {
             Ok(canonical)
         } else {
-            Err("Selecciona el audio mediante el diálogo de Belegal _ Local demo.".into())
+            Err("Selecciona el audio mediante el diálogo de Local Legal.".into())
         }
     }
 
@@ -174,7 +174,7 @@ impl AppState {
         if self.authorized_pdf_paths.lock().unwrap().remove(&canonical) {
             Ok(canonical)
         } else {
-            Err("Selecciona el destino mediante el diálogo de Belegal _ Local demo.".into())
+            Err("Selecciona el destino mediante el diálogo de Local Legal.".into())
         }
     }
 
@@ -201,7 +201,10 @@ impl AppState {
         {
             Ok(canonical)
         } else {
-            Err("Arrastra el documento a la ventana de Belegal _ Local demo o selecciónalo en el diálogo.".into())
+            Err(
+                "Arrastra el documento a la ventana de Local Legal o selecciónalo en el diálogo."
+                    .into(),
+            )
         }
     }
 

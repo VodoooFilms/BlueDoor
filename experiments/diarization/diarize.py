@@ -100,7 +100,7 @@ def main() -> None:
         parser.error(f"Missing Whisper model directory: {args.whisper_model}")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="belegal-local-demo-diar-") as temp:
+    with tempfile.TemporaryDirectory(prefix="local-legal-diar-") as temp:
         wav = Path(temp) / "audio.wav"
         diar_json = Path(temp) / "diarization.json"
         run_checked(

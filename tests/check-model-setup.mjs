@@ -7,13 +7,13 @@ const startLabel = 'Descargar todos los modelos y aprobar permisos';
 async function scenario(options = {}) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   await page.addInitScript(options => {
-    localStorage.setItem('belegal-local-demo-welcome-seen', 'true');
-    localStorage.setItem('belegal-local-demo-language', options.lang || 'es');
+    localStorage.setItem('local-legal-welcome-seen', 'true');
+    localStorage.setItem('local-legal-language', options.lang || 'es');
     if (options.choices) {
-      localStorage.setItem('belegal-local-demo-model-stt', 'small');
-      localStorage.setItem('belegal-privacy-model', 'qwen3-q8');
+      localStorage.setItem('local-legal-model-stt', 'small');
+      localStorage.setItem('local-legal-privacy-model', 'qwen3-q8');
     }
-    if (options.pending) localStorage.setItem('belegal-local-demo-setup-pending', 'true');
+    if (options.pending) localStorage.setItem('local-legal-setup-pending', 'true');
     const installed = new Set(options.installed || []);
     window.setupCalls = [];
     let fail = options.fail;
@@ -82,9 +82,9 @@ try {
   await page.locator('.settings-menu summary').click();
   await page.locator('#modelsToggle').click();
   assert.deepEqual(await page.evaluate(() => window.setupCalls), ['microphone', 'stop-microphone', 'permissions', 'parakeet-tdt-0.6b-v3', 'qwen3-fast', 'nemotron3-diarization']);
-  assert.equal(await page.evaluate(() => localStorage.getItem('belegal-privacy-model')), 'qwen3-fast');
-  assert.equal(await page.evaluate(() => localStorage.getItem('belegal-local-demo-model-stt')), 'parakeet-tdt-0.6b-v3');
-  assert.equal(await page.evaluate(() => localStorage.getItem('belegal-local-demo-setup-pending')), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem('local-legal-privacy-model')), 'qwen3-fast');
+  assert.equal(await page.evaluate(() => localStorage.getItem('local-legal-model-stt')), 'parakeet-tdt-0.6b-v3');
+  assert.equal(await page.evaluate(() => localStorage.getItem('local-legal-setup-pending')), null);
   assert.equal(await page.getByText('✓ Descargado', { exact: true }).count(), 3);
   await mkdir('artifacts', { recursive: true });
   await page.screenshot({ path: 'artifacts/model-setup-complete.png' });

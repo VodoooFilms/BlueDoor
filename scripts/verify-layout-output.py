@@ -39,7 +39,7 @@ for name in ['layout-document.pdf', 'private-scan.pdf']:
         exported = embedded[0].image.convert('RGB')
         assert exported.size == after.size
         assert ImageChops.difference(exported,after).getbbox() is None, 'Export differs from preview'
-    helper = Path('src-tauri/resources/runtime/belegal-ocr')
+    helper = Path('src-tauri/resources/runtime/local-legal-ocr')
     extracted = subprocess.check_output([str(helper), str(output)],stderr=subprocess.DEVNULL).decode()
     for value in ['María Pérez','Maria Perez','maria@example.com','0912345678']:
         assert value.casefold() not in extracted.casefold(), f'Redacted value visible to independent OCR: {value}'

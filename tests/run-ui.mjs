@@ -29,7 +29,7 @@ async function runCommand(command, args, env = process.env) {
 }
 async function run(file, language = "es") {
   console.log(`\nRunning ${file} (${language})`);
-  await runCommand(process.execPath, [`tests/${file}`], { ...process.env, BELEGAL_TEST_LANG: language });
+  await runCommand(process.execPath, [`tests/${file}`], { ...process.env, LOCAL_LEGAL_TEST_LANG: language });
 }
 
 try {

@@ -7,8 +7,8 @@ const browser = await webkit.launch();
 try {
   const page = await browser.newPage({viewport:{width:1440,height:1000}});
   await page.addInitScript(() => {
-    localStorage.setItem('belegal-local-demo-language','es');
-    localStorage.setItem('belegal-local-demo-welcome-seen','true');
+    localStorage.setItem('local-legal-language','es');
+    localStorage.setItem('local-legal-welcome-seen','true');
     const entities = [
       {kind:'COMPANY',original:'Empresa Ejemplo S.A.',alias:'COMPANY_01',source:'review'},
       {kind:'COMPANY',original:'*EMPRESAEJEMPLO',alias:'COMPANY_01',source:'review'},

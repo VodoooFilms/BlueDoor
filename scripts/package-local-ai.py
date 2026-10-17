@@ -41,7 +41,7 @@ def prepare(app, build):
         shutil.copy2(library, target)
     # Use the current build's emitted modules, not an arbitrary system directory.
     candidates = list((build / 'build').glob('llama-cpp-sys-2-*/out/backends'))
-    main = app / 'Contents/MacOS/belegal-local-demo'
+    main = app / 'Contents/MacOS/local-legal'
     binary_data = main.read_bytes()
     candidates = [p for p in candidates if (p / 'libggml-metal.so').is_file()]
     embedded = [p for p in candidates if str(p.resolve()).encode() in binary_data]
@@ -62,7 +62,7 @@ def prepare(app, build):
     missing = [name for name in required_backends(root) if not (frameworks / name).is_file()]
     if missing:
         raise RuntimeError('Bundle lacks the backends platform.rs requires: ' + ', '.join(missing))
-    main = app / 'Contents/MacOS/belegal-local-demo'
+    main = app / 'Contents/MacOS/local-legal'
     for binary in verifier.macho_files(app):
         for path in verifier.rpaths(binary):
             if path.startswith('/'):

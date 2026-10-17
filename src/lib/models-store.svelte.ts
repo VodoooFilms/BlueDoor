@@ -4,9 +4,9 @@
 import { DEFAULT_STT, STT_OPTIONS } from "./types";
 import type { SttModel } from "./types";
 
-const KEY = "belegal-local-demo-model-stt";
+const KEY = "local-legal-model-stt";
 // Clave de la era en la que solo había Whisper. Se lee una vez y se migra.
-const LEGACY_KEY = "belegal-local-demo-model-whisper";
+const LEGACY_KEY = "local-legal-model-whisper";
 
 function read(key: string): string | null {
   try {

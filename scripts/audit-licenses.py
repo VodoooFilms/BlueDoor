@@ -18,14 +18,14 @@ def audit():
         f"{item['ecosystem']}:{item['name']}@{item['version']}"
         for item in inventory
         if item["scope"].startswith("runtime")
-        and item["name"] != "belegal-local-demo"
+        and item["name"] != "local-legal"
         and not item["license"]
     ]
     runtime_missing_text = [
         f"{item['ecosystem']}:{item['name']}@{item['version']}"
         for item in inventory
         if item["scope"].startswith("runtime")
-        and item["name"] != "belegal-local-demo"
+        and item["name"] != "local-legal"
         and not item["license_files"]
     ]
     if runtime_missing_expression or runtime_missing_text:
@@ -55,7 +55,7 @@ def audit():
         "status": "FAIL" if blockers else "PASS",
         "scope": "arm64 macOS runtime plus models downloadable from the current catalog",
         "classifications": {
-            "allowed": ["Belegal _ Local demo application code (MIT)"],
+            "allowed": ["Local Legal application code (MIT)"],
             "allowed_with_obligations": [
                 "FFmpeg 8.1.2 (LGPL-2.1-or-later; source and build recipe included)",
                 "Whisper model weights and whisper.cpp (MIT)",

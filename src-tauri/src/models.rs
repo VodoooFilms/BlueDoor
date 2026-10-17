@@ -167,7 +167,7 @@ pub(crate) fn list_models(app_handle: tauri::AppHandle) -> ModelsList {
         let path = models_dir(&app_handle).join(QWEN_PII_FILE);
         privacy.push(ModelEntry {
             id: QWEN_PII_ID.into(),
-            name: "BeLegal PII v1 · postentrenado".into(),
+            name: "Local Legal PII v1 · postentrenado".into(),
             size: format!("{:.2} GB", asset.size as f64 / 1_000_000_000.0),
             installed: model_appears_installed(&path),
             path: path.to_string_lossy().into(),
@@ -425,7 +425,7 @@ fn download_attempt(
         )
     })?;
     let mut temp = tempfile::Builder::new()
-        .prefix("belegal-local-demo-model-")
+        .prefix("local-legal-model-")
         .suffix(".part")
         .tempfile_in(
             destination

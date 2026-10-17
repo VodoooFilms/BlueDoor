@@ -1,4 +1,4 @@
-# Cambios de BeLegal
+# Cambios de Local Legal
 
 ## 0.4.0 — 5 de octubre de 2026
 

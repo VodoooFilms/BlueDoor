@@ -134,5 +134,5 @@ pub fn run() {
             store::save_transcripts,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Belegal _ Local demo");
+        .expect("error while running Local Legal");
 }

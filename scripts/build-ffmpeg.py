@@ -31,9 +31,9 @@ COMMON_FLAGS = [
 
 def target_config():
     """Return native build settings; Windows is built only on Windows/MSYS2."""
-    if os.environ.get("BELEGAL_LOCAL_DEMO_FFMPEG_WINDOWS") == "1":
-        arch = os.environ["BELEGAL_LOCAL_DEMO_FFMPEG_ARCH"]
-        target = os.environ["BELEGAL_LOCAL_DEMO_FFMPEG_TARGET"]
+    if os.environ.get("LOCAL_LEGAL_FFMPEG_WINDOWS") == "1":
+        arch = os.environ["LOCAL_LEGAL_FFMPEG_ARCH"]
+        target = os.environ["LOCAL_LEGAL_FFMPEG_TARGET"]
         if arch not in {"aarch64", "x86_64"} or target not in {
             "aarch64-pc-windows-msvc", "x86_64-pc-windows-msvc"
         }:

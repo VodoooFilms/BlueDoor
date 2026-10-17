@@ -1,5 +1,5 @@
 {
-  "name": "belegal-local-demo",
+  "name": "local-legal",
   "private": true,
   "version": "0.4.0",
   "type": "module",
@@ -10,7 +10,7 @@
     "tauri": "tauri",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
     "release:mac": "python3 scripts/release-mac.py",
-    "release:mac:dev": "BELEGAL_LOCAL_DEMO_RELEASE_MODE=development python3 scripts/release-mac.py",
+    "release:mac:dev": "LOCAL_LEGAL_RELEASE_MODE=development python3 scripts/release-mac.py",
     "release:windows:arm64": "powershell -ExecutionPolicy Bypass -File scripts/release-windows.ps1 -Architecture arm64",
     "release:windows:x64": "powershell -ExecutionPolicy Bypass -File scripts/release-windows.ps1 -Architecture x64",
     "prepare:runtime": "python3 scripts/build-ffmpeg.py && python3 scripts/collect-notices.py",

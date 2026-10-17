@@ -1,4 +1,4 @@
-# Postentrenamiento de BeLegal PII v1
+# Postentrenamiento de Local Legal PII v1
 
 Ejecución local autorizada el 3 de octubre de 2026. La ejecución se interrumpió en el microstep 1.740 de 21.320; no completó la época ni la evaluación externa final. Se conserva el checkpoint de validación, pero no se promovió ningún modelo. Este documento describe la configuración ejecutada; **no afirma que haya terminado ni que el modelo ya sea mejor**. El estado real se guarda en `artifacts/posttraining/status.json` y `pipeline-status.json`; la comparación final aparecerá en `artifacts/posttraining/RESULTADO.md`.
 

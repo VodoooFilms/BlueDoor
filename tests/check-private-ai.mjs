@@ -1,7 +1,7 @@
 import { webkit } from 'playwright';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-const language = process.env.BELEGAL_TEST_LANG || 'es';
+const language = process.env.LOCAL_LEGAL_TEST_LANG || 'es';
 const copySource = readFileSync(new URL('../src/lib/private-i18n.ts',import.meta.url),'utf8');
 const english = JSON.parse(copySource.slice(copySource.indexOf('= {')+2,copySource.indexOf('\n};')+2));
 const ui = text => language === 'en' ? (english[text] || text.replace(/^Eliminar entidad/, 'Remove entity')) : text;
@@ -12,7 +12,7 @@ try {
   const page = await browser.newPage({viewport:{width:1370,height:800}});
   const requests=[];
   page.on('request',r=>requests.push(r.url()));
-  await page.addInitScript(lang => { localStorage.setItem('belegal-local-demo-language',lang); localStorage.setItem('belegal-local-demo-welcome-seen','true'); }, language);
+  await page.addInitScript(lang => { localStorage.setItem('local-legal-language',lang); localStorage.setItem('local-legal-welcome-seen','true'); }, language);
   await page.addInitScript(() => {
     window.isTauri=true;
     const original='María Pérez demanda a Banco Andino. Email: maria@example.com. Reclama USD 1500 el 2026-09-30.';
@@ -91,7 +91,7 @@ try {
         if(args.title&&/@|\d{8,}/.test(args.title))throw new Error('PDF bloqueado: el título contiene posibles datos privados.');
         return;
       }
-      if(cmd==='choose_pdf_destination')return '/tmp/belegal-audit.pdf';
+      if(cmd==='choose_pdf_destination')return '/tmp/local-legal-audit.pdf';
       if(cmd==='generate_pdf'){
         // The writer, not the renderer, decides what reaches the disk.
         if(args.private&&(!args.private.id||args.private.revision!==session.revision))throw new Error('Stale private export');
