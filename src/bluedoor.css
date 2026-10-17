@@ -124,7 +124,7 @@
 /* Audio actions and missing-model cards keep enough room for their copy. */
 :root .shell .mic-panel { padding:24px 32px; }
 :root .shell .mic-btn .state-title { font-weight:700; text-align:center; }
-:root .shell .mic-btn:not(.recording):not(.busy) .state-title { display:grid; place-items:center; }
+:root .shell .mic-btn:not(.recording):not(.busy) .state-title { display:flex; align-items:center; justify-content:center; gap:10px; }
 :root .shell .mic-panel .import-inline,:root .shell .mic-panel .download-btn { font-weight:700; }
 :root .shell .mic-panel .model-card { width: min(100%,680px); max-width:680px; padding:18px 22px; gap:28px; flex-shrink:0; }
 :root .shell .mic-panel .model-copy { gap:6px; }
@@ -142,3 +142,8 @@
   :root .shell .mic-btn .status { margin-top:8px; min-height:110px; }
   :root .shell .mic-panel .model-card { padding-top:12px; padding-bottom:12px; }
 }
+
+:root .blue-import-screen .import-action { display:flex; align-items:center; justify-content:center; gap:12px; }
+:root .shell .download-btn,:root .shell .setup-download { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+:root .shell .download-btn svg,:root .blue-import-screen .import-action svg,:root .shell .state-title svg { flex:none; }
+:root .shell .setup-btn { display:flex; flex-direction:column; gap:3px; }

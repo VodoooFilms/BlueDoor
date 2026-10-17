@@ -241,7 +241,7 @@
   <div class="models-head">
     <div class="head-top">
     <div class="head-copy">
-      <Icon name="download" size={36} /><strong class="sr-only">{t.modelsTitle}</strong>
+      <Icon name="settings" size={36} /><strong class="sr-only">{t.modelsTitle}</strong>
       {#if setupStatus}
         <span role="status" aria-live="polite" title={setupStatus}>{setupStatus}</span>
       {:else if message}
@@ -257,7 +257,7 @@
             {#if setupRunning}{t.langLabel === "ES" ? "Preparando…" : "Preparing…"}
             {:else if setupPending}{t.langLabel === "ES" ? "Reanudar preparación" : "Resume setup"}
             {:else}
-              <span>{t.langLabel === "ES" ? "Descargar modelos" : "Download models"}</span>
+              <span class="setup-download"><Icon name="download" size={22} /><span>{t.langLabel === "ES" ? "Descargar modelos" : "Download models"}</span></span>
               <span class="setup-permissions">{t.langLabel === "ES" ? "Aprobar permisos" : "Approve permissions"}</span>
             {/if}
           </button>
@@ -300,7 +300,7 @@
           {:else if installed[sttCurrent.id]}
             <span class="ok">{t.downloaded}</span>
           {:else}
-            <button class="download-btn" disabled={busy} onclick={() => install(sttCurrent.id)}>{t.download}</button>
+            <button class="download-btn" disabled={busy} onclick={() => install(sttCurrent.id)}><Icon name="download" size={20} /><span>{t.download}</span></button>
           {/if}
 
           <button
@@ -344,7 +344,7 @@
           {:else if privacySelected === "belegal-pii-v1"}
             <span>{p("Restaura la copia local del modelo entrenado.")}</span>
           {:else}
-            <button class="download-btn" disabled={busy} onclick={() => install("privacy")}>{t.download}</button>
+            <button class="download-btn" disabled={busy} onclick={() => install("privacy")}><Icon name="download" size={20} /><span>{t.download}</span></button>
           {/if}
           <button class="icon-btn" title={t.delete} aria-label={t.delete} disabled={!installed[privacySelected] || busy} onclick={() => remove("privacy") }>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11"></path><path d="M6.5 6v10a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V6"></path><path d="M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6"></path><path d="M10 9v5"></path></svg>
@@ -377,7 +377,7 @@
           {:else if installed[nemotronId]}
             <span class="ok">{t.downloaded}</span>
           {:else}
-            <button class="download-btn" disabled={busy} onclick={() => install("diarization")}>{t.download}</button>
+            <button class="download-btn" disabled={busy} onclick={() => install("diarization")}><Icon name="download" size={20} /><span>{t.download}</span></button>
           {/if}
           <button
             class="icon-btn"

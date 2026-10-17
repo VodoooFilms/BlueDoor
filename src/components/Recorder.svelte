@@ -484,7 +484,11 @@
               <span class="orb-shade"></span>
             </span>
             <span class="mic-glyph">
-              <Icon name="record-voice" size={88} />
+              <svg class="mic-icon" viewBox="0 0 20 20" aria-hidden="true">
+                <rect x="6.5" y="2.5" width="7" height="10" rx="3.2"></rect>
+                <path d="M4.5 10a5.5 5.5 0 0 0 11 0"></path>
+                <path d="M10 15.5V17"></path>
+              </svg>
             </span>
           </span>
         {/if}
@@ -497,7 +501,7 @@
           <strong class="rec-time">{Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}</strong>
           <span class="state-sub">{t.recordingLabel}</span>
         {:else}
-          <strong class="state-title">{t.recordTitle}</strong>
+          <strong class="state-title"><Icon name="record-voice" size={24} /><span>{t.recordTitle}</span></strong>
           <span class="state-sub sr-only">{t.recordHint}</span>
           <span class="state-sub state-or sr-only">{t.or}</span>
           <button
@@ -527,7 +531,7 @@
             <span>{t.setupWhisperLink}</span>
           </div>
           {#if !modelDownloading}
-            <button class="download-btn" onclick={downloadModel}>{t.download}</button>
+            <button class="download-btn" onclick={downloadModel}><Icon name="download" size={20} /><span>{t.download}</span></button>
           {:else}
             <div class="download-progress">
               <div class="progress-track"><div class="progress-fill" style={`width: ${downloadProgress}%`}></div></div>
@@ -544,7 +548,7 @@
             <span>{t.setupNemotronLink}</span>
           </div>
           {#if !nemotronDownloading}
-            <button class="download-btn" onclick={downloadNemotron}>{t.download}</button>
+            <button class="download-btn" onclick={downloadNemotron}><Icon name="download" size={20} /><span>{t.download}</span></button>
           {:else}
             <div class="download-progress">
               <div class="progress-track"><div class="progress-fill" style={`width: ${nemotronProgress}%`}></div></div>
@@ -852,6 +856,7 @@
     transition: opacity .22s ease;
   }
   .orb-window.recording .mic-glyph { opacity: 0; }
+  .mic-icon { width:88px; height:88px; color:var(--accent); fill:none; stroke:currentColor; stroke-width:1.3; stroke-linecap:round; stroke-linejoin:round; }
 
   /* Bloque de texto de estado con ALTURA FIJA igual al estado más alto (reposo:
      título + hint + "or" + botón importar). Así el círculo/orb NO se desplaza
