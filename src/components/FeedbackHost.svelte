@@ -12,7 +12,7 @@
   {/each}
 </aside>
 <style>
-  .feedback-host { position:fixed; z-index:800; bottom:24px; right:24px; width:min(480px,calc(100vw - 48px)); max-height: min(36vh,340px); overflow:auto; display:flex; flex-direction:column; gap:10px; pointer-events:none; }
+  .feedback-host { position:fixed; z-index:800; bottom:24px; left:24px; width:min(480px,calc(100vw - 48px)); max-height: min(36vh,340px); overflow:auto; display:flex; flex-direction:column; gap:10px; pointer-events:none; }
   .feedback-message { display:flex; align-items:flex-start; gap:14px; padding:14px 16px; border:1px solid #91baff80; border-radius:12px; background:#0b2d78; color:#f3f7ff; box-shadow:0 6px 24px #08225238; font-size:14px; line-height:1.5; pointer-events:auto; }
   .feedback-error { border-color:#b9d3ff; background:var(--error-background); }
   .feedback-copy { flex:1; min-width:0; white-space:pre-line; overflow-wrap:anywhere; user-select:text; }

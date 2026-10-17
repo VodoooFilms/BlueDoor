@@ -1,5 +1,6 @@
 <script lang="ts">
   import Feedback from "./Feedback.svelte";
+  import ChatGPTButton from "./ChatGPTButton.svelte";
   import { privateCopy as p } from "../lib/private-i18n";
   import { tick, type Snippet } from "svelte";
   import type { Transcript, DocFormat } from "../lib/types";
@@ -33,6 +34,7 @@
     onFinishEditing?: () => void;
     onSaveOutcome?: (success: boolean, error?: string) => void;
     actions?: Snippet;
+    toolbarLeading?: Snippet;
     externalDirty?: boolean;
     externalCanUndo?: boolean;
     externalUndoOrder?: number;
@@ -48,10 +50,9 @@
     onValidateExport?: (text: string, title?: string) => Promise<void>;
   }
 
-  let { transcript, onSave, onDirtyChange, privateDocument = false, privateReviewed = false, privateId = null, privateRevision = null, onConfirmReview, onValidateExport, embedded = false, pageSurface, surfaceActive = true, surfaceScale = 1, onSurfaceExtent, onSaved, onFinishEditing, onSaveOutcome, actions, onExportAction, externalDirty = false, externalCanUndo = false, externalUndoOrder = -1, nextUndoOrder, onResetExternal, onUndoExternal }: Props = $props();
+  let { transcript, onSave, onDirtyChange, privateDocument = false, privateReviewed = false, privateId = null, privateRevision = null, onConfirmReview, onValidateExport, embedded = false, pageSurface, surfaceActive = true, surfaceScale = 1, onSurfaceExtent, onSaved, onFinishEditing, onSaveOutcome, actions, toolbarLeading, onExportAction, externalDirty = false, externalCanUndo = false, externalUndoOrder = -1, nextUndoOrder, onResetExternal, onUndoExternal }: Props = $props();
   let exporting = $state(false);
   $effect(() => { onExportAction?.(exportAsPDF, exporting); });
-  let openingServer = $state(false);
   let statusMessage = $state("");
   let statusKind = $state<"error" | "status">("error");
   let correctedText = $state("");
@@ -532,18 +533,6 @@
   }
 
   // --- PDF ---
-  async function openServer() {
-    if (openingServer) return;
-    openingServer = true;
-    try {
-      await invoke("open_server_home");
-    } catch {
-      statusMessage = t.langLabel === "ES" ? "No se pudo abrir el navegador. Vuelve a intentarlo." : "Could not open the browser. Please try again.";
-    } finally {
-      openingServer = false;
-    }
-  }
-
   async function exportAsPDF() {
     if (exporting) return;
     exporting = true;
@@ -783,6 +772,8 @@
         </button>
       </div>
     </fieldset>
+    <div class="toolbar-actions">
+    {#if toolbarLeading}{@render toolbarLeading()}{/if}
     {#if actions}{@render actions()}{:else}
       <div class="head-actions editor-actions">
       <button class="head-btn" onclick={resetToOriginal} disabled={!surfaceActive || !canReset} title={t.reset}>
@@ -807,14 +798,6 @@
           <span>{savedCorrection && !externalDirty ? privateDocument ? p("Guardado") : t.saved : t.save}</span>
         </span>
       </button>
-      {#if !embedded && !privateDocument}<button class="head-btn" onclick={openServer} disabled={openingServer} title="https://blegalcorp.com/">
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M10 13V3"></path>
-          <path d="M6 7l4-4 4 4"></path>
-          <path d="M4 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"></path>
-        </svg>
-        {t.langLabel === "ES" ? "Subir al servidor" : "Upload to server"}
-      </button>{/if}
       {#if onFinishEditing && surfaceActive}<button class="head-btn" onclick={onFinishEditing}>{p("Terminar edición")}</button>{/if}
       {#if !embedded && !onExportAction}<button class="head-btn primary" onclick={() => exportAsPDF()} disabled={exporting} title={privateDocument ? p("Exportar el documento actual a un PDF local") : t.exportPdf}>
         <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -824,8 +807,10 @@
         </svg>
         {exporting ? t.exportingPdf : privateDocument ? p("Exportar PDF") : t.exportPdf}
       </button>{/if}
+      {#if !embedded && !onExportAction}<ChatGPTButton disabled={exporting} />{/if}
     </div>
     {/if}
+    </div>
     </div>
 
   <fieldset class="ruler-tools" disabled={!surfaceActive}>

@@ -9,11 +9,11 @@ use tauri::Manager;
 
 /// Navigation only: the renderer supplies no document, path, or URL parameters.
 #[tauri::command]
-pub(crate) fn open_server_home(app_handle: tauri::AppHandle) -> Result<(), String> {
+pub(crate) fn open_chatgpt_home(app_handle: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     app_handle
         .opener()
-        .open_url("https://blegalcorp.com/", None::<&str>)
+        .open_url("https://chatgpt.com/", None::<&str>)
         .map_err(|_| "No se pudo abrir el navegador. Vuelve a intentarlo.".to_string())
 }
 

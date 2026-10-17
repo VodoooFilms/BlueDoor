@@ -37,6 +37,7 @@ try {
     if(cmd==='update_private_document'){revision(args);session.sanitized=args.text;session.edited=true;session.reviewed=false;session.revision++;return structuredClone(session);}
     if(cmd==='review_private_layout'||cmd==='review_private_document'){revision(args);if(!args.entities.length)throw Error('Empty map');const changed=JSON.stringify(args.entities)!==JSON.stringify(session.entities);session.entities=structuredClone(args.entities);if(changed)session.sanitized=original.replace('María Ejemplo',session.entities[0].alias);session.reviewed=!!args.confirm;session.revision++;window.__savedMap=structuredClone(session);return structuredClone(session);}
     if(cmd==='validate_private_export'){revision(args);if(!session.reviewed||args.text!==session.sanitized)throw Error('Unreviewed export');return;}
+    if(cmd==='open_chatgpt_home'){if(window.__failGptOpen)throw Error('Browser unavailable');return;}
     if(cmd==='choose_pdf_destination')return '/tmp/workspace.pdf';
     if(cmd==='export_private_layout'){revision(args);if(!session.reviewed)throw Error('Unreviewed export');window.__exported=true;return args.destPath;}
     if(cmd==='generate_pdf'){if(!session.reviewed)throw Error('Unreviewed export');window.__exported=true;return args.destPath;}
@@ -57,6 +58,15 @@ try {
   if(layout)await page.getByRole('button',{name:label('Editar texto 1, Página 1','Edit text 1, Page 1'),exact:true}).click();
   await editor.waitFor({state:'visible'});
   if(layout){
+   const zoom = page.getByRole('combobox',{name:'Zoom',exact:true});
+   assert(await zoom.evaluate(el=>!!el.closest('.editor-toolbar')),'zoom belongs to the editor toolbar');
+   assert.equal(await page.locator('.workspace-header .workspace-zoom').count(),0,'zoom no longer occupies the document header');
+   const zoomRect=await zoom.boundingBox(), resetRect=await page.locator('.editor-actions .head-btn').first().boundingBox();
+   assert(zoomRect.x+zoomRect.width<=resetRect.x,'zoom sits left of Reset');
+   assert(Math.abs(zoomRect.y+zoomRect.height/2-resetRect.y-resetRect.height/2)<2,'zoom and Reset share the same row');
+   await page.screenshot({path:`artifacts/workspace/edit-actions-${language}.png`});
+  }
+  if(layout){
    assert.equal(await editor.evaluate(el=>!!el.closest('.paper-content')),true,'native text remains on its original page');
    await editor.fill('No cabe');
    assert(await map.isDisabled(),'map navigation cannot discard text draft');
@@ -76,8 +86,9 @@ try {
   for(const width of [1440,960,1200,960,1440,1000,1440,960]){
    await page.setViewportSize({width,height:900});
    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-   const geometry=await bar.evaluate(el=>{const align=el.querySelector('.tb-align').getBoundingClientRect(),actions=el.querySelector('.editor-actions').getBoundingClientRect(),r=el.getBoundingClientRect();return {alignTop:align.top,actionTop:actions.top,right:actions.right,barRight:r.right,scroll:el.scrollWidth,width:el.clientWidth};});
-   assert(Math.abs(geometry.alignTop-geometry.actionTop)<8,'actions share the alignment row');
+   const geometry=await bar.evaluate(el=>{const align=el.querySelector('.tb-align').getBoundingClientRect(),actions=el.querySelector('.editor-actions').getBoundingClientRect(),r=el.getBoundingClientRect();return {alignTop:align.top,alignBottom:align.bottom,actionTop:actions.top,right:actions.right,barRight:r.right,scroll:el.scrollWidth,width:el.clientWidth};});
+   if(width>1100)assert(Math.abs(geometry.alignTop-geometry.actionTop)<8,'actions share the alignment row when space permits');
+   else assert(geometry.actionTop>=geometry.alignBottom+8,'compact actions occupy a clear second row');
    assert(geometry.right<=geometry.barRight+1&&geometry.scroll<=geometry.width+1,'toolbar fits at the minimum app width');
   }
   await page.setViewportSize({width:1440,height:900});
@@ -108,12 +119,26 @@ try {
   assert.equal(await page.locator('.settings-menu').evaluate(el=>el.open),false);
   await page.getByRole('button',{name:label('Exportar PDF','Export PDF'),exact:true}).click();
   await page.waitForFunction(()=>window.__exported);
+  const gpt = page.getByRole('button',{name:label('Enviar a GPT','Send to GPT'),exact:true});
+  await gpt.click();
+  await page.getByRole('status').filter({hasText:label('ChatGPT abierto.','ChatGPT opened.')}).waitFor();
+  await page.evaluate(()=>window.__failGptOpen=true);
+  await gpt.click();
+  await page.getByRole('alert').filter({hasText:label('No se pudo abrir ChatGPT.','Could not open ChatGPT.')}).waitFor();
   const calls=await page.evaluate(()=>window.__workspaceCalls);
+  const gptCalls=calls.filter(c=>c.cmd==='open_chatgpt_home');
+  assert.equal(gptCalls.length,2,'GPT action opens the browser and supports retry after failure');
+  assert(gptCalls.every(c=>Object.keys(c.args||{}).length===0),'opening ChatGPT sends no document or filename');
+  assert.equal(await page.locator('.workspace-views button').first().innerText(),label('Documento','Document'));
+  assert.equal(await page.locator('.workspace-views button').last().innerText(),label('Mapa privado','Private map'));
   assert(calls.some(c=>c.cmd===(layout?'review_private_layout':'review_private_document')&&c.args.confirm===true),'export still confirms native review');
   assert.equal(calls.filter(c=>c.cmd==='analyze_private_document').length,1,'no extra protection from Edit');
-  assert.equal(calls.filter(c=>c.cmd==='open_server_home').length,0,'private workflow stays local');
+  assert.equal(calls.filter(c=>c.cmd==='open_server_home').length,0,'legacy company destination is never opened');
   assert.deepEqual(errors,[],'no runtime errors');
   await page.screenshot({path:`artifacts/workspace/${layout?'original-page':'text-page'}-${language}.png`,fullPage:true});
+  await page.setViewportSize({width:960,height:648});
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'labelled edit actions fit the minimum window');
+  await page.screenshot({path:`artifacts/workspace/${layout?'original-page':'text-page'}-compact-${language}.png`});
   await page.close();
  }
  console.log(`PASS unified workspace (${language}): original page + text page, drafts, save rejection, map/alias editing, compact toolbar, settings and reviewed local export`);

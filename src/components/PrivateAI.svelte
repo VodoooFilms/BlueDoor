@@ -1,5 +1,6 @@
 <script lang="ts">
   import Feedback from "./Feedback.svelte";
+  import ChatGPTButton from "./ChatGPTButton.svelte";
   import { importErrorMessage } from "../lib/user-errors";
   import { getLang } from "../lib/i18n-store.svelte";
   import { privateCopy as p } from "../lib/private-i18n";
@@ -218,6 +219,10 @@
   }
 </script>
 
+{#snippet editorZoom()}
+  <label class="workspace-zoom"><span class="sr-only">{p("Zoom")}</span><Icon name="search" size={18} /> <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy || mapOpen}><option value="fit">{p("Ajustar al ancho")}</option>{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>
+{/snippet}
+
 {#snippet processingIndicator()}
   <div class="processing-slot">
     <div class="processing-label" role="status" aria-live="polite">
@@ -234,13 +239,11 @@
       <div class="workspace-title"><strong>{session.fileName}</strong><span>{p(session.analyzed ? (session.reviewed ? "Revisión confirmada" : "Pendiente de revisión") : "Documento original")}{#if pageCount} · {pageCount} {p("páginas")}{/if}</span></div>
       {#if editing && session.analyzed}
         <div class="workspace-views" role="group" aria-label={p("Vistas de edición")}>
-          <button class="secondary" class:active-page={!mapOpen} aria-pressed={!mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = false} aria-label={p("Documento")} title={p("Documento")}><Icon name="document" /></button>
-          <button class="secondary" class:active-page={mapOpen} aria-pressed={mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = true} aria-label={p("Mapa privado")} title={p("Mapa privado")}><Icon name="map" /></button>
+          <button class="secondary" class:active-page={!mapOpen} aria-pressed={!mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = false} aria-label={p("Documento")} title={p("Documento")}><Icon name="document" /><span>{p("Documento")}</span></button>
+          <button class="secondary" class:active-page={mapOpen} aria-pressed={mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = true} aria-label={p("Mapa privado")} title={p("Mapa privado")}><Icon name="map" /><span>{p("Mapa privado")}</span></button>
         </div>
-        {#if session.layoutAvailable}
-          <label class="workspace-zoom"><span class="sr-only">{p("Zoom")}</span><Icon name="search" size={18} /> <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy || mapOpen}><option value="fit">{p("Ajustar al ancho")}</option>{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>
-        {/if}
         <button class="primary" onclick={() => session?.layoutAvailable ? exportOriginalLayout() : textExport?.()} disabled={!!busy || textExportBusy || (session.layoutAvailable && !exportReady) || (!session.layoutAvailable && !textExport) || draftDirty || layoutDirty || !session.analysisComplete || !!session.warnings.length}>{p("Exportar PDF")}</button>
+        <ChatGPTButton disabled={!!busy || textExportBusy} />
       {:else}
         <details class="document-menu"><summary aria-label={p("Acciones del documento")}>···</summary><div>
           {#if session.analyzed}<button class="secondary" onclick={clearResult} disabled={!!busy}>{p("Volver a analizar")}</button>{/if}
@@ -276,7 +279,7 @@
     {/if}
     <div class="document-surface" class:hidden={mapOpen}>
       {#if session.layoutAvailable}
-        <DocumentLayout bind:zoom {fitWidth} onExportReady={(ready, count) => { exportReady = ready; pageCount = count; }} onSessionChange={adopt} onTextDirty={layoutEdited} {session} {entities} editable={editing} dirty={draftDirty} busy={!!busy} onAliasFocus={beginAliasEdit} onAliasChange={renameAlias} onApply={() => applyMap()} />
+        <DocumentLayout toolbarLeading={editing ? editorZoom : undefined} bind:zoom {fitWidth} onExportReady={(ready, count) => { exportReady = ready; pageCount = count; }} onSessionChange={adopt} onTextDirty={layoutEdited} {session} {entities} editable={editing} dirty={draftDirty} busy={!!busy} onAliasFocus={beginAliasEdit} onAliasChange={renameAlias} onApply={() => applyMap()} />
       {:else if editing && textTranscript}
         <TranscriptView transcript={textTranscript} privateDocument privateReviewed={session.reviewed} privateId={session.id} privateRevision={session.revision} onSave={onSaveText} onExportAction={(action, exporting) => { textExport = action; textExportBusy = exporting; }} onDirtyChange={(dirty, save) => { textEditorDirty = dirty; onTextDirty(dirty, save); }} {onConfirmReview} {onValidateExport} />
       {:else}
@@ -314,7 +317,8 @@
   .workspace-title { flex:1; margin-right:auto; min-width:0; display:flex; flex-direction:column; gap:4px; }
   .workspace-title strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .workspace-title span,.workspace-zoom { color:var(--muted); font-size:12px; }
-  .workspace-views { display:flex; gap:4px; }
+  .workspace-views { display:flex; gap:4px; flex:none; }
+  .workspace-views button { display:inline-flex; align-items:center; gap:8px; min-height:40px; }
   .workspace-zoom { flex-shrink:0; display:flex; gap:6px; align-items:center; }
   .document-surface { display:flex; flex:1; min-height:0; min-width:0; }
   .hidden { display:none; }

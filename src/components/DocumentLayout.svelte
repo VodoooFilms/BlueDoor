@@ -10,8 +10,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { privateCopy as p } from "../lib/private-i18n";
   import type { LayoutPreview, LayoutRedaction, PrivateEntity, PrivacySession } from "../lib/privacy";
-  let { session, entities, dirty, busy, onAliasFocus, onAliasChange, onApply, onSessionChange, onTextDirty, onExportReady, zoom = $bindable(100), fitWidth = true, editable = true }: {
-    session: PrivacySession; entities: PrivateEntity[]; dirty: boolean; busy: boolean;
+  let { toolbarLeading, session, entities, dirty, busy, onAliasFocus, onAliasChange, onApply, onSessionChange, onTextDirty, onExportReady, zoom = $bindable(100), fitWidth = true, editable = true }: {
+    toolbarLeading?: Snippet; session: PrivacySession; entities: PrivateEntity[]; dirty: boolean; busy: boolean;
     onAliasFocus: (index: number) => void; onAliasChange: (index: number, value: string) => void; onApply: () => void; onSessionChange: (session: PrivacySession) => void; onTextDirty: (dirty: boolean, save: () => void | Promise<void>) => void; onExportReady: (ready: boolean, count: number) => void; zoom?: number; fitWidth?: boolean; editable?: boolean;
   } = $props();
   let preview = $state<LayoutPreview | null>(null);
@@ -286,7 +286,7 @@
   ].filter(Boolean).join("\n")} />
   <Feedback message={[...session.warnings.map(p), error].filter(Boolean).join("\n")} />
   {#if editable && session.analyzed}
-    <TranscriptView transcript={blockTranscript} embedded privateDocument pageSurface={pages} surfaceActive={!!block && !busy && !loading} surfaceScale={zoom / 100} onSurfaceExtent={height => contentHeight = height}
+    <TranscriptView {toolbarLeading} transcript={blockTranscript} embedded privateDocument pageSurface={pages} surfaceActive={!!block && !busy && !loading} surfaceScale={zoom / 100} onSurfaceExtent={height => contentHeight = height}
       externalDirty={boundsDirty} externalCanUndo={boundsHistory.length > 0} externalUndoOrder={boundsHistory[boundsHistory.length - 1]?.order ?? -1} {nextUndoOrder} onResetExternal={resetBounds} onUndoExternal={undoBounds}
       onSaveOutcome={(success, reason) => { saveSucceeded = success; if (!success) leaveError = reason ?? p("No se pudo guardar el texto."); }} onFinishEditing={() => requestFinish()} actions={selected !== null ? aliasActions : undefined} onSave={saveBlock} onDirtyChange={textChanged} onSaved={() => { if (!leaving) finishSelection(); }} />
     {#if selected !== null && entities[selected]}

@@ -94,7 +94,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             diagnostics::check_installation,
             diagnostics::prepare_local_setup,
-            platform::open_server_home,
+            platform::open_chatgpt_home,
             documents::import_private_document,
             layout::preview_private_layout,
             layout::save_private_layout_text,

@@ -264,7 +264,7 @@
           </button>
         {/if}
         {#if installingId}
-          <button class="change-btn" onclick={cancelDownload}>{t.langLabel === "ES" ? "Cancelar descarga" : "Cancel download"}</button>
+          <button class="change-btn cancel-download-btn" onclick={cancelDownload}>{t.langLabel === "ES" ? "Cancelar descarga" : "Cancel download"}</button>
         {/if}
       </div>
     {/if}

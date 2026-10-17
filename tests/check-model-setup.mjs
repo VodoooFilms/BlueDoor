@@ -111,6 +111,10 @@ try {
   const cancel = await scenario({ holdDownload: 'parakeet-tdt-0.6b-v3' });
   await cancel.getByRole('button', { name: startLabel, exact: true }).click();
   await cancel.getByText('42%', { exact: true }).waitFor();
+  const preparing=await cancel.locator('.setup-btn').boundingBox();
+  const cancelAction=await cancel.locator('.cancel-download-btn').boundingBox();
+  assert.equal(cancelAction.height,preparing.height,'cancel and preparing buttons have the same height');
+  assert.equal((await cancel.locator('.feedback-host').boundingBox()).x,24,'download notices align left');
   await cancel.screenshot({ path: 'artifacts/model-setup-progress.png' });
   await cancel.getByRole('button', { name: 'Cancelar descarga', exact: true }).click();
   await cancel.getByRole('button', { name: 'Reanudar preparación', exact: true }).waitFor();

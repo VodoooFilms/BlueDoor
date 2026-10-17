@@ -156,3 +156,21 @@
 :root .shell .models .setup-btn:not(:has(svg)) { justify-content:center; }
 
 :root .shell .models .setup-btn { width:var(--setup-width,248px); justify-content:center; gap:12px; }
+
+:root .shell .models .cancel-download-btn { height:66px; min-height:66px; padding-inline:16px; }
+@media(max-width:1200px) {
+  :root .shell .workspace-header .workspace-title { flex:1 0 100%; max-width:100%; margin:0; }
+}
+
+/* Keep zoom with editing actions and give the text buttons room to breathe. */
+:root .shell .editor-toolbar,:root .shell .page-editor .editor-toolbar { flex-wrap:wrap; gap:14px; }
+:root .shell .editor-toolbar .toolbar-actions { display:flex; align-items:center; flex-wrap:wrap; gap:14px; min-width:0; margin-left:auto; }
+:root .shell .editor-toolbar .editor-actions { margin-left:0; gap:12px; flex-wrap:wrap; }
+:root .shell .editor-toolbar .editor-actions .head-btn { padding:8px 16px; min-height:38px; font-size:13px; }
+:root .shell .editor-toolbar .alias-actions { margin-left:0; gap:12px; }
+:root .shell .editor-toolbar .alias-actions button { padding-inline:16px; min-height:38px; }
+@media(max-width:1100px) {
+  :root .shell .editor-toolbar .toolbar-actions { flex-basis:100%; margin-left:0; }
+}
+
+:root .shell .editor-toolbar .format-controls { flex-shrink:0; }
