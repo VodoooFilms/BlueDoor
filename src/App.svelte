@@ -76,6 +76,7 @@
     if (!welcomeReady && (recorderBusy || importing || privacyBusy || modelsBusy)) return;
     closeWelcome();
     if (!welcomeReady) openModels();
+    else goPrivate();
   }
   let firstRun = $state(false);
   let modelsBusy = $state(false);
@@ -542,7 +543,7 @@
   {/if}
 
   {#if welcomeVisible}
-    <WelcomeSplash ready={welcomeReady} loading={welcomeLoading} onClose={closeWelcome} onContinue={continueWelcome} />
+    <WelcomeSplash loading={welcomeLoading} onClose={closeWelcome} onContinue={continueWelcome} />
   {/if}
 
   {#if pendingNavigation}

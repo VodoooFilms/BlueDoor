@@ -4,8 +4,8 @@ const browser = await webkit.launch();
 try {
   for (const scenario of [
     { voice: true, privacy: true, lang: 'es', cta: 'Comenzar' },
-    { voice: true, privacy: false, lang: 'es', cta: 'Descargar modelos locales' },
-    { voice: false, privacy: true, lang: 'en', cta: 'Download local models' },
+    { voice: true, privacy: false, lang: 'es', cta: 'Comenzar' },
+    { voice: false, privacy: true, lang: 'en', cta: 'Get started' },
   ]) {
     const page = await browser.newPage({ viewport: { width: 1370, height: 800 } });
     await page.addInitScript(({ voice, privacy, lang }) => {
@@ -35,6 +35,7 @@ try {
     await action.click();
     assert.equal(await page.getByRole('dialog').count(), 0);
     if (!scenario.voice || !scenario.privacy) await page.locator('.models').waitFor();
+    else await page.locator('.blue-import-screen').waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem('bluedoor-welcome-seen')), 'true');
     await page.reload();
     await page.locator('.brand').waitFor();

@@ -3,8 +3,8 @@
   import { privateCopy as p } from "../lib/private-i18n";
   import Icon from "./Icon.svelte";
 
-  let { ready, loading, onClose, onContinue }: {
-    ready: boolean; loading: boolean; onClose: () => void; onContinue: () => void;
+  let { loading, onClose, onContinue }: {
+    loading: boolean; onClose: () => void; onContinue: () => void;
   } = $props();
   let dialog: HTMLDivElement;
   let closeButton: HTMLButtonElement;
@@ -31,7 +31,7 @@
     <h1 class="sr-only" id="welcome-title">{p("Bienvenido a")}</h1>
     <div class="welcome-brand" role="img" aria-label="BlueDoor"><Icon name="door" size={67} /><span>Blue<span class="door-text">door</span></span></div>
     <p class="sr-only">{p("Prepara y protege documentos y audio localmente de manera privada antes de enviarlos al servidor.")}</p>
-    <button class="continue" onclick={onContinue} disabled={loading}>{loading ? p("Comprobando modelos…") : ready ? p("Comenzar") : p("Descargar modelos locales")}</button>
+    <button class="continue" onclick={onContinue} disabled={loading}>{loading ? p("Comprobando modelos…") : p("Comenzar")}</button>
   </div>
 </div>
 
