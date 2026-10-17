@@ -22,13 +22,13 @@
 /* Move only the artwork; retain its flex footprint so the action never moves.
    Its visible SVG bounds are centred at 55% of the image height. */
 :root .blue-import-screen .import-art { width:min(100%,400px); max-height:65%; object-fit:contain; transform:translateY(calc(-25cqh + 20% + 11.25px)); }
-:root .blue-import-screen .import-action { display:grid; place-items:center; width:min(100%,400px); min-height:66px; padding:14px 20px; border-radius:12px; color:#1248bc; background:#fff; font:500 21px/1.3 var(--font-heading); }
+:root .blue-import-screen .import-action { display:grid; place-items:center; width:min(100%,400px); min-height:66px; padding:14px 20px; border-radius:12px; color:#1248bc; background:#fff; font:600 21px/1.3 var(--font-heading); }
 :root .blue-import-screen .protect-art { width:100%; max-height:100%; object-fit:contain; }
 .workflow-steps { grid-column:1 / -1; display:flex; align-items:center; justify-content:center; gap:16px; color:var(--secondary-ink); }
 .workflow-steps > span { width:84px; height:78px; display:grid; place-items:center; border:1px solid #c1daff80; border-radius:14px; position:relative; }
 .workflow-steps > span i { position:absolute; right:12px; bottom:10px; border-radius:50%; padding:2px; background:var(--secondary-ink); color:var(--background); display:grid; }
 .workflow-steps b { width:66px; height:1px; background:#bfd8ff80; }
-:root .shell button.primary,:root .shell .save-btn,:root .shell .download-btn,:root .shell .setup-all-btn { border-radius:9px; min-height:40px; box-shadow:none; }
+:root .shell button.primary,:root .shell .save-btn,:root .shell .download-btn,:root .shell .setup-all-btn { border-radius:9px; min-height:40px; box-shadow:none; font-weight:600; }
 :root .shell button.secondary { background:transparent; border-color:var(--line); border-radius:8px; }
 :root .shell button:focus-visible,:root .shell summary:focus-visible,:root .shell [role=button]:focus-visible { outline:2px solid white; outline-offset:4px; }
 :root .shell .workspace-header { padding:0 0 16px; border-bottom:1px solid var(--line); }
@@ -57,7 +57,7 @@
 :root .shell .orb-window.recording { border-color:#c1daff; }
 :root .shell .orb-window.recording .orb-visuals { background:linear-gradient(135deg,#4282ee,#1d5bd2); }
 :root .shell .mic-btn .status { margin-top:18px; }
-:root .shell .mic-btn .state-title { font-family:var(--font-heading); font-size:19px; font-weight:500; }
+:root .shell .mic-btn .state-title { font-family:var(--font-heading); font-size:19px; font-weight:600; }
 :root .shell .mic-btn:not(.recording):not(.busy) .state-title { display:block; background:white; color:#1248bc; border-radius:10px; min-width:270px; padding:15px 28px; margin-bottom:8px; }
 :root .shell .import-inline { margin-top:20px; color:white; padding:12px 22px; border:1px solid #bfd8ff80; border-radius:10px; }
 :root .shell .mic-panel .state-sub { color:var(--muted); }
@@ -98,3 +98,5 @@
 :root .shell .paper-content > img { opacity:1; filter:none; mix-blend-mode:normal; }
 :root .shell .rich-editor { color-scheme:light; caret-color:#202020; }
 :root .shell .original-page pre { color-scheme:light; }
+
+:root .shell .models .card-copy strong,:root .shell .models .info strong { font-weight:600; }
