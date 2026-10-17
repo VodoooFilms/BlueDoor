@@ -40,7 +40,7 @@ try {
   await page.locator('.blue-import-screen').waitFor();
   await page.waitForFunction(()=>Array.from(document.images).every(img=>img.complete));
   const checkChrome=async()=>{
-    assert.equal(await page.locator('.brand').innerText(),'BlueDoor');
+    assert.equal(await page.locator('.brand').innerText(),'Bluedoor');
     assert.equal(await page.locator('.masthead .nav-models').first().evaluate(el=>getComputedStyle(el).color),'rgb(255, 255, 255)');
     assert.equal(await page.locator('.masthead .nav-models').first().evaluate(el=>getComputedStyle(el).opacity),'1');
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no horizontal overflow');

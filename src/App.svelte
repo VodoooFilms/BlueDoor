@@ -479,7 +479,7 @@
 <div class="shell">
   <header class="masthead">
     <span class="brand" role="button" tabindex="0" title={p("Acerca de BlueDoor")} onclick={openAbout} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAbout(); } }}>
-      <Icon name="door" size={42} /><span class="brand-wordmark">BlueDoor</span>
+      <Icon name="door" size={42} /><span class="brand-wordmark">Blue<span class="brand-door">door</span></span>
     </span>
     {#if workflow === "audio" && activeTranscript && !showModels}
       <span class="back-link" role="button" tabindex="0" onclick={goHome} onkeydown={(e) => { if (e.key === 'Enter') goHome(); }}>

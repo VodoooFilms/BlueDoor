@@ -3,6 +3,7 @@
 :root .shell .masthead { min-height:110px; padding:18px 40px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:#fff; gap:24px; }
 :root .masthead .brand { font-family:var(--font-heading); font-size:36px; font-weight:720; letter-spacing:-1.3px; gap:15px; margin:0; padding:0; color:#fff; }
 :root .masthead .brand-wordmark { font-style:normal; }
+:root .masthead .brand-door { color:#b8d4ff; }
 :root .masthead .nav-row { gap:18px; flex-wrap:nowrap; }
 :root .masthead .nav-models,:root .masthead .settings-menu summary { display:flex; align-items:center; justify-content:center; gap:11px; min-height:54px; height:auto; padding:10px 8px; color:white; font-weight:500; font-size:16px; border-radius:0; background:transparent; border-bottom:2px solid transparent; }
 :root .masthead .nav-models.nav-active { border-bottom-color:white; }
