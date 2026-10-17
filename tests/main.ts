@@ -1,3 +1,5 @@
+import { sanitizeRichHtml } from "../src/lib/utils";
+(window as any).__sanitizeRichHtml = sanitizeRichHtml;
 import { mount } from "svelte";
 import TranscriptView from "../src/components/TranscriptView.svelte";
 import type { Transcript } from "../src/lib/types";

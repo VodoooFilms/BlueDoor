@@ -69,6 +69,47 @@ function sanitizeRichAttribute(name: string, value: string): string | null {
   return null;
 }
 
+// Fast path: the editor only marks up with canonical labels (div/br/b/span…)
+// and its own attributes (style/face/size/color). Verifying with string
+// expressions costs linear scans without touching the DOM; if anything is
+// outside the canon, take the full path (parse + rebuild), which is the
+// current behavior and remains the security gate.
+function scanVerbatimTag(match: RegExpExecArray): string | null {
+  const tag = match[1].toLowerCase();
+  // Unknown tags receive child nodes via slow path treatment: refuse fast path.
+  if (!allowedRichTags.has(tag) || droppedRichTags.has(tag)) return null;
+  const markup = match[2];
+  const attrPattern = / ([a-z-]+)="([^"]*)"/g;
+  let checked = 0;
+  let attr: RegExpExecArray | null;
+  while ((attr = attrPattern.exec(markup)) !== null) {
+    // Non-attribute leftovers (spaces other than the separator, users with unquoted
+    // values) fall through to the slow path.
+    if (attr.index !== checked || markup.charCodeAt(checked) !== 32) return null;
+    checked = attr.index + attr[0].length;
+    // Only canonical attributes and values that the sanitizer must not change:
+    // any difference invokes the full path.
+    if (sanitizeRichAttribute(attr[1], attr[2]) !== attr[2]) return null;
+  }
+  return checked === markup.length ? tag : null;
+}
+
+// `indexOf` end pointer: the previous end byte is exclusive, so the text
+// between tags never contains a stray `<`.
+function isVerbatimRichHtml(html: string): boolean {
+  // Canonical tags: lowercase, quoted attributes, no space before `>`, no
+  // trailing `<` outside the tags (real text with `<` falls to the slow path).
+  const tagPattern = /<[/]?([a-z][a-z0-9]*)([^<>]*)>/g;
+  let tail = 0;
+  let tag: RegExpExecArray | null;
+  while ((tag = tagPattern.exec(html)) !== null) {
+    if (html.slice(tail, tag.index).indexOf("<") !== -1) return false;
+    if (scanVerbatimTag(tag) === null) return false;
+    tail = tagPattern.lastIndex;
+  }
+  return html.indexOf("<", tail) === -1;
+}
+
 function appendSanitizedNode(source: Node, target: Node): void {
   if (source.nodeType === Node.TEXT_NODE) {
     target.appendChild(document.createTextNode(source.nodeValue ?? ""));
@@ -91,6 +132,10 @@ function appendSanitizedNode(source: Node, target: Node): void {
 }
 
 export function sanitizeRichHtml(html: string): string {
+  // Editor markup canonically is identical before and after sanitizing; the
+  // rebuild is only necessary when a non-editor node (drop, paste, external
+  // HTML) sneaks in. Reading is a linear scan that does not mutate the DOM.
+  if (isVerbatimRichHtml(html)) return html;
   const template = document.createElement("template");
   template.innerHTML = html;
   const output = document.createDocumentFragment();

@@ -93,6 +93,7 @@ pub struct AppState {
     pub stt: Mutex<Option<SttCacheEntry>>,
     pub authorized_audio_paths: Mutex<HashSet<PathBuf>>,
     pub authorized_pdf_paths: Mutex<HashSet<PathBuf>>,
+    pub authorized_document_paths: Mutex<HashSet<PathBuf>>,
     pub(crate) pending_blob_configs: Mutex<HashMap<String, WhisperConfig>>,
 }
 
@@ -177,6 +178,33 @@ impl AppState {
         }
     }
 
+    /// Los documentos importados llegan por drop nativo o por diálogo, nunca
+    /// por una ruta que el renderer repita de otro sitio. El drop se autoriza
+    /// en `DragDropEvent::Drop`, en el hilo nativo, antes de que el evento
+    /// llegue al renderer; el import consume la entrada única.
+    pub fn authorize_document_path(&self, path: &Path) -> Result<PathBuf, String> {
+        let canonical = canonical_existing_path(path)?;
+        self.authorized_document_paths
+            .lock()
+            .unwrap()
+            .insert(canonical.clone());
+        Ok(canonical)
+    }
+
+    pub fn consume_document_path(&self, path: &Path) -> Result<PathBuf, String> {
+        let canonical = canonical_existing_path(path)?;
+        if self
+            .authorized_document_paths
+            .lock()
+            .unwrap()
+            .remove(&canonical)
+        {
+            Ok(canonical)
+        } else {
+            Err("Arrastra el documento a la ventana de Belegal _ Local demo o selecciónalo en el diálogo.".into())
+        }
+    }
+
     pub fn store_blob_config(&self, config: WhisperConfig) -> String {
         let token = uuid::Uuid::new_v4().to_string();
         self.pending_blob_configs
@@ -192,6 +220,18 @@ impl AppState {
             .unwrap()
             .remove(token)
             .ok_or_else(|| "La configuración de audio no está disponible.".into())
+    }
+
+    /// Los helpers nativos reciben la ruta del usuario como argumento
+    /// posicional; una ruta relativa que empiece por `-` se leería como opción
+    /// del asistente. Diálogos y drop siempre entregan rutas absolutas, así
+    /// que se exige el invariante antes de cada spawn.
+    pub(crate) fn absolute_process_path(path: &Path) -> Result<(), String> {
+        if path.is_absolute() {
+            Ok(())
+        } else {
+            Err("Ruta local no válida.".into())
+        }
     }
 
     pub fn resolve_model_path(&self, model_path: &str) -> String {
@@ -277,6 +317,7 @@ mod tests {
             stt: Mutex::new(None),
             authorized_audio_paths: Mutex::new(HashSet::new()),
             authorized_pdf_paths: Mutex::new(HashSet::new()),
+            authorized_document_paths: Mutex::new(HashSet::new()),
             pending_blob_configs: Mutex::new(HashMap::new()),
         }
     }
@@ -320,5 +361,28 @@ mod tests {
         let pdf = state.authorize_pdf_path(&pdf).unwrap();
         assert_eq!(state.consume_pdf_path(&pdf).unwrap(), pdf);
         assert!(state.consume_pdf_path(&pdf).is_err());
+    }
+
+    #[test]
+    fn dropped_document_paths_are_single_use() {
+        let state = test_state();
+        let dir = tempfile::tempdir().unwrap();
+        let document = dir.path().join("escritura.pdf");
+        std::fs::write(&document, b"pdf").unwrap();
+
+        let canonical = state.authorize_document_path(&document).unwrap();
+        assert_eq!(state.consume_document_path(&document).unwrap(), canonical);
+        // Una entrada queda agotada: repetirla o adivinar otra ruta falla.
+        assert!(state.consume_document_path(&document).is_err());
+        let guessed = dir.path().join("no-soltado.pdf");
+        std::fs::write(&guessed, b"pdf").unwrap();
+        assert!(state.consume_document_path(&guessed).is_err());
+    }
+
+    #[test]
+    fn helpers_only_receive_absolute_paths() {
+        assert!(AppState::absolute_process_path(Path::new("-etc/expediente.pdf")).is_err());
+        assert!(AppState::absolute_process_path(Path::new("escritura.pdf")).is_err());
+        assert!(AppState::absolute_process_path(Path::new("/tmp/escritura.pdf")).is_ok());
     }
 }

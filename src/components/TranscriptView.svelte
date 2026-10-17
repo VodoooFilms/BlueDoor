@@ -62,8 +62,21 @@
   let history = $state<{ html: string; order: number }[]>([]);
   let localUndoOrder = 0;
   let speakerNames = $state<Record<string, string>>({});
-  let savedSnapshot = $state("");
-  let resetSnapshot = $state("");
+  // Snapshot estructural: el HTML completo se compara por igualdad de cadena
+  // (barato) y solo fuente/tamaño/alineación y nombres se serializan (pequeños).
+  type Snapshot = { html: string; format: string; names: string };
+  function editorSnapshot(html: string, format: DocFormat, names: Record<string, string>): Snapshot {
+    return { html, format: JSON.stringify(format), names: JSON.stringify(names) };
+  }
+  function snapshotAt(html: string, format: DocFormat, names: Record<string, string>, saved: Snapshot): boolean {
+    return (
+      html !== saved.html ||
+      JSON.stringify(format) !== saved.format ||
+      JSON.stringify(names) !== saved.names
+    );
+  }
+  let savedSnapshot = $state<Snapshot | null>(null);
+  let resetSnapshot = $state<Snapshot | null>(null);
   let resetTranscriptId: string | null = null;
   const speakerIds = $derived(
     [...new Set(transcript.segments.flatMap((segment) => segment.speaker == null ? [] : [segment.speaker]))]
@@ -78,7 +91,7 @@
   let editorEl = $state<HTMLDivElement | null>(null);
   let prevEditorEl: HTMLDivElement | null = null;
   let rich = $state("");
-  let canReset = $derived(externalDirty || (resetSnapshot !== "" && editorSnapshot(rich, docFormat, speakerNames) !== resetSnapshot));
+  let canReset = $derived(externalDirty || (resetSnapshot !== null && snapshotAt(rich, docFormat, speakerNames, resetSnapshot)));
   let loading = $state(true);
   let selBold = $state(false);
   let selItalic = $state(false);
@@ -167,11 +180,7 @@
     loading = true;
   });
 
-  function editorSnapshot(html: string, format: DocFormat, names: Record<string, string>): string {
-    return JSON.stringify({ html, format, names });
-  }
-
-  const dirty = $derived(externalDirty || (savedSnapshot !== "" && editorSnapshot(rich, docFormat, speakerNames) !== savedSnapshot));
+  const dirty = $derived(externalDirty || (savedSnapshot !== null && snapshotAt(rich, docFormat, speakerNames, savedSnapshot)));
   $effect(() => {
     onDirtyChange(pageSurface && !surfaceActive ? false : dirty, saveCorrection);
   });
@@ -210,13 +219,13 @@
 
   // Observe wrapping as well as typing and formatting. A bounded page editor
   // scrolls its draft instead of drawing text over neighbouring paragraphs.
+  // One effect owns the extent: state changes (`rich`, `docFormat`, scales) and
+  // real geometry (ResizeObserver) share a single rAF slot, so a burst of
+  // keystrokes coalesces into one layout read per frame instead of one per
+  // keystroke.
   function reportSurfaceExtent() {
     if (pageSurface && editorEl && surfaceActive) onSurfaceExtent?.(editorEl.scrollHeight);
   }
-  $effect(() => {
-    rich; docFormat; surfaceScale; surfaceActive;
-    void tick().then(reportSurfaceExtent);
-  });
   $effect(() => {
     if (!pageSurface || !editorEl) return;
     let frame = 0;
@@ -224,6 +233,8 @@
       if (frame) return;
       frame = requestAnimationFrame(() => { frame = 0; reportSurfaceExtent(); });
     }
+    rich; docFormat; surfaceScale; surfaceActive;
+    scheduleExtent();
     const observer = new ResizeObserver(scheduleExtent);
     observer.observe(editorEl);
     return () => { observer.disconnect(); cancelAnimationFrame(frame); };
@@ -313,7 +324,6 @@
       const prev = rich;
       rich = next;
       if (rich !== prev) remember(prev);
-      correctedText = htmlToPlain(rich);
     }
     if (savedCorrection) savedCorrection = false;
   }
@@ -481,12 +491,17 @@
     e.preventDefault();
     const r = rulerRef;
     if (!r || !surfaceActive) return;
+    if (savedCorrection) savedCorrection = false;
     const rect = r.getBoundingClientRect();
     const blocks = affectedBlocks();
     const list = blocks.length ? blocks : (currentBlock() ? [currentBlock()!] : []);
     if (list.length === 0) return;
     const start = readIndents(list[0]);
     const max = rect.width / surfaceScale;
+    // Durante el arrastre solo se escriben estilos en el bloque: sincronizar
+    // (saneado + reconstrucción + historial) por cada movimiento cuesta el
+    // documento entero 60 veces por segundo en documentos largos. El estado
+    // (`rich`, historial, snapshot) se sella una sola vez al soltar.
     function move(ev: PointerEvent) {
       const pos = Math.round(Math.max(0, Math.min(max, (ev.clientX - rect.left) / surfaceScale)));
       let pl = start.pl;
@@ -502,14 +517,16 @@
         setBlockIndent(b, pl, ti, pr);
       }
       refreshIndents();
+    }
+    function release() {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", release);
+      document.removeEventListener("pointercancel", release);
       syncFromEditor();
     }
-    function up() {
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", up);
-    }
     document.addEventListener("pointermove", move);
-    document.addEventListener("pointerup", up);
+    document.addEventListener("pointerup", release);
+    document.addEventListener("pointercancel", release);
   }
 
   // --- PDF ---
@@ -614,7 +631,8 @@
   }
 
   function copyToClipboard() {
-    navigator.clipboard.writeText(correctedText).catch(() => {});
+    // La copia refleja el editor actual, no el último estado guardado.
+    navigator.clipboard.writeText(htmlToPlain(sanitizeRichHtml(rich))).catch(() => {});
     copied = true;
     clearTimeout(copyTimer);
     copyTimer = setTimeout(() => (copied = false), 1200);

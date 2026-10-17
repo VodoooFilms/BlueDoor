@@ -270,9 +270,22 @@ pub(crate) async fn download_parakeet_model(
     .map_err(|e| format!("No se pudo descargar el modelo: {}", e))
 }
 
+/// Como el resto de comandos de catálogo, solo responde por ficheros de la
+/// lista en la carpeta de modelos. El basename limita el catálogo y la
+/// comparación canónica impide que `..` o enlaces salgan del directorio.
 #[tauri::command]
-pub(crate) fn check_model_exists(path: String) -> bool {
-    model_appears_installed(std::path::Path::new(&path))
+pub(crate) fn check_model_exists(path: String, app_handle: tauri::AppHandle) -> bool {
+    let requested = std::path::Path::new(&path);
+    if asset_for_path(requested).is_none() {
+        return false;
+    }
+    let Ok(exact) = requested.canonicalize() else {
+        return false;
+    };
+    let Ok(models) = models_dir(&app_handle).canonicalize() else {
+        return false;
+    };
+    exact.parent() == Some(models.as_path()) && model_appears_installed(&exact)
 }
 
 #[derive(Deserialize)]

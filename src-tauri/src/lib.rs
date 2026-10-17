@@ -29,6 +29,7 @@ pub fn run() {
         stt: Mutex::new(None),
         authorized_audio_paths: Mutex::new(std::collections::HashSet::new()),
         authorized_pdf_paths: Mutex::new(std::collections::HashSet::new()),
+        authorized_document_paths: Mutex::new(std::collections::HashSet::new()),
         pending_blob_configs: Mutex::new(std::collections::HashMap::new()),
     };
 
@@ -45,6 +46,17 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .on_window_event(|window, event| {
+            // La autorización ocurre en el hilo nativo, antes de que el evento
+            // de drop llegue al renderer: una ruta solo es importable si el
+            // sistema operativo la soltó en esta ventana.
+            if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                let state = window.app_handle().state::<AppState>();
+                for path in paths {
+                    let _ = state.authorize_document_path(path);
+                }
+            }
+        })
         .manage(app_state)
         .manage(llm::LlmState::default())
         .manage(privacy::PrivacyState::default())

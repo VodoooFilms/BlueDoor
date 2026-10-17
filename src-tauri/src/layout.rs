@@ -87,6 +87,9 @@ pub(crate) fn executable(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(bundled)
 }
 pub(crate) fn extract(path: &Path, helper: &Path) -> Result<DocumentLayout, String> {
+    // El helper lee la ruta como argumento posicional tras `--layout`: se
+    // exige absoluta para que `-algo` nunca se lea como opción.
+    crate::types::AppState::absolute_process_path(path)?;
     let output = Command::new(helper)
         .arg("--layout")
         .arg(path)

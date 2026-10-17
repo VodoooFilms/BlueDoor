@@ -20,6 +20,27 @@ page.on("console", (m) => {
 
 await page.goto(BASE, { waitUntil: "networkidle" });
 
+// Canonical formatted HTML must bypass reconstruction; external markup must
+// still pass through the full sanitizer.
+const sanitizerChecks = await page.evaluate(() => {
+  const sanitizeRichHtml = window.__sanitizeRichHtml;
+  const create = document.createElement.bind(document);
+  let templates = 0;
+  document.createElement = function (name, options) {
+    if (name === "template") templates++;
+    return create(name, options);
+  };
+  try {
+    const canonical = '<div style="text-align: center"><font face="Georgia" size="3">Texto</font></div>';
+    const same = sanitizeRichHtml(canonical) === canonical && templates === 0;
+    const unsafe = sanitizeRichHtml('<div onclick="alert(1)"><script>alert(2)</script><b>Texto</b></div>');
+    const fallback = templates > 0 && unsafe === '<div><b>Texto</b></div>';
+    return { same, fallback };
+  } finally { document.createElement = create; }
+});
+if (!sanitizerChecks.same || !sanitizerChecks.fallback) fail("sanitizer fast path or security fallback failed");
+ok("formatted HTML fast path and unsafe markup fallback");
+
 const editor = page.locator(".rich-editor");
 await editor.waitFor({ state: "visible", timeout: 10000 });
 

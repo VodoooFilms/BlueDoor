@@ -1,5 +1,6 @@
 //! Bounded, local-only text extraction and on-device OCR. No network.
 use crate::privacy::{PrivacyState, Session, MAX_DOCUMENT_BYTES};
+use crate::types::AppState;
 use std::io::Read;
 use std::path::Path;
 use tauri::Manager;
@@ -56,6 +57,9 @@ fn docx_text(bytes: &[u8]) -> Result<String, String> {
     Ok(output)
 }
 fn ocr_text(path: &Path, executable: Option<&Path>) -> Result<String, String> {
+    // El helper lee la ruta como argumento posicional: se exige absoluta
+    // (diálogos y drop la entregan así) para que `-algo` nunca sea una opción.
+    AppState::absolute_process_path(path)?;
     let executable = executable.ok_or(if cfg!(target_os = "macos") {
         "Falta el componente OCR local. Reinstala la aplicación."
     } else {
@@ -140,9 +144,19 @@ pub(crate) async fn import_private_document(
     app: tauri::AppHandle,
     path: Option<String>,
 ) -> Result<Option<Session>, String> {
+    // Una ruta que llega del renderer solo es válida si el drop nativo la
+    // autorizó (consume de uso único, igual que audio/PDF). Sin ruta, el
+    // diálogo nativo es la propia barrera.
+    let authorized = match path.as_deref() {
+        Some(raw) => Some(
+            app.state::<AppState>()
+                .consume_document_path(Path::new(raw))?,
+        ),
+        None => None,
+    };
     tauri::async_runtime::spawn_blocking(move || {
-        let path = if let Some(path) = path {
-            std::path::PathBuf::from(path)
+        let path = if let Some(path) = authorized {
+            path
         } else {
             let selected = app
                 .dialog()
