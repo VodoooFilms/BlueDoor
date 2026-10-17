@@ -292,7 +292,7 @@
       </button>
       <img class="blue-secondary protect-art" src={protectedArt} alt="" />
       <div class="blue-secondary workflow-steps" aria-label={p("Importar, revisar y exportar")}>
-        <span title={p("Importar documento")}><Icon name="document" size={40} /><i><Icon name="plus" size={16} /></i></span><b></b>
+        <span title={p("Importar documento")}><Icon name="upload" size={40} /></span><b></b>
         <span title={p("Revisar documento")}><Icon name="search" size={40} /></span><b></b>
         <span title={p("Exportar PDF")}><Icon name="shield" size={40} /></span>
       </div>

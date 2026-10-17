@@ -484,11 +484,7 @@
               <span class="orb-shade"></span>
             </span>
             <span class="mic-glyph">
-              <svg class="mic-icon" viewBox="0 0 20 20" aria-hidden="true">
-                <rect x="6.5" y="2.5" width="7" height="10" rx="3.2"></rect>
-                <path d="M4.5 10a5.5 5.5 0 0 0 11 0"></path>
-                <path d="M10 15.5V17"></path>
-              </svg>
+              <Icon name="record-voice" size={88} />
             </span>
           </span>
         {/if}
@@ -512,11 +508,7 @@
             disabled={importing}
             onclick={(e) => { e.stopPropagation(); onImport(); }}
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M10 13V3"></path>
-              <path d="M6 7l4-4 4 4"></path>
-              <path d="M4 13v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"></path>
-            </svg>
+            <Icon name="upload" size={18} />
             <span>{t.importAudio}</span>
           </button>
 
@@ -860,7 +852,6 @@
     transition: opacity .22s ease;
   }
   .orb-window.recording .mic-glyph { opacity: 0; }
-  .mic-icon { width: 88px; height: 88px; color: var(--accent); fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
 
   /* Bloque de texto de estado con ALTURA FIJA igual al estado más alto (reposo:
      título + hint + "or" + botón importar). Así el círculo/orb NO se desplaza
@@ -896,7 +887,6 @@
   }
   .import-inline:hover:not(:disabled) { background: var(--hover); border-color: var(--muted); }
   .import-inline:disabled { opacity: .55; cursor: default; }
-  .import-inline svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
   @keyframes orbDrift1 {
     from { transform: translate3d(-6%, -4%, 0) scale(1); }
     to   { transform: translate3d(6%, 4%, 0) scale(1.12); }

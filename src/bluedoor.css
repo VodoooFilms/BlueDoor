@@ -100,3 +100,45 @@
 :root .shell .original-page pre { color-scheme:light; }
 
 :root .shell .models .card-copy strong,:root .shell .models .info strong { font-weight:600; }
+
+/* Compact models workspace: common left edge and room for all three engines. */
+:root .shell .models { padding:22px 36px; gap:16px; }
+:root .shell .models .models-head { padding:0; min-height:66px; }
+:root .shell .models .head-top { min-height:66px; }
+:root .shell .models .head-copy { flex:initial; }
+:root .shell .models .head-actions { margin-left:auto; }
+:root .shell .models .list { gap:14px; }
+:root .shell .models .card { padding:14px 18px; gap:12px; flex-shrink:0; }
+:root .shell .models .card-head { gap:14px; }
+:root .shell .models .card-copy strong { font-size:16px; font-weight:650; }
+:root .shell .models .row { padding:10px 14px; min-height:62px; background:#ffffff08; border-color:#bfd8ff55; }
+:root .shell .models .row-copy { width:clamp(170px,19vw,245px); }
+:root .shell .models .row-copy strong { font-weight:600; }
+:root .shell .models .download-btn,:root .shell .models .change-btn,:root .shell .models .back-btn,:root .shell .models .continue { font-weight:700; }
+:root .shell .models .setup-btn { min-height:66px; }
+:root .shell .models .footer { padding:0; min-height:40px; }
+:root .shell .models .back-btn { height:40px; }
+:root .shell .models .footer-note { max-width:460px; }
+@media(max-width:1100px) { :root .shell .models { padding:20px 24px; } }
+
+/* Audio actions and missing-model cards keep enough room for their copy. */
+:root .shell .mic-panel { padding:24px 32px; }
+:root .shell .mic-btn .state-title { font-weight:700; text-align:center; }
+:root .shell .mic-btn:not(.recording):not(.busy) .state-title { display:grid; place-items:center; }
+:root .shell .mic-panel .import-inline,:root .shell .mic-panel .download-btn { font-weight:700; }
+:root .shell .mic-panel .model-card { width: min(100%,680px); max-width:680px; padding:18px 22px; gap:28px; flex-shrink:0; }
+:root .shell .mic-panel .model-copy { gap:6px; }
+:root .shell .mic-panel .model-copy strong { font-weight:650; line-height:1.4; }
+:root .shell .mic-panel .model-copy span { font-size:14px; line-height:1.5; }
+:root .shell .mic-panel .download-btn { min-width:104px; }
+@media(max-width:1100px) {
+  :root .shell .mic-panel { padding:20px 24px; }
+  :root .shell .mic-panel .model-card { padding:16px 18px; gap:20px; }
+}
+@media(max-height:740px) {
+  :root .shell .mic-panel { gap:12px; padding-top:16px; padding-bottom:24px; }
+  :root .shell .mic-btn { padding:8px 24px; gap:4px; }
+  :root .shell .mic-btn .hero,:root .shell .mic-btn .orb-window { width:132px; height:132px; }
+  :root .shell .mic-btn .status { margin-top:8px; min-height:110px; }
+  :root .shell .mic-panel .model-card { padding-top:12px; padding-bottom:12px; }
+}

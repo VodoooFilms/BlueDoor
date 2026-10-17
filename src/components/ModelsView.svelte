@@ -7,7 +7,7 @@
   import { onMount, onDestroy } from "svelte";
   import { DEFAULT_STT, STT_OPTIONS } from "../lib/types";
   import type { SttModel } from "../lib/types";
-  import whisperLogo from "../assets/logos/whisper.png";
+  import ModelIcon from "./ModelIcon.svelte";
   import {
     getSttModel,
     setSttModel,
@@ -31,6 +31,20 @@
   let progress = $state<Record<string, number>>({});
   let message = $state("");
   let menu = $state<"stt" | "privacy" | null>(null);
+  let modelPicker = $state<HTMLDialogElement>();
+  let pickerReturnFocus: HTMLButtonElement | undefined;
+  function openPicker(kind: "stt" | "privacy", trigger: HTMLButtonElement) {
+    pickerReturnFocus = trigger;
+    menu = kind;
+  }
+  $effect(() => {
+    if (!modelPicker) return;
+    if (menu && !modelPicker.open) modelPicker.showModal();
+    else if (!menu && modelPicker.open) {
+      modelPicker.close();
+      pickerReturnFocus?.focus();
+    }
+  });
   let pendingDelete = $state<SttModel | "diarization" | "privacy" | null>(null);
   let privacyOptions = $state<{ id: string; name: string; size: string; installed: boolean }[]>([]);
   let privacySelected = $state("qwen3-fast");
@@ -61,7 +75,6 @@
       progress = { ...progress, [label]: pct };
     });
     try { await refresh(); } catch (e) { message = String(e); }
-    window.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("keydown", onKeyDown);
   });
 
@@ -70,15 +83,8 @@
       unlistenProgress();
       unlistenProgress = null;
     }
-    window.removeEventListener("pointerdown", onPointerDown);
     window.removeEventListener("keydown", onKeyDown);
   });
-
-  function onPointerDown(e: PointerEvent) {
-    if (!menu) return;
-    const target = e.target as Element | null;
-    if (!target || !target.closest(".dd")) menu = null;
-  }
 
   function onKeyDown(e: KeyboardEvent) {
     if (e.key === "Escape") {
@@ -235,7 +241,7 @@
   <div class="models-head">
     <div class="head-top">
     <div class="head-copy">
-      <Icon name="settings" size={36} /><strong class="sr-only">{t.modelsTitle}</strong>
+      <Icon name="download" size={36} /><strong class="sr-only">{t.modelsTitle}</strong>
       {#if setupStatus}
         <span role="status" aria-live="polite" title={setupStatus}>{setupStatus}</span>
       {:else if message}
@@ -268,7 +274,7 @@
     <!-- Whisper -->
     <div class="card">
       <div class="card-head">
-        <span class="card-icon"><img src={whisperLogo} alt="Whisper" /></span>
+        <ModelIcon kind="speech" />
         <div class="card-copy">
           <strong>{t.setupWhisperTitle}</strong>
           <span>{t.setupWhisperLink}</span>
@@ -279,36 +285,9 @@
           <strong>{sttCurrent.family === "whisper" ? `Whisper ${sttCurrent.label}` : sttCurrent.label}</strong>
           <span class="row-size">{sttCurrent.size}</span>
         </div>
-        <div class="dd">
-          <button
-            class="change-btn"
-            onclick={() => (menu = menu === "stt" ? null : "stt")}
-            disabled={busy}
-          >
-            <span>{t.changeModel}</span>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 8l4.5 4.5L14.5 8"></path></svg>
-          </button>
-          {#if menu === "stt"}
-            <div class="dd-menu">
-              {#each STT_OPTIONS as o, i (o.id)}
-                {#if i > 0 && STT_OPTIONS[i - 1].family !== o.family}
-                  <div class="dd-sep" role="separator"></div>
-                {/if}
-                <button
-                  class="dd-item"
-                  class:sel={o.id === sttCurrent.id}
-                  onclick={() => pickStt(o.id)}
-                >
-                  <span class="dd-name">{o.family === "whisper" ? `Whisper ${o.label}` : o.label}</span>
-                  <span class="dd-size">{o.size}</span>
-                  {#if o.id === sttCurrent.id}
-                    <span class="dd-check">✓</span>
-                  {/if}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
+        <button class="change-btn model-picker-trigger" onclick={(event) => openPicker("stt", event.currentTarget)} disabled={busy}>
+          <Icon name="edit" size={16} /><span>{t.changeModel}</span>
+        </button>
 
         <div class="spacer"></div>
 
@@ -345,28 +324,17 @@
     <!-- Qwen3: local document privacy -->
     <div class="card">
       <div class="card-head">
-        <span class="card-icon qwen-icon" aria-hidden="true">Q</span>
-        <div class="card-copy"><strong>Qwen3 · Private Legal</strong><span>{p("Extracción local de entidades privadas en documentos")}</span></div>
+        <ModelIcon kind="privacy" />
+        <div class="card-copy"><strong>{t.langLabel === "ES" ? "Privacidad de documentos" : "Document privacy"}</strong><span>{p("Extracción local de entidades privadas en documentos")}</span></div>
       </div>
       <div class="row">
         <div class="row-copy">
           <strong>{privacyOptions.find(m => m.id === privacySelected)?.name ?? "Qwen3-1.7B Q4_K_M"}</strong>
           <span class="row-size">{privacyOptions.find(m => m.id === privacySelected)?.size ?? "1.36 GB"}</span>
         </div>
-        <div class="dd">
-          <button class="change-btn" onclick={() => (menu = menu === "privacy" ? null : "privacy")} disabled={busy}>
-            <span>{t.changeModel}</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 8l4.5 4.5L14.5 8"></path></svg>
-          </button>
-          {#if menu === "privacy"}
-            <div class="dd-menu">
-              {#each privacyOptions as option (option.id)}
-                <button class="dd-item" class:sel={option.id === privacySelected} onclick={() => pickPrivacy(option.id)}>
-                  <span class="dd-name">{option.name}</span><span class="dd-size">{option.size}</span>{#if option.id === privacySelected}<span class="dd-check">✓</span>{/if}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
+        <button class="change-btn model-picker-trigger" onclick={(event) => openPicker("privacy", event.currentTarget)} disabled={busy}>
+          <Icon name="edit" size={16} /><span>{t.changeModel}</span>
+        </button>
         <div class="spacer"></div>
         <div class="right-actions">
           {#if installingId === privacySelected}
@@ -388,7 +356,7 @@
     <!-- Nemotron 3: local diarization trial -->
     <div class="card">
       <div class="card-head">
-        <span class="card-icon nemotron-icon" aria-hidden="true">N</span>
+        <ModelIcon kind="speakers" />
         <div class="card-copy">
           <strong>NVIDIA Nemotron 3</strong>
           <span>{t.langLabel === "ES" ? "Identificación de voces en el audio" : "Speaker identification in audio"}</span>
@@ -432,6 +400,30 @@
       {/if}
     </div>
   </div>
+
+  <dialog class="model-picker" bind:this={modelPicker} aria-labelledby="model-picker-title" oncancel={(event) => { event.preventDefault(); menu = null; }}>
+    <div class="picker-heading">
+      <div><h2 id="model-picker-title">{t.langLabel === "ES" ? "Elegir modelo" : "Choose a model"}</h2><p>{menu === "stt" ? t.setupWhisperTitle : (t.langLabel === "ES" ? "Privacidad de documentos" : "Document privacy")}</p></div>
+      <button class="picker-close" aria-label={t.langLabel === "ES" ? "Cerrar selector" : "Close selector"} onclick={() => menu = null}><Icon name="close" /></button>
+    </div>
+    <div class="model-choices" role="group" aria-label={t.langLabel === "ES" ? "Modelos disponibles" : "Available models"}>
+      {#if menu === "stt"}
+        {#each STT_OPTIONS as option (option.id)}
+          <button class="model-choice" class:selected={option.id === sttCurrent.id} aria-pressed={option.id === sttCurrent.id} disabled={busy} onclick={() => pickStt(option.id)}>
+            <span class="choice-copy"><strong>{option.family === "whisper" ? `Whisper ${option.label}` : option.label}</strong><span>{option.size} · {option.family === "whisper" ? "Whisper" : "NVIDIA Parakeet"}</span></span>
+            {#if option.id === sttCurrent.id}<Icon name="check" size={20} />{/if}
+          </button>
+        {/each}
+      {:else}
+        {#each privacyOptions as option (option.id)}
+          <button class="model-choice" class:selected={option.id === privacySelected} aria-pressed={option.id === privacySelected} disabled={busy} onclick={() => pickPrivacy(option.id)}>
+            <span class="choice-copy"><strong>{option.name}</strong><span>{option.size}</span></span>
+            {#if option.id === privacySelected}<Icon name="check" size={20} />{/if}
+          </button>
+        {/each}
+      {/if}
+    </div>
+  </dialog>
 
   {#if firstRun}
     <div class="footer">
@@ -495,27 +487,6 @@
   }
 
   .card-head { display: flex; align-items: center; gap: 13px; min-width:0; }
-  .card-icon {
-    flex: none;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    overflow: hidden;
-    border: 1px solid var(--line-dark);
-    background: var(--hover);
-  }
-  .card-icon img {
-    width: 82%;
-    height: 82%;
-    object-fit: contain;
-    display: block;
-    user-select: none;
-    -webkit-user-drag: none;
-  }
-  .nemotron-icon { background: var(--panel); border-color: var(--line-dark); color: var(--text); font-weight: 800; font-size: 19px; }
-  .qwen-icon { background: var(--panel); color: var(--text); font-family: var(--font-heading); font-size: 21px; }
   .model-note { color: var(--muted); font-size: 12px; margin: -4px 2px 0; }
   .card-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .card-copy strong { font-size: 15px; font-weight: 500; }
@@ -538,8 +509,6 @@
   .spacer { flex: 1; }
   .right-actions { flex: none; display: flex; align-items: center; gap: 20px; }
 
-  /* Dropdown cambiar modelo */
-  .dd { position: relative; }
   .change-btn {
     display: inline-flex;
     align-items: center;
@@ -558,46 +527,7 @@
   }
   .change-btn:hover:not(:disabled) { background: var(--hover); border-color: var(--muted); }
   .change-btn:disabled { opacity: .55; cursor: default; }
-  .change-btn svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-
-  .dd-menu {
-    position: absolute;
-    top: calc(100% + 7px);
-    right: 0;
-    z-index: 30;
-    min-width: 250px;
-    padding: 5px;
-    border: 1px solid var(--line);
-    border-radius: 9px;
-    background: var(--surface);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
-    display: flex;
-    flex-direction: column;
-  }
-  .dd-sep {
-    height: 1px;
-    margin: 5px 8px;
-    background: var(--line);
-  }
-  .dd-item {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--text);
-    text-align: left;
-    font-size: 14px;
-    cursor: pointer;
-  }
-  .dd-item:hover { background: var(--hover); }
-  .dd-item.sel { color: var(--accent); }
-  .dd-name { font-weight: 500; white-space: nowrap; }
-  .dd-size { color: var(--muted); font-size: 12px; white-space: nowrap; }
-  .dd-check { color: var(--accent); font-size: 13px; }
+  .change-btn :global(svg) { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
   .ok { font-size: 14px; font-weight: 500; white-space: nowrap; color: var(--success); }
 
@@ -712,6 +642,20 @@
   .dialog-actions .cancel:hover { background: var(--hover); }
   .dialog-actions .danger { border-color: var(--error); color: var(--error); }
   .dialog-actions .danger:hover { background: var(--error); color: #fff; }
+  .model-picker { width:min(760px,calc(100vw - 48px)); max-height:calc(100vh - 64px); padding:26px; border:1px solid #a7caff66; border-radius:18px; background:#1745a5; color:white; box-shadow:0 28px 90px #00194766; }
+  .model-picker::backdrop { background:#051d54a6; backdrop-filter:blur(5px); }
+  .picker-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:22px; }
+  .picker-heading h2 { font:650 23px/1.3 var(--font-heading); margin:0 0 5px; }
+  .picker-heading p { margin:0; color:#c5dbff; font-size:14px; }
+  .picker-close { display:grid; place-items:center; width:36px; height:36px; border:1px solid #c5dbff55; border-radius:9px; background:transparent; color:white; cursor:pointer; }
+  .model-choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .model-choice { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:17px; min-height:78px; border:1px solid #b8d4ff55; border-radius:12px; background:#ffffff08; color:white; text-align:left; cursor:pointer; }
+  .model-choice:hover { background:#ffffff16; }
+  .model-choice.selected { border-color:white; background:#ffffff1f; }
+  .choice-copy { display:flex; flex-direction:column; gap:5px; min-width:0; }
+  .choice-copy strong { font-size:14px; font-weight:650; }
+  .choice-copy > span { font-size:12px; color:#c5dbff; }
+  @media (max-width:600px) { .model-choices { grid-template-columns:1fr; } }
   @media (max-width: 900px) {
     .head-top { flex-wrap: wrap; gap: 14px; }
     .card { padding:14px; }
@@ -722,9 +666,8 @@
   }
   @media (max-width: 540px) {
     .row { align-items:stretch; }
-    .row-copy, .dd, .right-actions { width:100%; }
+    .row-copy, .model-picker-trigger, .right-actions { width:100%; }
     .right-actions { justify-content:space-between; }
-    .dd-menu { left:0; right:auto; max-width:calc(100vw - 60px); }
     .footer { flex-wrap:wrap; }
     .footer-note { flex:1 1 100%; text-align:left; }
   }
