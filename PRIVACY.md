@@ -1,9 +1,11 @@
 # Privacy Policy — BlueDoor
 
-**Short version:** BlueDoor is designed to work **completely offline**. Your audio,
-transcriptions and edits are processed on your own Mac and are never uploaded,
-shared or used for training. The only network activity is downloading the AI models
-you choose from Hugging Face or the immutable Ollama model registry.
+**Short version:** BlueDoor processes documents, audio and edits locally on your Mac.
+After model installation, its document and transcription workflows can run offline.
+The application downloads models when you request them. The optional **Send to GPT**
+button opens ChatGPT in your browser; it does not upload a document, copy its text
+or attach an export. If you manually upload an exported file there, that separate
+online service processes it under its own terms and privacy settings.
 
 ## Private AI documents
 
@@ -13,7 +15,7 @@ Pseudonymization is not an anonymity guarantee. Human review and deterministic p
 
 ### What the sanitizer refuses to do
 
-The app will not approve, preview or export a "sanitized" document that is not actually sanitized. A review is rejected unless the entity map is non-empty **and** the sanitized text differs from the original, so a document in which nothing was detected can never be presented as safe by omission. When the map contains no person, the interface says so explicitly, because names are the one category no deterministic rule can check.
+The app requires a reviewed entity map before it approves, previews or exports a protected document. These checks cannot prove that every sensitive detail has been found. A review is rejected unless the entity map is non-empty **and** the sanitized text differs from the original, so a document in which nothing was detected can never be presented as safe by omission. When the map contains no person, the interface says so explicitly, because names are the one category no deterministic rule can check.
 
 Exports to PDF are validated in the application process, not in the interface: the writer only accepts a document whose text is identical to the one that was reviewed, and it refuses the file if the session is not reviewed, the map is empty, or the requested text is not the reviewed one. Selecting a file and pressing Export is not sufficient on its own. The title is checked by the same rules, because it is printed in the page header and stored in the file's metadata.
 
@@ -30,12 +32,16 @@ Exports to PDF are validated in the application process, not in the interface: t
 
 ## What leaves your device
 
-- Nothing except **model downloads**: when you press "Download" in the Models window,
+- **Model downloads**: when you press "Download" in the Models window,
   the app fetches the selected Whisper, Parakeet or Nemotron model file from
   `huggingface.co` and its download/CDN infrastructure. Requests disclose connection metadata such as IP address and the model requested; they do not include your audio, transcripts or documents. Qwen3 is fetched from `registry.ollama.ai` and its CDN as immutable public weights, also with no document content in the request. Model files are stored in
   `~/Library/Application Support/com.bluedoor.desktop/models/`.
-- No telemetry, no analytics, no accounts, no crash reporters. We cannot see your
-  transcripts — the app does not contact any server with your content.
+- **Browser navigation**: pressing **Send to GPT** opens the fixed address
+  `https://chatgpt.com/`. The browser makes its own network requests and may use
+  your existing ChatGPT session. BlueDoor supplies no document, title, file path
+  or text to this command. Attaching an exported PDF remains a manual action.
+- No telemetry, analytics, application accounts or crash reporters are configured
+  in BlueDoor. Its local processing workflows do not send document content to a server.
 
 ## Permissions the app may ask for
 

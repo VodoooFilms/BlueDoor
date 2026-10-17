@@ -2,7 +2,7 @@
 
 Aplicación de escritorio para preparar documentos legales y transcripciones en tu propio equipo: análisis local de información sensible, alias revisables, edición enriquecida y exportación PDF.
 
-Aplicación independiente creada en `/Users/antoin/Documents/BlueDoor` desde la copia Local Legal (`bb28079`) el 17 de octubre de 2026. Belegal y Local Legal se conservan intactos; esta copia no tiene remoto configurado.
+Proyecto independiente de escritorio, con datos y preferencias propios. Repositorio de desarrollo: [VodoooFilms/BlueDoor](https://github.com/VodoooFilms/BlueDoor). Presentación del producto: [BlueDoor en Prompthea](https://www.prompthea.com/projects/bluedoor).
 
 La interfaz sigue la referencia BlueDoor: fondo azul intenso, marca de puerta y navegación blancas, ilustraciones SVG azul claro al 80 % y botones principales blancos con texto azul. Las pantallas de documentos, audio, ajustes, modelos, edición y mapa privado comparten la misma identidad. Los documentos conservan su contenido y formato, con hoja blanca y tinta legible.
 
@@ -41,3 +41,12 @@ pnpm test:layout:ui
 - Marca SVG e iconos editables en `src/assets/` y `assets/branding/`.
 
 Los documentos en `docs/archive/` y `docs/milestones/` son antecedentes históricos de la base. La licencia y los avisos originales se conservan. Véanse [PRIVACY.md](PRIVACY.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) y [docs/BLUEDOOR_FORK.md](docs/BLUEDOOR_FORK.md).
+
+## Estado y límites
+
+- Desarrollo y demostraciones privadas en Mac con Apple Silicon; no hay instalador público.
+- La detección puede omitir información. Revisar el mapa privado y las páginas antes de compartir; no se garantiza anonimato.
+- **Send to GPT** abre ChatGPT en el navegador. No sube ni adjunta el documento; la carga del PDF exportado es manual.
+- El chequeo del 17 de octubre de 2026 pasó tipos, build, Clippy y suites de UI; 104 pruebas nativas aprobadas y 15 omitidas. Véase [el informe](docs/AUDIT_2026-10-17.md) para el alcance.
+- Antes de distribuir: completar los textos de licencia pendientes, firma Developer ID, notarización y prueba en un Mac limpio.
+- Modelos, instaladores, documentos personales y resultados de QA se mantienen fuera de Git.

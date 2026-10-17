@@ -160,7 +160,7 @@ fn load_one_backend(file: &Path) -> Result<(), String> {
     #[cfg(not(target_os = "macos"))]
     let backend = unsafe { llama_cpp_sys_2::ggml_backend_load(path.as_ptr()) };
     if backend.is_null() {
-        return Err("No se pudo cargar un componente de IA. Reinstala BLegal Local Demo.".into());
+        return Err("No se pudo cargar un componente de IA. Reinstala BlueDoor.".into());
     }
     Ok(())
 }
@@ -177,7 +177,7 @@ pub(crate) fn load_owned_backends() -> Result<(), String> {
                 for name in ["libggml-cpu-apple_m1.so", "libggml-metal.so"] {
                     let file = directory.join(name);
                     if !file.is_file() {
-                        return Err("Falta un componente de IA de la aplicación. Reinstala BLegal Local Demo; tus documentos se conservan.".into());
+                        return Err("Falta un componente de IA de la aplicación. Reinstala BlueDoor; tus documentos se conservan.".into());
                     }
                     load_one_backend(&file)?;
                 }
@@ -188,14 +188,14 @@ pub(crate) fn load_owned_backends() -> Result<(), String> {
                 // llama.cpp revisions (with/without a lib prefix), so discover
                 // the CPU module rather than hard-coding a release-only name.
                 let cpu = std::fs::read_dir(&directory)
-                    .map_err(|_| "Falta un componente de IA de la aplicación. Reinstala BLegal Local Demo; tus documentos se conservan.".to_string())?
+                    .map_err(|_| "Falta un componente de IA de la aplicación. Reinstala BlueDoor; tus documentos se conservan.".to_string())?
                     .flatten()
                     .map(|entry| entry.path())
                     .find(|path| {
                         path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("dll"))
                             && path.file_name().is_some_and(|name| name.to_string_lossy().contains("ggml-cpu"))
                     })
-                    .ok_or("Falta el backend de CPU de la aplicación. Reinstala BLegal Local Demo; tus documentos se conservan.")?;
+                    .ok_or("Falta el backend de CPU de la aplicación. Reinstala BlueDoor; tus documentos se conservan.")?;
                 load_one_backend(&cpu)?;
             }
             Ok(())
