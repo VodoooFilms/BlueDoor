@@ -150,3 +150,7 @@
 /* Action/progress replacements occupy the same footprint. */
 :root .shell .mic-panel .download-btn,:root .shell .mic-panel .download-progress { width:150px; min-height:40px; }
 :root .shell .models .right-actions > .download-btn,:root .shell .models .right-actions > .download-progress,:root .shell .models .right-actions > .ok { width:160px; min-height:40px; display:flex; align-items:center; justify-content:center; }
+
+/* Equal space before each download icon and between the icon and its label. */
+:root .shell .models .download-btn,:root .shell .models .right-actions > .download-btn { justify-content:flex-start; padding-inline:16px; gap:16px; }
+:root .shell .models .setup-btn:not(:has(svg)) { justify-content:center; }

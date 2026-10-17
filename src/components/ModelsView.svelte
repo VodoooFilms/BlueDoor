@@ -246,7 +246,7 @@
   <div class="models-head">
     <div class="head-top">
     <div class="head-copy">
-      <Icon name="settings" size={36} /><strong class="sr-only">{t.modelsTitle}</strong>
+      <Icon name="settings" size={36} /><h1>{t.langLabel === "ES" ? "Modelos locales:" : "Local models:"}</h1>
     </div>
     {#if offerSetup || setupRunning || installingId}
       <div class="head-actions">
@@ -471,8 +471,8 @@
   .download-btn.setup-btn { display:flex; flex-direction:row; align-items:center; justify-content:center; gap:12px; flex: none; width:280px; max-width:320px; height:auto; min-height:66px; padding: 10px 16px; line-height: 1.4; text-align: center; white-space: normal; }
   .setup-copy { display:flex; flex-direction:column; gap:2px; text-align:left; font-weight:700; }
   .back-btn:disabled { opacity: .55; cursor: default; }
-  .head-copy { display: flex; flex-direction: column; gap: 8px; }
-  .head-copy strong { font-family: var(--font-heading); font-size: 28px; font-weight: 400; line-height: 1.2; }
+  .head-copy { display:flex; flex-direction:row; align-items:center; gap:14px; }
+  .head-copy h1 { margin:0; font-family:var(--font-heading); font-size:20px; font-weight:650; line-height:1.2; white-space:nowrap; }
 
   .list { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
 
