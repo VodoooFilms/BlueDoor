@@ -1,5 +1,6 @@
 <script lang="ts">
   import { privateCopy as p } from "./lib/private-i18n";
+  import Icon from "./components/Icon.svelte";
   import WelcomeSplash from "./components/WelcomeSplash.svelte";
   import PrivateAI from "./components/PrivateAI.svelte";
   import Recorder from "./components/Recorder.svelte";
@@ -45,7 +46,7 @@
     fullScreen = !(await window.isFullscreen());
     await window.setFullscreen(fullScreen);
   }
-  const welcomeSeenKey = "local-legal-welcome-seen";
+  const welcomeSeenKey = "bluedoor-welcome-seen";
   let welcomeVisible = $state(false);
   let welcomeReady = $state(false);
   let welcomeLoading = $state(true);
@@ -53,7 +54,7 @@
     welcomeLoading = true;
     try {
       const all = await invoke<{ whisper: { installed: boolean }[]; parakeet: { installed: boolean }[]; privacy: { id: string; installed: boolean }[] }>("list_models");
-      const selected = localStorage.getItem("local-legal-privacy-model") || "qwen3-fast";
+      const selected = localStorage.getItem("bluedoor-privacy-model") || "qwen3-fast";
       welcomeReady = (all.whisper.some(m => m.installed) || all.parakeet.some(m => m.installed))
         && all.privacy.some(m => m.id === selected && m.installed);
     } catch { welcomeReady = false; }
@@ -209,11 +210,11 @@
   }
 
   onMount(async () => {
-    const storedTheme = localStorage.getItem("local-legal-theme");
+    const storedTheme = localStorage.getItem("bluedoor-theme");
     if (storedTheme === "light" || storedTheme === "dark") theme = storedTheme;
     await hydrate();
     if (localStorage.getItem(welcomeSeenKey) !== "true") openAbout();
-    editId = localStorage.getItem("local-legal-edit-id");
+    editId = localStorage.getItem("bluedoor-edit-id");
   });
 
   onMount(() => {
@@ -238,7 +239,7 @@
 
   $effect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("local-legal-theme", theme);
+    localStorage.setItem("bluedoor-theme", theme);
   });
 
   $effect(() => {
@@ -318,8 +319,8 @@
   $effect(() => {
     editId;
     if (!hydrated) return;
-    if (editId) localStorage.setItem("local-legal-edit-id", editId);
-    else localStorage.removeItem("local-legal-edit-id");
+    if (editId) localStorage.setItem("bluedoor-edit-id", editId);
+    else localStorage.removeItem("bluedoor-edit-id");
   });
 
   function handleNewTranscript(transcript: Transcript) {
@@ -477,9 +478,8 @@
 
 <div class="shell">
   <header class="masthead">
-    <span class="brand" role="button" tabindex="0" title={p("Acerca de Local Legal")} onclick={openAbout} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAbout(); } }}>
-      <span class="brand-wordmark">Local&nbsp;<i>Legal</i></span>
-      <span class="brand-demo">Local demo</span>
+    <span class="brand" role="button" tabindex="0" title={p("Acerca de BlueDoor")} onclick={openAbout} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAbout(); } }}>
+      <Icon name="door" size={42} /><span class="brand-wordmark">BlueDoor</span>
     </span>
     {#if workflow === "audio" && activeTranscript && !showModels}
       <span class="back-link" role="button" tabindex="0" onclick={goHome} onkeydown={(e) => { if (e.key === 'Enter') goHome(); }}>
@@ -488,22 +488,23 @@
     {/if}
     <div class="nav-right">
       <div class="nav-row">
-        <button class="nav-models" class:nav-active={workflow === "private" && !privateEditVisible} onclick={goPrivate} disabled={recorderBusy || importing || privacyBusy || modelsBusy}>{p("Documentos")}</button>
-        <button class="nav-models" class:nav-active={workflow === "audio" && !showModels && !activeTranscript} id="recordToggle" onclick={goHome} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title={recorderBusy || importing ? t.navigationBlocked : t.recordNav}>{t.recordNav}</button>
-        <button class="nav-models" class:nav-active={(workflow === "private" && privateEditVisible) || (!showModels && workflow === "audio" && !!activeTranscript)} id="editToggle" onclick={goEdit} disabled={recorderBusy || importing || privacyBusy || modelsBusy || (!privateTranscript && !editTranscript)} title={recorderBusy || importing ? t.navigationBlocked : t.editNav}>{t.editNav}</button>
+        <button class="nav-models" class:nav-active={workflow === "private" && !privateEditVisible} onclick={goPrivate} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="document" /><span>{p("Documentos")}</span></button>
+        <button class="nav-models" class:nav-active={workflow === "audio" && !showModels && !activeTranscript} id="recordToggle" onclick={goHome} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title={recorderBusy || importing ? t.navigationBlocked : t.recordNav}><Icon name="audio" /><span>{p("Audio")}</span></button>
+        <button class="nav-models" class:nav-active={(workflow === "private" && privateEditVisible) || (!showModels && workflow === "audio" && !!activeTranscript)} id="editToggle" onclick={goEdit} disabled={recorderBusy || importing || privacyBusy || modelsBusy || (!privateTranscript && !editTranscript)} title={recorderBusy || importing ? t.navigationBlocked : t.editNav}><Icon name="edit" /><span>{t.editNav}</span></button>
         <details class="settings-menu" bind:this={settingsEl}>
-          <summary>{p("Ajustes")} <span aria-hidden="true">⌄</span></summary>
+          <summary><Icon name="settings" /><span>{p("Ajustes")}</span></summary>
           <div class="settings-popover">
-            <button id="modelsToggle" class:nav-active={showModels && workflow !== "private"} onclick={() => { settingsEl.open = false; openModels(); }} disabled={recorderBusy || importing || privacyBusy || modelsBusy}>{t.modelsTitle}</button>
-            <button id="languageToggle" aria-label={t.switchLanguage} onclick={toggle}>{p("Idioma")} <span>{t.langLabel === "ES" ? "Español" : "English"}</span></button>
-            <button id="themeToggle" aria-label={theme === "dark" ? t.lightTheme : t.darkTheme} onclick={toggleTheme}>{p("Apariencia")} <span>{p(theme === "dark" ? "Oscuro" : "Claro")}</span></button>
+            <button id="modelsToggle" class:nav-active={showModels && workflow !== "private"} onclick={() => { settingsEl.open = false; openModels(); }} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="download" /><span>{t.modelsTitle}</span></button>
+            <button id="languageToggle" aria-label={t.switchLanguage} onclick={toggle}><Icon name="globe" />{p("Idioma")} <span>{t.langLabel === "ES" ? "Español" : "English"}</span></button>
+            <button id="themeToggle" aria-label={theme === "dark" ? t.lightTheme : t.darkTheme} onclick={toggleTheme}><Icon name="moon" />{p("Apariencia")} <span>{p(theme === "dark" ? "Oscuro" : "Claro")}</span></button>
             <hr />
-            <button id="fullscreenToggle" onclick={toggleFullScreen}>{p(fullScreen ? "Salir de pantalla completa" : "Pantalla completa")}</button>
-            <button onclick={() => { settingsEl.open = false; openAbout(); }}>{p("Acerca de Local Legal")}</button>
+            <button id="fullscreenToggle" onclick={toggleFullScreen}><Icon name="expand" />{p(fullScreen ? "Salir de pantalla completa" : "Pantalla completa")}</button>
+            <button onclick={() => { settingsEl.open = false; openAbout(); }}><Icon name="info" />{p("Acerca de BlueDoor")}</button>
           </div>
         </details>
       </div>
     </div>
+    <span class="local-indicator" role="img" aria-label={p("Procesamiento local")} title={p("Procesamiento local")}><Icon name="laptop" size={28} /><span></span></span>
   </header>
 
   {#if storageError && hydrated}
@@ -637,17 +638,6 @@
     -webkit-app-region: no-drag;
   }
   .brand-wordmark { display: inline-flex; align-items: baseline; }
-  .brand-wordmark i { font-style: italic; font-weight: 300; }
-  .brand-demo {
-    padding-left: 16px;
-    border-left: 1px solid var(--line-dark);
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 11px;
-    font-weight: 400;
-    letter-spacing: .08em;
-    line-height: 1.4;
-    color: var(--muted);
-  }
   .brand:hover,
   .brand:focus-visible { background: var(--hover); }
 

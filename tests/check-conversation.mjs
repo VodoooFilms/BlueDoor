@@ -60,7 +60,7 @@ await reset.click();
 assert.equal(await reset.isDisabled(), true, 'reset establishes a clean baseline');
 assert.equal(await editor.locator('strong').count(), 2);
 assert.ok((await editor.textContent()).includes('Una segunda línea.'));
-await page.screenshot({ path: '/tmp/local-legal-conversation.png' });
+await page.screenshot({ path: '/tmp/bluedoor-conversation.png' });
 await load({ ...fixture, segments: [{ start: 0, end: 1, text: 'Texto sencillo.' }], text: 'Texto sencillo.' });
 assert.equal(await editor.innerHTML(), '<div>Texto sencillo.</div>');
 assert.deepEqual(errors, []);

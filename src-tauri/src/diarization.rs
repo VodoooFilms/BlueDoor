@@ -26,14 +26,14 @@ struct LocalConfig {
 }
 
 fn configured_bin() -> Result<PathBuf, String> {
-    let env_bin = std::env::var_os("LOCAL_LEGAL_NEMO_BIN").map(PathBuf::from);
+    let env_bin = std::env::var_os("BLUEDOOR_NEMO_BIN").map(PathBuf::from);
     // A debug .app launched by Finder does not inherit shell environment.
     // Keep this fallback limited to the separate local test app.
     #[cfg(debug_assertions)]
     let file_paths = || {
         let home = std::env::var_os("HOME")?;
         let config = PathBuf::from(home).join(
-            "Library/Application Support/com.locallegal.desktop.diarizationtest/diarization.json",
+            "Library/Application Support/com.bluedoor.desktop.diarizationtest/diarization.json",
         );
         let data = std::fs::read(config).ok()?;
         let parsed: LocalConfig = serde_json::from_slice(&data).ok()?;
@@ -46,7 +46,7 @@ fn configured_bin() -> Result<PathBuf, String> {
         .ok_or("No está configurada la prueba local de voces.")?;
     Some(bin)
         .filter(|p| p.is_file())
-        .ok_or("No está configurado LOCAL_LEGAL_NEMO_BIN para la prueba de voces.".into())
+        .ok_or("No está configurado BLUEDOOR_NEMO_BIN para la prueba de voces.".into())
 }
 
 #[tauri::command]
@@ -63,7 +63,7 @@ pub(crate) fn diarize(audio: &[f32], model: &Path) -> Result<Vec<SpeakerInterval
     let bin = configured_bin()?;
     crate::models::verify_model_file(model)?;
     let temp = tempfile::Builder::new()
-        .prefix("local-legal-diar-")
+        .prefix("bluedoor-diar-")
         .tempdir()
         .map_err(|e| format!("No se pudo preparar la prueba de voces: {e}"))?;
     let wav = temp.path().join("audio.wav");

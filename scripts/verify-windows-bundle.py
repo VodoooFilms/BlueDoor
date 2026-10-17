@@ -17,7 +17,7 @@ def main() -> None:
     release = Path(args.target_dir) / (
         "aarch64-pc-windows-msvc" if args.architecture == "arm64" else "x86_64-pc-windows-msvc"
     ) / "release"
-    executable = release / "local-legal.exe"
+    executable = release / "bluedoor.exe"
     if not executable.is_file():
         fail(f"missing executable: {executable}")
     bundle = release / "bundle"

@@ -23,7 +23,7 @@ export class PcmRecorder {
   private failure: Error | null = null;
 
   private constructor(private context: AudioContext, stream: MediaStream) {
-    this.node = new AudioWorkletNode(context, "local-legal-pcm");
+    this.node = new AudioWorkletNode(context, "bluedoor-pcm");
     this.source = context.createMediaStreamSource(stream);
     this.node.port.onmessage = ({ data }) => {
       if (data.samples) this.chunks.push(data.samples);
@@ -47,7 +47,7 @@ export class PcmRecorder {
       return recorder;
     } catch {
       await context.close();
-      throw new Error("No se pudo iniciar la grabación. Si persiste, reinstala Local Legal.");
+      throw new Error("No se pudo iniciar la grabación. Si persiste, reinstala BlueDoor.");
     }
   }
 

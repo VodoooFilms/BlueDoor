@@ -34,7 +34,7 @@ pub(crate) fn atomic_write(
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let tmp = parent.join(format!(".local-legal-{}.tmp", uuid::Uuid::new_v4()));
+    let tmp = parent.join(format!(".bluedoor-{}.tmp", uuid::Uuid::new_v4()));
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]

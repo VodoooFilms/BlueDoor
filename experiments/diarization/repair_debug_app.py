@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DEBUG = ROOT / "src-tauri/target/debug"
-APP = DEBUG / "bundle/macos/Local Legal Diarization Test.app"
+APP = DEBUG / "bundle/macos/BlueDoor Diarization Test.app"
 
 spec = importlib.util.spec_from_file_location("release_mac", ROOT / "scripts/release-mac.py")
 release = importlib.util.module_from_spec(spec)
@@ -26,7 +26,7 @@ for native in backends[-1].glob("*.so"):
     shutil.copy2(native, frameworks / native.name)
 
 verifier = release.load_verifier()
-binary = APP / "Contents/MacOS/local-legal"
+binary = APP / "Contents/MacOS/bluedoor"
 for native in verifier.macho_files(APP):
     for rpath in verifier.rpaths(native):
         if rpath.startswith("/"):

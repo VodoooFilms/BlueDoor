@@ -331,7 +331,7 @@ pub(crate) async fn transcribe_blob(
 ) -> Result<TranscriptionResult, String> {
     let token = request
         .headers()
-        .get("x-local-legal-config")
+        .get("x-bluedoor-config")
         .and_then(|value| value.to_str().ok())
         .ok_or("Falta la configuración de la transcripción.")?;
     let data = match request.body() {
@@ -490,7 +490,7 @@ pub(crate) fn cleanup_leftovers(models_dir: &Path) {
         for entry in entries.flatten() {
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if name.starts_with("local-legal-rec-") || name.starts_with("local-legal-dec-") {
+            if name.starts_with("bluedoor-rec-") || name.starts_with("bluedoor-dec-") {
                 let _ = std::fs::remove_file(entry.path());
             }
         }
@@ -499,11 +499,11 @@ pub(crate) fn cleanup_leftovers(models_dir: &Path) {
 
 fn convert_to_wav_and_load(path: &Path, decoder: &Path) -> Result<Vec<f32>, String> {
     if !decoder.is_file() {
-        return Err("Falta un componente de audio de la aplicación. Reinstala Local Legal; tus documentos se conservan.".into());
+        return Err("Falta un componente de audio de la aplicación. Reinstala BlueDoor; tus documentos se conservan.".into());
     }
     // Private, exclusive temporary directory; RAII also cleans failures.
     let temp = tempfile::Builder::new()
-        .prefix("local-legal-dec-")
+        .prefix("bluedoor-dec-")
         .tempdir()
         .map_err(|e| {
             format!(
@@ -549,7 +549,7 @@ fn convert_to_wav_and_load(path: &Path, decoder: &Path) -> Result<Vec<f32>, Stri
         command.creation_flags(0x0800_0000);
     }
     let output = command.output().map_err(|_| {
-        "No se pudo iniciar un componente de audio. Reinstala Local Legal.".to_string()
+        "No se pudo iniciar un componente de audio. Reinstala BlueDoor.".to_string()
     })?;
     if !output.status.success() {
         return Err("No se pudo leer el audio. El archivo puede estar dañado, no contener audio o usar un formato no compatible. Comprueba también el espacio disponible.".into());

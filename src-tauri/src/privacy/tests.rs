@@ -10,9 +10,9 @@ static REAL_INFERENCE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// Explicit local QA: the input stays outside the repository. Measure actual
 /// inference and retries, rather than inferring capacity from page count.
 #[test]
-#[ignore = "Requires LOCAL_LEGAL_QA_LAYOUT and verified local Qwen weights"]
+#[ignore = "Requires BLUEDOOR_QA_LAYOUT and verified local Qwen weights"]
 fn real_qwen_user_pdf_capacity() {
-    let path = std::env::var("LOCAL_LEGAL_QA_LAYOUT").expect("set local layout JSON path");
+    let path = std::env::var("BLUEDOOR_QA_LAYOUT").expect("set local layout JSON path");
     let value: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let text = value["text"].as_str().unwrap();
     let (_guard, engine) = locked_qwen_engine();
@@ -63,7 +63,7 @@ fn real_qwen_user_pdf_capacity() {
         value["pages"].as_array().unwrap().len(), text.chars().count(), measured.calls.get(), measured.errors.get(),
         analysis.fragments, analysis.failed_fragments, analysis.entities.len(), start.elapsed().as_secs_f64());
     assert!(analysis.complete(), "all source fragments must be analyzed");
-    if let Ok(path) = std::env::var("LOCAL_LEGAL_QA_RESULT") {
+    if let Ok(path) = std::env::var("BLUEDOOR_QA_RESULT") {
         let bytes = serde_json::to_vec(&analysis.entities).unwrap();
         crate::store::atomic_write(Path::new(&path), |file| {
             use std::io::Write;
@@ -290,9 +290,9 @@ fn ocr_suggestions_only_add_one_letter_to_exact_existing_words() {
 #[ignore = "Requires verified local Qwen weights"]
 fn real_qwen_analyzes_local_qa_document() {
     // Defaults to the checked-in QA document so the test is runnable by anyone
-    // with the local weights; a lawyer can point LOCAL_LEGAL_QA_TEXT at their own
+    // with the local weights; a lawyer can point BLUEDOOR_QA_TEXT at their own
     // OCR text to repeat the run on a real file.
-    let input = std::env::var("LOCAL_LEGAL_QA_TEXT").unwrap_or_else(|_| {
+    let input = std::env::var("BLUEDOOR_QA_TEXT").unwrap_or_else(|_| {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../tests/fixtures/private-document.txt")
             .to_string_lossy()

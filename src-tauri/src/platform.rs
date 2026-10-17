@@ -19,21 +19,21 @@ pub(crate) fn open_server_home(app_handle: tauri::AppHandle) -> Result<(), Strin
 
 /// Directorio de modelos para tests/sandbox: en macOS se mantiene la ruta
 /// legada de App Support usada por los scripts de verificación; en Windows se
-/// usa `%APPDATA%/com.locallegal.desktop/models` (el app_data_dir real).
+/// usa `%APPDATA%/com.bluedoor.desktop/models` (el app_data_dir real).
 #[cfg(test)]
 pub(crate) fn test_models_dir() -> PathBuf {
     #[cfg(target_os = "macos")]
     {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
         PathBuf::from(format!(
-            "{}/Library/Application Support/com.locallegal.desktop/models",
+            "{}/Library/Application Support/com.bluedoor.desktop/models",
             home
         ))
     }
     #[cfg(target_os = "windows")]
     {
         let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
-        PathBuf::from(format!("{}/com.locallegal.desktop/models", base))
+        PathBuf::from(format!("{}/com.bluedoor.desktop/models", base))
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
@@ -74,8 +74,7 @@ pub(crate) fn decoder_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, Str
         .resource_dir()
         .map(|dir| dir.join("runtime").join(decoder_file_name()))
         .map_err(|_| {
-            "No se pudo encontrar un componente de la aplicación. Reinstala Local Legal."
-                .to_string()
+            "No se pudo encontrar un componente de la aplicación. Reinstala BlueDoor.".to_string()
         })
 }
 

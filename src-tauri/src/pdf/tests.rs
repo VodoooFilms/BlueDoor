@@ -3,7 +3,7 @@ use crate::types::Segment;
 
 #[test]
 fn pdf_generation_writes_file() {
-    let dest = std::env::temp_dir().join("local-legal-test.pdf");
+    let dest = std::env::temp_dir().join("bluedoor-test.pdf");
     let _ = std::fs::remove_file(&dest);
 
     let font_family = load_font_family("system").unwrap();
@@ -25,7 +25,7 @@ fn pdf_generation_writes_file() {
 
 #[test]
 fn pdf_report_is_multipage() {
-    let dest = std::env::temp_dir().join("local-legal-report-test.pdf");
+    let dest = std::env::temp_dir().join("bluedoor-report-test.pdf");
     let _ = std::fs::remove_file(&dest);
 
     let segments = vec![Segment {
@@ -170,7 +170,7 @@ fn styling_around_punctuation_does_not_change_the_visible_text() {
 
 #[test]
 fn pdf_rich_html_is_written_with_styles() {
-    let dest = std::env::temp_dir().join("local-legal-richtext-test.pdf");
+    let dest = std::env::temp_dir().join("bluedoor-richtext-test.pdf");
     let _ = std::fs::remove_file(&dest);
 
     let segments = vec![Segment {

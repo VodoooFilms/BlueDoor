@@ -27,7 +27,7 @@
 | `documents.rs` | Extracción acotada de TXT, DOCX y PDF, y OCR local. |
 | `llm.rs` | Inferencia Qwen, límite de extracción, normalización del prompt y caché acotado por modelo/sesión. |
 | `layout.rs`, `layout/editor.rs` | Geometría, agrupación conservadora de párrafos, correcciones con formato, validación y planes de render privado. |
-| `ocr/local-legal-layout.swift` | PDFKit/Vision, complemento local de personas, render CoreText y borrado de píxeles; comprueba etiquetas y expansión sobre gráficos. |
+| `ocr/bluedoor-layout.swift` | PDFKit/Vision, complemento local de personas, render CoreText y borrado de píxeles; comprueba etiquetas y expansión sobre gráficos. |
 | `audio.rs` | Decodificación, transcripción y segmentación. |
 | `diarization.rs` | Integración experimental de identificación de hablantes. |
 | `models.rs` | Catálogo, descarga e integridad de modelos. |

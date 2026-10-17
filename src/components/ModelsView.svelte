@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
   import { privateCopy as p } from "../lib/private-i18n";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
@@ -38,7 +39,7 @@
   let setupRunning = $state(false);
   let setupCancelled = false;
   let setupStatus = $state("");
-  const setupKey = "local-legal-setup-pending";
+  const setupKey = "bluedoor-setup-pending";
   let setupPending = $state(localStorage.getItem(setupKey) === "true");
   const busy = $derived(setupRunning || installingId !== null);
   const offerSetup = $derived(loaded && (setupPending || !Object.values(installed).some(Boolean)));
@@ -52,7 +53,7 @@
   const ready = $derived(STT_OPTIONS.some((o) => installed[o.id]));
 
   onMount(async () => {
-    privacySelected = localStorage.getItem("local-legal-privacy-model") || "qwen3-fast";
+    privacySelected = localStorage.getItem("bluedoor-privacy-model") || "qwen3-fast";
     // Si venía guardado un modelo que ya no ofrecemos (tiny/base), volver al recomendado.
     if (!STT_OPTIONS.some((o) => o.id === getSttModel())) setSttModel(sttCurrent.id);
     unlistenProgress = await listen<[string, number]>("model-download-progress", (event) => {
@@ -226,7 +227,7 @@
   function pickPrivacy(id: string) {
     menu = null;
     privacySelected = id;
-    localStorage.setItem("local-legal-privacy-model", id);
+    localStorage.setItem("bluedoor-privacy-model", id);
   }
 </script>
 
@@ -234,13 +235,13 @@
   <div class="models-head">
     <div class="head-top">
     <div class="head-copy">
-      <strong>{t.modelsTitle}</strong>
+      <Icon name="settings" size={36} /><strong class="sr-only">{t.modelsTitle}</strong>
       {#if setupStatus}
         <span role="status" aria-live="polite" title={setupStatus}>{setupStatus}</span>
       {:else if message}
         <span role="alert" title={message}>{message}</span>
       {:else}
-        <span title={t.modelsSubtitle}>{t.modelsSubtitle}</span>
+        <span class="sr-only" title={t.modelsSubtitle}>{t.modelsSubtitle}</span>
       {/if}
     </div>
     {#if offerSetup || setupRunning || installingId}

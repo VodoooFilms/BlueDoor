@@ -5,7 +5,9 @@
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { ENTITY_KINDS, type EntityKind, type PrivateEntity, type PrivacySession } from "../lib/privacy";
-  import localLegalMark from "../assets/local-legal-mark.svg";
+  import importArt from "../assets/import-document.svg";
+  import protectedArt from "../assets/protected-document.svg";
+  import Icon from "./Icon.svelte";
   import DocumentLayout from "./DocumentLayout.svelte";
   import TranscriptView from "./TranscriptView.svelte";
   import type { Transcript, DocFormat } from "../lib/types";
@@ -166,7 +168,7 @@
     sanitizing = false;
     analysisStep = "";
     await run("Analizando documento local…", async () => {
-      const modelId = localStorage.getItem("local-legal-privacy-model") || "qwen3-fast";
+      const modelId = localStorage.getItem("bluedoor-privacy-model") || "qwen3-fast";
       const analyzed = await invoke<PrivacySession>("analyze_private_document", { id: current.id, revision: current.revision, modelId });
       adopt(analyzed);
       if (analyzed.analyzed) onEdit(analyzed);
@@ -228,11 +230,11 @@
       <div class="workspace-title"><strong>{session.fileName}</strong><span>{p(session.analyzed ? (session.reviewed ? "Revisión confirmada" : "Pendiente de revisión") : "Documento original")}{#if pageCount} · {pageCount} {p("páginas")}{/if}</span></div>
       {#if editing && session.analyzed}
         <div class="workspace-views" role="group" aria-label={p("Vistas de edición")}>
-          <button class="secondary" class:active-page={!mapOpen} aria-pressed={!mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = false}>{p("Documento")}</button>
-          <button class="secondary" class:active-page={mapOpen} aria-pressed={mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = true}>{p("Mapa privado")}</button>
+          <button class="secondary" class:active-page={!mapOpen} aria-pressed={!mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = false} aria-label={p("Documento")} title={p("Documento")}><Icon name="document" /></button>
+          <button class="secondary" class:active-page={mapOpen} aria-pressed={mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = true} aria-label={p("Mapa privado")} title={p("Mapa privado")}><Icon name="map" /></button>
         </div>
         {#if session.layoutAvailable}
-          <label class="workspace-zoom">{p("Zoom")} <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy || mapOpen}><option value="fit">{p("Ajustar al ancho")}</option>{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>
+          <label class="workspace-zoom"><span class="sr-only">{p("Zoom")}</span><Icon name="search" size={18} /> <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy || mapOpen}><option value="fit">{p("Ajustar al ancho")}</option>{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>
         {/if}
         <button class="primary" onclick={() => session?.layoutAvailable ? exportOriginalLayout() : textExport?.()} disabled={!!busy || textExportBusy || (session.layoutAvailable && !exportReady) || (!session.layoutAvailable && !textExport) || draftDirty || layoutDirty || !session.analysisComplete || !!session.warnings.length}>{p("Exportar PDF")}</button>
       {:else}
@@ -241,7 +243,7 @@
           <button class="secondary" onclick={clear} disabled={!!busy}>{p("Borrar documento y empezar de cero")}</button>
         </div></details>
         <button class="secondary" onclick={() => importDocument()} disabled={!!busy}>{p("Importar otro documento")}</button>
-        {#if session.layoutAvailable}<label class="workspace-zoom">{p("Zoom")} <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy}><option value="fit">{p("Ajustar al ancho")}</option>{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>{/if}
+        {#if session.layoutAvailable}<label class="workspace-zoom"><span class="sr-only">{p("Zoom")}</span><Icon name="search" size={18} /> <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy}><option value="fit">{p("Ajustar al ancho")}</option>{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>{/if}
         {#if session.analyzed}<button class="primary" onclick={() => { if (session) onEdit(session); }} disabled={!!busy}>{p("Revisar y editar")}</button>
         {:else}<button class="primary analyze-button" onclick={analyze} disabled={!!busy}>{p("Proteger documento")}</button>{/if}
       {/if}
@@ -282,16 +284,18 @@
     {#if session.advisories?.length}<details class="review-advisories"><summary>{p("Lo que esta revisión no puede comprobar")}</summary>{#each session.advisories as advisory}<p>{p(advisory)}</p>{/each}</details>{/if}
     {#if exported}<p class="notice" role="status">{p("PDF guardado con el formato original.")} {exported}</p>{/if}
   {:else}
-    <div class="welcome">
-      <img class="welcome-mark" src={localLegalMark} alt="" />
-      <h2>{p("Lo privado permanece aquí.")}</h2>
-      <p>{p("Importa un archivo. Qwen detectará entidades en este equipo; tú revisarás qué información puede formar parte de una futura solicitud.")}</p>
-      <button bind:this={importZone} class="welcome-import" class:dragging-document={draggingDocument} aria-label={p("Importar documento")} onclick={() => importDocument()} disabled={!!busy}>
-        <svg class="import-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" /></svg>
-        <span>{p(draggingDocument ? "Suelta el documento aquí" : "Arrastra tu documento aquí")}</span>
-        <span class="import-click">{p("o haz clic para seleccionar un archivo")}</span>
-        <small>PDF · DOCX · PNG · JPG · TIFF · HEIC · TXT · MD</small>
+    <div class="welcome blue-import-screen">
+      <h2 class="sr-only">{p("Lo privado permanece aquí.")}</h2>
+      <button bind:this={importZone} class="welcome-import" class:dragging-document={draggingDocument} aria-label={p("Importar documento")} title={p("Importar documento")} onclick={() => importDocument()} disabled={!!busy}>
+        <img class="blue-secondary import-art" src={importArt} alt="" />
+        <span class="import-action">{p(draggingDocument ? "Suelta el documento aquí" : "Seleccionar archivo")}</span>
       </button>
+      <img class="blue-secondary protect-art" src={protectedArt} alt="" />
+      <div class="blue-secondary workflow-steps" aria-label={p("Importar, revisar y exportar")}>
+        <span title={p("Importar documento")}><Icon name="document" size={40} /><i><Icon name="plus" size={16} /></i></span><b></b>
+        <span title={p("Revisar documento")}><Icon name="search" size={40} /></span><b></b>
+        <span title={p("Exportar PDF")}><Icon name="shield" size={40} /></span>
+      </div>
     </div>
   {/if}
   {#if busy}{@render processingIndicator()}{/if}
@@ -331,24 +335,17 @@
   .add-entity { display:flex; gap:10px; margin-bottom:14px; }
   .add-entity input { flex:1; }
   .welcome { display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:18px; text-align:center; }
-  .welcome-mark { width:120px; height:120px; object-fit:contain; }
   .welcome h2 { font-size:30px; }
-  .welcome p { max-width:620px; font-size:14px; color:var(--muted); }
   .welcome-import { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; width:min(100%,620px); min-height:220px; padding:28px 24px; background:var(--panel); border:2px dashed var(--line-dark); border-radius:12px; color:var(--text); white-space:normal; transition:background 180ms ease,border-color 180ms ease,transform 180ms ease,box-shadow 180ms ease; }
   .welcome-import > span:first-of-type { font-size:20px; font-family:var(--font-heading); }
-  .welcome-import .import-click { font-size:13px; color:var(--muted); }
-  .welcome-import small { color:var(--muted); font-size:11px; line-height:1.6; }
-  .import-icon { color:var(--muted); }
   .welcome-import:hover:not(:disabled),.welcome-import.dragging-document { background:var(--surface); border-color:var(--text); }
   .welcome-import:focus-visible { outline:2px solid var(--text); outline-offset:4px; }
   .welcome-import.dragging-document { transform:scale(1.015); box-shadow:0 0 0 5px var(--accent-soft); }
-  .import-icon { transition:transform 180ms ease; }
-  .dragging-document .import-icon { transform:translateY(-4px); }
   .processing-orbit { width:12px; height:12px; flex:none; border:1.5px solid var(--line-dark); border-top-color:var(--text); border-radius:50%; animation:processing-orbit 1.1s linear infinite; }
   @keyframes processing-orbit { to { transform:rotate(360deg); } }
   @media (prefers-reduced-motion:reduce) {
-    .welcome-import,.import-icon { transition:none; }
-    .welcome-import.dragging-document,.dragging-document .import-icon { transform:none; }
+    .welcome-import { transition:none; }
+    .welcome-import.dragging-document { transform:none; }
     .processing-orbit { animation:none; }
   }
   .processing-slot { flex:none; padding:8px 0; }

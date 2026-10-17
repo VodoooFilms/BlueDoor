@@ -72,7 +72,7 @@ La ejecución autorizada utiliza 21.315 fragmentos de entrenamiento y 1.182 de v
 
 Separar train/dev/test **antes** de generar variantes, por plantilla, persona y documento fuente. Deduplicar OpenPII 1M frente a 1.5M. Mantener los 52 documentos aquí medidos como test congelado. Reservar además 500–1.000 documentos del dominio real español con anotaciones humanas y ejemplos sin PII; no introducirlos en train. Guardar evaluación externa MEDDOCAN/TAB con sus políticas diferenciadas. Estos tamaños son una propuesta de trabajo y no garantizan fiabilidad.
 
-Se está ejecutando QLoRA del modelo de 1,7B en este Mac M4 de 16 GB mediante [MLX-LM](https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md). Se descargó la revisión original de los pesos y se convirtió a MLX Q4. Después se fusionarán los adaptadores con los pesos base originales y se validará el candidato en el mismo runtime GGUF de Local Legal.
+Se está ejecutando QLoRA del modelo de 1,7B en este Mac M4 de 16 GB mediante [MLX-LM](https://github.com/ml-explore/mlx-lm/blob/main/mlx_lm/LORA.md). Se descargó la revisión original de los pesos y se convirtió a MLX Q4. Después se fusionarán los adaptadores con los pesos base originales y se validará el candidato en el mismo runtime GGUF de BlueDoor.
 
 Comparación que debe reportar el entrenamiento: mismo test antes/después; valores aún visibles por tipo; documentos con alguna fuga; análisis completos; latencia/memoria. Recall exacto por spans y falsos positivos necesitan además auditoría de las anotaciones. Para audio, medir por separado (1) detector con transcripción gold, (2) ASR→detector, (3) cobertura temporal del audio protegido, incluyendo números hablados, emails, acentos, ruido y solapamiento. Hace falta un test español con PII exhaustiva y tiempos humanos: los datasets encontrados no cubren completamente ese objetivo.
 
@@ -92,8 +92,8 @@ En esta máquina, usar SDK 14.5: `SDKROOT=/Library/Developer/CommandLineTools/SD
 - `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`.
 - `cargo test --manifest-path src-tauri/Cargo.toml --lib layout::tests`: genera artefactos nativos para PDF digital/escaneado y comprueba rechazo de coordenadas incompletas y sesiones modificadas.
 - `python scripts/verify-layout-output.py` con Pillow y pypdf: verificación independiente de PDF, píxeles y OCR.
-- Con Vite de app y harness abiertos, `node tests/check-layout.mjs`, `LOCAL_LEGAL_TEST_LANG=es node tests/check-private-ai.mjs`, equivalente `en` y `node tests/check-editor.mjs`: flujo de edición/revisión/exportación y regresión.
-- `cargo test --manifest-path src-tauri/Cargo.toml --lib measure_dataset_workflow -- --ignored --nocapture`: medición opt-in con datos/modelo instalados. Variables `LOCAL_LEGAL_BENCHMARK_FILE` y `LOCAL_LEGAL_BENCHMARK_OUTPUT` seleccionan Gretel. `python3 scripts/score-privacy-benchmark.py artifacts/benchmark/gretel-results.json` puntúa sin ocultar omisiones.
+- Con Vite de app y harness abiertos, `node tests/check-layout.mjs`, `BLUEDOOR_TEST_LANG=es node tests/check-private-ai.mjs`, equivalente `en` y `node tests/check-editor.mjs`: flujo de edición/revisión/exportación y regresión.
+- `cargo test --manifest-path src-tauri/Cargo.toml --lib measure_dataset_workflow -- --ignored --nocapture`: medición opt-in con datos/modelo instalados. Variables `BLUEDOOR_BENCHMARK_FILE` y `BLUEDOOR_BENCHMARK_OUTPUT` seleccionan Gretel. `python3 scripts/score-privacy-benchmark.py artifacts/benchmark/gretel-results.json` puntúa sin ocultar omisiones.
 - `python3 scripts/build-local-demo.py --no-open`: empaquetado, firmas y comprobación del bundle local.
 
 El código de la feature no cambia el detector ni pretende convertir los fallos de privacidad observados en tests «verdes». Los tests del formato verifican un mapa conocido independientemente; la medición del modelo registra también sus fallos.

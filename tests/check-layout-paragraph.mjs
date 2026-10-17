@@ -8,7 +8,7 @@ const browser=await webkit.launch();
 try {
  const page=await browser.newPage({viewport:{width:1500,height:1050}});page.setDefaultTimeout(15000);
  await page.addInitScript(({pages,editedPages,blocks})=>{
-  localStorage.setItem('local-legal-language','es');localStorage.setItem('local-legal-welcome-seen','true');
+  localStorage.setItem('bluedoor-language','es');localStorage.setItem('bluedoor-welcome-seen','true');
   let session={id:'paragraph-layout',revision:1,fileName:'layout-paragraphs.pdf',original:'Documento de prueba María Pérez',entities:[{kind:'PERSON',original:'María Pérez',alias:'PERSON_01',source:'review'}],sanitized:'Documento de prueba PERSON_01',warnings:[],advisories:[],analyzed:true,analysisComplete:true,reviewed:false,edited:false,layoutAvailable:true};
   window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},transformCallback:()=>1,invoke:async(cmd,args)=>{
    if(['check_installation','save_transcripts','plugin:event|unlisten'].includes(cmd))return;

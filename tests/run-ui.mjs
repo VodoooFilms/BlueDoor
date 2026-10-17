@@ -29,7 +29,7 @@ async function runCommand(command, args, env = process.env) {
 }
 async function run(file, language = "es") {
   console.log(`\nRunning ${file} (${language})`);
-  await runCommand(process.execPath, [`tests/${file}`], { ...process.env, LOCAL_LEGAL_TEST_LANG: language });
+  await runCommand(process.execPath, [`tests/${file}`], { ...process.env, BLUEDOOR_TEST_LANG: language });
 }
 
 try {
@@ -46,7 +46,9 @@ try {
     servers.push(server);
     await server.listen();
   }
-  if (process.argv.includes("--privacy")) {
+  if (process.argv.includes("--brand")) {
+    await run("check-bluedoor.mjs");
+  } else if (process.argv.includes("--privacy")) {
     for (const language of ["es", "en"]) await run("check-private-ai.mjs", language);
   } else if (process.argv.includes("--workspace")) {
     for (const language of ["es", "en"]) await run("check-workspace.mjs", language);
@@ -56,7 +58,7 @@ try {
   } else {
     for (const language of ["es", "en"]) await run("check-private-ai.mjs", language);
     for (const test of [
-      "check-model-setup.mjs", "check-welcome.mjs", "check-editor.mjs",
+      "check-bluedoor.mjs", "check-model-setup.mjs", "check-welcome.mjs", "check-editor.mjs",
       "check-history.mjs", "check-conversation.mjs", "check-pcm.mjs",
     ]) await run(test);
   }

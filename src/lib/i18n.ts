@@ -100,7 +100,7 @@ export const COPY: Record<Lang, Copy> = {
     lightTheme: "Cambiar a modo claro",
     darkTheme: "Cambiar a modo oscuro",
     home: "Inicio (micrófono)",
-    startupError: "No se pudo iniciar Local Legal.",
+    startupError: "No se pudo iniciar BlueDoor.",
     historyPreserved: "El historial no se ha modificado.",
     retry: "Reintentar",
     retrying: "Reintentando…",
@@ -193,7 +193,7 @@ export const COPY: Record<Lang, Copy> = {
     lightTheme: "Switch to light mode",
     darkTheme: "Switch to dark mode",
     home: "Home (microphone)",
-    startupError: "Local Legal could not start.",
+    startupError: "BlueDoor could not start.",
     historyPreserved: "Your history has not been modified.",
     retry: "Retry",
     retrying: "Retrying…",
@@ -280,7 +280,7 @@ export const COPY: Record<Lang, Copy> = {
   },
 };
 
-const STORAGE_KEY = "local-legal-language";
+const STORAGE_KEY = "bluedoor-language";
 
 export function getInitialLang(): Lang {
   const saved = localStorage.getItem(STORAGE_KEY);

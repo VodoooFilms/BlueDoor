@@ -3,17 +3,17 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 (cd "$ROOT" && pnpm release:mac:dev)
-APP="$ROOT/src-tauri/target/portable/aarch64-apple-darwin/release/bundle/macos/Local Legal.app"
-STAGE="$(mktemp -d /Applications/.local-legal-install.XXXXXX)"
+APP="$ROOT/src-tauri/target/portable/aarch64-apple-darwin/release/bundle/macos/BlueDoor.app"
+STAGE="$(mktemp -d /Applications/.bluedoor-install.XXXXXX)"
 trap 'rm -rf "$STAGE"' EXIT
-/usr/bin/ditto "$APP" "$STAGE/Local Legal.app"
-/usr/bin/codesign --verify --deep --strict "$STAGE/Local Legal.app"
+/usr/bin/ditto "$APP" "$STAGE/BlueDoor.app"
+/usr/bin/codesign --verify --deep --strict "$STAGE/BlueDoor.app"
 # Keep a rollback copy until installation succeeds.
-if [ -d "/Applications/Local Legal.app" ]; then
-  mv "/Applications/Local Legal.app" "$STAGE/previous.app"
+if [ -d "/Applications/BlueDoor.app" ]; then
+  mv "/Applications/BlueDoor.app" "$STAGE/previous.app"
 fi
-if ! mv "$STAGE/Local Legal.app" "/Applications/Local Legal.app"; then
-  [ ! -d "$STAGE/previous.app" ] || mv "$STAGE/previous.app" "/Applications/Local Legal.app"
+if ! mv "$STAGE/BlueDoor.app" "/Applications/BlueDoor.app"; then
+  [ ! -d "$STAGE/previous.app" ] || mv "$STAGE/previous.app" "/Applications/BlueDoor.app"
   exit 1
 fi
-open "/Applications/Local Legal.app"
+open "/Applications/BlueDoor.app"

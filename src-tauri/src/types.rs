@@ -156,7 +156,7 @@ impl AppState {
         {
             Ok(canonical)
         } else {
-            Err("Selecciona el audio mediante el diálogo de Local Legal.".into())
+            Err("Selecciona el audio mediante el diálogo de BlueDoor.".into())
         }
     }
 
@@ -174,7 +174,7 @@ impl AppState {
         if self.authorized_pdf_paths.lock().unwrap().remove(&canonical) {
             Ok(canonical)
         } else {
-            Err("Selecciona el destino mediante el diálogo de Local Legal.".into())
+            Err("Selecciona el destino mediante el diálogo de BlueDoor.".into())
         }
     }
 
@@ -202,7 +202,7 @@ impl AppState {
             Ok(canonical)
         } else {
             Err(
-                "Arrastra el documento a la ventana de Local Legal o selecciónalo en el diálogo."
+                "Arrastra el documento a la ventana de BlueDoor o selecciónalo en el diálogo."
                     .into(),
             )
         }

@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 
 // Exercise the real UI with a deterministic IPC boundary, including rejected
 // saves, stale revisions, repeated aliases and both supported document surfaces.
-const language = process.env.LOCAL_LEGAL_TEST_LANG || 'es';
+const language = process.env.BLUEDOOR_TEST_LANG || 'es';
 const english = language === 'en';
 const label = (es, en) => english ? en : es;
 const browser = await webkit.launch();
@@ -16,8 +16,8 @@ try {
   const errors=[];
   page.on('pageerror',error=>{errors.push(error.message);console.error('PAGE ERROR:',error.message);});
   await page.addInitScript(({layout,language})=>{
-   localStorage.setItem('local-legal-language',language);
-   localStorage.setItem('local-legal-welcome-seen','true');
+   localStorage.setItem('bluedoor-language',language);
+   localStorage.setItem('bluedoor-welcome-seen','true');
    let session=null;
    const original='Cláusula original. María Ejemplo firma el acuerdo.';
    let blocks=[{id:0,page:0,rect:[40,100,400,35],bounds:[40,100,400,35],html:'<p>Cláusula original.</p>',font:'georgia',size:16,align:'left'}];
@@ -104,7 +104,7 @@ try {
   assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
   await page.locator('#themeToggle').click();
   await page.locator('#languageToggle').click();
-  assert.equal(await page.locator('.workspace-views button:last-child').innerText(),english?'Mapa privado':'Private map');
+  assert.equal(await page.locator('.workspace-views button:last-child').getAttribute('aria-label'),english?'Mapa privado':'Private map');
   await page.locator('#languageToggle').click();
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('.settings-menu').evaluate(el=>el.open),false);

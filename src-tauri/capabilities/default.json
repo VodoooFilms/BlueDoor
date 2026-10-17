@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Local Legal default capability",
+  "description": "BlueDoor default capability",
   "windows": ["main"],
   "permissions": [
     "core:default",

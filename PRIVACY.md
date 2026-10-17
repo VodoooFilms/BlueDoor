@@ -1,6 +1,6 @@
-# Privacy Policy — Local Legal
+# Privacy Policy — BlueDoor
 
-**Short version:** Local Legal is designed to work **completely offline**. Your audio,
+**Short version:** BlueDoor is designed to work **completely offline**. Your audio,
 transcriptions and edits are processed on your own Mac and are never uploaded,
 shared or used for training. The only network activity is downloading the AI models
 you choose from Hugging Face or the immutable Ollama model registry.
@@ -33,7 +33,7 @@ Exports to PDF are validated in the application process, not in the interface: t
 - Nothing except **model downloads**: when you press "Download" in the Models window,
   the app fetches the selected Whisper, Parakeet or Nemotron model file from
   `huggingface.co` and its download/CDN infrastructure. Requests disclose connection metadata such as IP address and the model requested; they do not include your audio, transcripts or documents. Qwen3 is fetched from `registry.ollama.ai` and its CDN as immutable public weights, also with no document content in the request. Model files are stored in
-  `~/Library/Application Support/com.locallegal.desktop/models/`.
+  `~/Library/Application Support/com.bluedoor.desktop/models/`.
 - No telemetry, no analytics, no accounts, no crash reporters. We cannot see your
   transcripts — the app does not contact any server with your content.
 

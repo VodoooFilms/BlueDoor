@@ -1,10 +1,10 @@
-# Local Legal
+# BlueDoor
 
-Copia independiente de /Users/antoin/Documents/belegal, creada el 17 de octubre de 2026 desde b21bf40.
-Belegal queda en pausa. No publicar ni hacer push a los repositorios Belegal o VoiceToPDF.
-No configurar un remoto ni publicar Local Legal sin una instrucción del usuario.
-Stack: Svelte 5 + Tauri 2. Mantener la funcionalidad local existente.
-Marca provisional: Local Legal. Identificador: com.locallegal.desktop.
-Datos y preferencias independientes; no migrar documentos de Belegal automáticamente.
-Estilo: marfil #fafaf7, paneles #f2efe7, blanco, texto #373731; títulos serif y cuerpo sans serif.
-Verificación frontend: pnpm typecheck y pnpm build.
+Copia independiente de /Users/antoin/Documents/local-legal (bb28079), creada el 17 de octubre de 2026.
+Belegal y Local Legal se conservan sin cambios. No publicar ni hacer push a sus repositorios.
+No configurar un remoto ni publicar BlueDoor sin instrucción del usuario.
+Stack: Svelte 5 + Tauri 2. Mantener las funciones locales y las barreras de seguridad.
+Marca: BlueDoor. Identificador: com.bluedoor.desktop.
+Datos y preferencias independientes; no migrar documentos personales automáticamente.
+Estilo: azul intenso #1248bc, navegación e identidad blancas, elementos secundarios azul claro al 80 %, sans serif y espaciado generoso. Botón principal blanco con texto azul. Controles con iconos, nombres accesibles y tooltips; conservar texto necesario en documentos, campos, errores y confirmaciones.
+Verificación: pnpm typecheck, pnpm build y suites pertinentes.

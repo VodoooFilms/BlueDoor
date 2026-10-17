@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that the macOS bundle uses the checked-in Local Legal app icon."""
+"""Verify that the macOS bundle uses the checked-in BlueDoor app icon."""
 import hashlib
 import plistlib
 from pathlib import Path
@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
-MASTER = ROOT / "assets/branding/local-legal-app-icon.png"
+MASTER = ROOT / "assets/branding/bluedoor-app-icon.png"
 SOURCE_ICNS = ROOT / "src-tauri/icons/icon.icns"
 
 
@@ -62,5 +62,5 @@ def verify(app: Path) -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        raise SystemExit("Usage: scripts/verify-icons.py /path/to/Local Legal.app")
+        raise SystemExit("Usage: scripts/verify-icons.py /path/to/BlueDoor.app")
     verify(Path(sys.argv[1]).resolve())

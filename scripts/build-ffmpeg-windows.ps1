@@ -38,13 +38,13 @@ $PosixPath = (($env:PATH -split ';' | Where-Object { $_ -ne "" } | ForEach-Objec
 # Drive bash via a script file: PowerShell 5.1 does not escape embedded quotes
 # when passing -c strings to native processes, which silently truncates the
 # command at the double quotes in PATH entries.
-$BuildScript = Join-Path $env:TEMP "local-legal-ffmpeg-$PID.sh"
+$BuildScript = Join-Path $env:TEMP "bluedoor-ffmpeg-$PID.sh"
 $BuildPayload = @"
 set -euo pipefail
 export PATH="$PosixPath"
-export LOCAL_LEGAL_FFMPEG_ARCH='$Arch'
-export LOCAL_LEGAL_FFMPEG_TARGET='$Target'
-export LOCAL_LEGAL_FFMPEG_WINDOWS=1
+export BLUEDOOR_FFMPEG_ARCH='$Arch'
+export BLUEDOOR_FFMPEG_TARGET='$Target'
+export BLUEDOOR_FFMPEG_WINDOWS=1
 python '$PosixScript'
 "@ -replace "`r`n", "`n"
 try {

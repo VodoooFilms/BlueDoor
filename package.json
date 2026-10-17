@@ -1,5 +1,5 @@
 {
-  "name": "local-legal",
+  "name": "bluedoor",
   "private": true,
   "version": "0.4.0",
   "type": "module",
@@ -10,7 +10,7 @@
     "tauri": "tauri",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
     "release:mac": "python3 scripts/release-mac.py",
-    "release:mac:dev": "LOCAL_LEGAL_RELEASE_MODE=development python3 scripts/release-mac.py",
+    "release:mac:dev": "BLUEDOOR_RELEASE_MODE=development python3 scripts/release-mac.py",
     "release:windows:arm64": "powershell -ExecutionPolicy Bypass -File scripts/release-windows.ps1 -Architecture arm64",
     "release:windows:x64": "powershell -ExecutionPolicy Bypass -File scripts/release-windows.ps1 -Architecture x64",
     "prepare:runtime": "python3 scripts/build-ffmpeg.py && python3 scripts/collect-notices.py",
@@ -21,7 +21,8 @@
     "test:native": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
     "check:native": "cargo fmt --manifest-path src-tauri/Cargo.toml --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
     "test:workspace:ui": "node tests/run-ui.mjs --workspace",
-    "test:layout:ui": "node tests/run-ui.mjs --layout"
+    "test:layout:ui": "node tests/run-ui.mjs --layout",
+    "test:brand:ui": "node tests/run-ui.mjs --brand"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0"

@@ -7,12 +7,12 @@ source and scripts also support `x86_64-pc-windows-msvc`.
 ## Verified on Windows ARM64 (11 Sep 2026)
 
 - Release build `pnpm release:windows:arm64` produces NSIS and MSI installers:
-  - `src-tauri/target/windows-arm64/aarch64-pc-windows-msvc/release/bundle/nsis/Local Legal_0.1.0_arm64-setup.exe`
-  - `src-tauri/target/windows-arm64/aarch64-pc-windows-msvc/release/bundle/msi/Local Legal_0.1.0_arm64_en-US.msi`
-- `scripts/verify-windows-bundle.py` PASS: `local-legal.exe`, `llama*.dll`,
+  - `src-tauri/target/windows-arm64/aarch64-pc-windows-msvc/release/bundle/nsis/BlueDoor_0.1.0_arm64-setup.exe`
+  - `src-tauri/target/windows-arm64/aarch64-pc-windows-msvc/release/bundle/msi/BlueDoor_0.1.0_arm64_en-US.msi`
+- `scripts/verify-windows-bundle.py` PASS: `bluedoor.exe`, `llama*.dll`,
   `ggml*.dll` and the dynamic `ggml-cpu*.dll` CPU backend sit next to the
   executable. An installer that loses the DLL closure is rejected.
-- App smoke test PASS: models download into `%APPDATA%\com.locallegal.desktop\models\`,
+- App smoke test PASS: models download into `%APPDATA%\com.bluedoor.desktop\models\`,
   Spanish transcription with `large-v3-turbo` produces correct text, and Qwen3
   correction works (combo test `large-v3-turbo + qwen3-fast` → correct output).
 - Rust tests compiled and executed on Windows ARM64 with the LLVM/clang+Ninja
@@ -25,10 +25,10 @@ source and scripts also support `x86_64-pc-windows-msvc`.
 | --- | --- |
 | UI and product flow | Svelte/Tauri IPC is unchanged. Record → Transcribe → Refine → Edit → PDF remains one flow. |
 | Microphone | The renderer uses Web Audio + `getUserMedia`, then writes PCM WAV itself. WebView2 provides the Windows permission prompt; no CoreAudio/TCC code is present. |
-| App data, history, models and downloads | `AppHandle::path().app_data_dir()` maps to `%APPDATA%\com.locallegal.desktop` on Windows. Paths use `PathBuf`; model verification, atomic writes and temporary files are OS-neutral. |
+| App data, history, models and downloads | `AppHandle::path().app_data_dir()` maps to `%APPDATA%\com.bluedoor.desktop` on Windows. Paths use `PathBuf`; model verification, atomic writes and temporary files are OS-neutral. |
 | Model weights | Whisper and Qwen GGUF/BIN files are architecture-independent. The pinned manifest, TLS download and SHA-256 verification are reused without changes. |
 | PDF layout | `genpdf` is portable. Font discovery uses `%WINDIR%\Fonts` on Windows (with the legacy short names `arialbd`, `arialbi`, …) and the existing Supplemental fonts on macOS. |
-| Tests | `src-tauri/src/platform.rs` exposes `test_models_dir()` (macOS: App Support legacy path; Windows: `%APPDATA%\com.locallegal.desktop\models`) and `test_audio_fixture()` (`/tmp/vtp-es.wav` vs `%TEMP%\vtp-es.wav`). |
+| Tests | `src-tauri/src/platform.rs` exposes `test_models_dir()` (macOS: App Support legacy path; Windows: `%APPDATA%\com.bluedoor.desktop\models`) and `test_audio_fixture()` (`/tmp/vtp-es.wav` vs `%TEMP%\vtp-es.wav`). |
 
 ## Implemented platform boundary
 
@@ -41,7 +41,7 @@ source and scripts also support `x86_64-pc-windows-msvc`.
 
 `llama-cpp-sys-2` keeps dynamic linking on both systems. The `metal` feature is
 macOS-only. The Windows packaging contract is explicit: `llama*.dll`,
-`ggml*.dll` and a `ggml-cpu*.dll` backend must sit next to `local-legal.exe`.
+`ggml*.dll` and a `ggml-cpu*.dll` backend must sit next to `bluedoor.exe`.
 
 ## Windows ARM64 build host
 

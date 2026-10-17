@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
   import { PcmRecorder } from "../lib/pcm-recorder";
   import type { Transcript, RecordingState } from "../lib/types";
   import { STT_OPTIONS, sttFamily } from "../lib/types";
@@ -352,7 +353,7 @@
       };
       const token = await invoke<string>("prepare_transcribe_blob", { config });
       const trans = await invoke<{ id: string; text: string; segments: { start: number; end: number; text: string; speaker?: number }[]; language: string; duration: number }>("transcribe_blob", new Uint8Array(arrayBuffer), {
-        headers: { "X-Local Legal-Local-Demo-Config": token },
+        headers: { "X-BlueDoor-Config": token },
       });
       const transcript: Transcript = {
         id: generateId(),
@@ -415,7 +416,7 @@
   <aside class="history" class:collapsed={!historyOpen}>
     {#if historyOpen}
       <div class="history-head">
-        <span class="history-title">{t.history}</span>
+        <span class="history-title" title={t.history}><Icon name="history" size={21} /><span class="sr-only">{t.history}</span></span>
         <button class="collapse-btn" title={t.collapseHistory} aria-label={t.collapseHistory} onclick={() => (historyOpen = false)}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5L7 10l5.5 5.5"></path></svg>
         </button>
@@ -441,7 +442,7 @@
         </div>
       {:else}
         <div class="history-empty">
-          <p>{t.noHistory}</p>
+          <span title={t.noHistory}><Icon name="audio" size={42} /><span class="sr-only">{t.noHistory}</span></span>
         </div>
       {/if}
     {:else}
@@ -501,8 +502,8 @@
           <span class="state-sub">{t.recordingLabel}</span>
         {:else}
           <strong class="state-title">{t.recordTitle}</strong>
-          <span class="state-sub">{t.recordHint}</span>
-          <span class="state-sub state-or">{t.or}</span>
+          <span class="state-sub sr-only">{t.recordHint}</span>
+          <span class="state-sub state-or sr-only">{t.or}</span>
           <button
             class="import-inline"
             id="importToggle"
@@ -568,7 +569,8 @@
             {formatDuration(transcriptionSeconds)}
           </span>
         {/if}
-        <div class="local-model-line">
+        <Icon name="shield" size={22} />
+        <div class="local-model-line sr-only">
           <span class="lm-label">{t.localModels}</span>
           <span class="lm-item" class:on={recStatus === "recording" || recStatus === "transcribing" || importing}>Whisper · {modelInfo.whisper}</span>
           <span class="lm-separator">·</span>
@@ -655,7 +657,6 @@
     text-align: center;
     line-height: 1.5;
   }
-  .history-empty p { margin: 0; }
   .history-item {
     display: flex;
     align-items: center;

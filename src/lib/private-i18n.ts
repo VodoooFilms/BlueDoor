@@ -1,6 +1,11 @@
 import { getLang } from "./i18n-store.svelte";
 
 const ENGLISH: Record<string, string> = {
+  "Audio": "Audio",
+  "Seleccionar archivo": "Select file",
+  "Procesamiento local": "Local processing",
+  "Importar, revisar y exportar": "Import, review and export",
+  "Revisar documento": "Review document",
   "Arrastra tu documento aquí": "Drag your document here",
   "Suelta el documento aquí": "Drop your document here",
   "o haz clic para seleccionar un archivo": "or click to choose a file",
@@ -71,7 +76,7 @@ const ENGLISH: Record<string, string> = {
   "Bienvenido a": "Welcome to",
   "Prepara y protege documentos y audio localmente de manera privada antes de enviarlos al servidor.": "Prepare and protect documents and audio privately on your device before sending them to the server.",
   "Cerrar bienvenida": "Close welcome",
-  "Acerca de Local Legal": "About Local Legal",
+  "Acerca de BlueDoor": "About BlueDoor",
   "Comprobando modelos…": "Checking models…",
   "Comenzar": "Get started",
   "Descargar modelos locales": "Download local models",

@@ -346,6 +346,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "bluedoor"
+version = "0.4.0"
+dependencies = [
+ "chrono",
+ "encoding_rs",
+ "fs2",
+ "genpdf",
+ "hound",
+ "llama-cpp-2",
+ "llama-cpp-sys-2",
+ "pdf-extract",
+ "quick-xml 0.37.5",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tempfile",
+ "transcribe-cpp",
+ "ureq",
+ "uuid",
+ "zip",
+]
+
+[[package]]
 name = "brotli"
 version = "8.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2340,35 +2369,6 @@ dependencies = [
  "find_cuda_helper",
  "glob",
  "walkdir",
-]
-
-[[package]]
-name = "local-legal"
-version = "0.4.0"
-dependencies = [
- "chrono",
- "encoding_rs",
- "fs2",
- "genpdf",
- "hound",
- "llama-cpp-2",
- "llama-cpp-sys-2",
- "pdf-extract",
- "quick-xml 0.37.5",
- "regex",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "tempfile",
- "transcribe-cpp",
- "ureq",
- "uuid",
- "zip",
 ]
 
 [[package]]

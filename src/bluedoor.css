@@ -1,0 +1,96 @@
+/* BlueDoor: the chrome is blue; document paper keeps its own ink and colour. */
+:root body .shell { padding:0; background:var(--background); }
+:root .shell .masthead { min-height:110px; padding:18px 40px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:#fff; gap:24px; }
+:root .masthead .brand { font-family:var(--font-heading); font-size:36px; font-weight:720; letter-spacing:-1.3px; gap:15px; margin:0; padding:0; color:#fff; }
+:root .masthead .brand-wordmark { font-style:normal; }
+:root .masthead .nav-row { gap:18px; flex-wrap:nowrap; }
+:root .masthead .nav-models,:root .masthead .settings-menu summary { display:flex; align-items:center; justify-content:center; gap:11px; min-height:54px; height:auto; padding:10px 8px; color:white; font-weight:500; font-size:16px; border-radius:0; background:transparent; border-bottom:2px solid transparent; }
+:root .masthead .nav-models.nav-active { border-bottom-color:white; }
+:root .masthead .nav-models:disabled { color:white; opacity:1; cursor:default; }
+:root .masthead .settings-menu summary:hover,:root .masthead .nav-models:hover:not(:disabled) { background:rgb(255 255 255 / 7%); }
+:root .masthead .settings-popover { top:65px; width:290px; border-radius:12px; background:#1745a5; padding:12px; box-shadow:0 16px 50px #05277044; }
+:root .settings-popover button { justify-content:flex-start; min-height:48px; gap:12px; }
+:root .settings-popover button > span:last-child { margin-left:auto; }
+:root .masthead .local-indicator { display:flex; align-items:center; gap:12px; padding-left:24px; border-left:1px solid rgb(255 255 255 / 55%); color:white; }
+.local-indicator > span { width:11px; height:11px; border-radius:50%; background:#15dcb4; }
+:root .shell .privacy-workflow { border:0; border-radius:0; padding:28px 36px; background:transparent; gap:18px; }
+:root .blue-import-screen.welcome { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:minmax(0,1fr) 100px; gap:28px 36px; padding:8px 10px 6px; min-height:0; align-items:center; }
+.blue-secondary { opacity:.8; }
+:root .blue-import-screen .welcome-import { min-width:0; width:100%; height:100%; min-height:340px; max-height:650px; border:1.5px dashed #bfd8ffaa; border-radius:18px; background:transparent; padding:18px 28px 38px; gap:5px; justify-content:center; }
+:root .blue-import-screen .welcome-import:hover:not(:disabled),:root .blue-import-screen .welcome-import.dragging-document { background:#c5ddff0b; border-color:#fff; transform:none; }
+:root .blue-import-screen .import-art { width:min(100%,400px); max-height:65%; object-fit:contain; }
+:root .blue-import-screen .import-action { display:grid; place-items:center; width:min(100%,400px); min-height:66px; padding:14px 20px; border-radius:12px; color:#1248bc; background:#fff; font:500 21px/1.3 var(--font-heading); }
+:root .blue-import-screen .protect-art { width:100%; max-height:100%; object-fit:contain; }
+.workflow-steps { grid-column:1 / -1; display:flex; align-items:center; justify-content:center; gap:16px; color:var(--secondary-ink); }
+.workflow-steps > span { width:84px; height:78px; display:grid; place-items:center; border:1px solid #c1daff80; border-radius:14px; position:relative; }
+.workflow-steps > span i { position:absolute; right:12px; bottom:10px; border-radius:50%; padding:2px; background:var(--secondary-ink); color:var(--background); display:grid; }
+.workflow-steps b { width:66px; height:1px; background:#bfd8ff80; }
+:root .shell button.primary,:root .shell .save-btn,:root .shell .download-btn,:root .shell .setup-all-btn { border-radius:9px; min-height:40px; box-shadow:none; }
+:root .shell button.secondary { background:transparent; border-color:var(--line); border-radius:8px; }
+:root .shell button:focus-visible,:root .shell summary:focus-visible,:root .shell [role=button]:focus-visible { outline:2px solid white; outline-offset:4px; }
+:root .shell .workspace-header { padding:0 0 16px; border-bottom:1px solid var(--line); }
+:root .workspace-header .workspace-title span { color:var(--muted); }
+:root .shell .original-page { border-radius:12px; padding:26px; background:rgb(10 41 117 / 20%); }
+:root .shell .original-page pre { background:white; color:#182544; font-family:Georgia,serif; border-radius:3px; box-shadow:0 8px 30px #072d6b20; }
+:root .shell .viewer { background:transparent; border-color:var(--line); border-radius:10px; }
+:root .shell .rich-editor:not(.page-editor .rich-editor) { color:#202020; background:white; }
+:root .shell .page-editor .rich-editor { color:#202020; }
+:root .shell .editor-toolbar,:root .shell .ruler { background:var(--panel); }
+:root .shell .tb-btn { color:var(--muted); }
+:root .shell .tb-btn.active { color:#fff; border-color:#bfd8ff; }
+:root .shell .alias-zone.selected,:root .shell .alias-zone:hover { outline-color:#4887ff; }
+:root .shell .text-resize { background:#4887ff; }
+:root .shell .map-page { border:1px solid var(--line); border-radius:12px; padding:22px; }
+:root .shell input:not([type=color]),:root .shell select,:root .shell textarea { color:var(--text); background:var(--panel); border:1px solid var(--line-dark); border-radius:6px; }
+:root .shell .speaker-field input { background:var(--panel); }
+:root .shell .recorder { border:0; background:transparent; }
+:root .shell .history { margin:28px 0 28px 36px; border:1px solid var(--line); border-radius:14px; background:transparent; }
+:root .shell .history.collapsed { border:0; margin-left:24px; }
+:root .shell .mic-panel { background:transparent; }
+:root .shell .orb-window { width:190px; height:190px; background:#bad7ff18; border:1px solid #c1daff66; box-shadow:none; }
+:root .shell .mic-glyph { color:#bfd8ff; opacity:.8; }
+:root .shell .orb-g1 { background:radial-gradient(circle,#b3d2ff,#5087ec66,transparent); }
+:root .shell .orb-g2 { background:radial-gradient(circle,#7ba9ff,#3171e466,transparent); }
+:root .shell .orb-window.recording { border-color:#c1daff; }
+:root .shell .orb-window.recording .orb-visuals { background:linear-gradient(135deg,#4282ee,#1d5bd2); }
+:root .shell .mic-btn .status { margin-top:18px; }
+:root .shell .mic-btn .state-title { font-family:var(--font-heading); font-size:19px; font-weight:500; }
+:root .shell .mic-btn:not(.recording):not(.busy) .state-title { display:block; background:white; color:#1248bc; border-radius:10px; min-width:270px; padding:15px 28px; margin-bottom:8px; }
+:root .shell .import-inline { margin-top:20px; color:white; padding:12px 22px; border:1px solid #bfd8ff80; border-radius:10px; }
+:root .shell .mic-panel .state-sub { color:var(--muted); }
+:root .shell .local-models { color:var(--muted); }
+:root .shell .models { background:transparent; border:0; padding:30px 40px; }
+:root .shell .models .card { border:1px solid var(--line); border-radius:14px; background:rgb(191 217 255 / 6%); box-shadow:none; }
+:root .shell .models .title { font-family:var(--font-heading); }
+:root .shell .models .list { gap:20px; }
+:root .shell .models .model-name { color:white; }
+:root .shell .card-icon { color:#bfd8ff; opacity:.8; }
+:root .shell .change-btn { border-color:var(--line); }
+:root .shell .leave-dialog { border-radius:16px; }
+:root body .welcome[role=dialog] .continue { background:white; color:#1248bc; border:0; min-height:54px; padding:14px 34px; border-radius:10px; }
+:root body .welcome[role=dialog] img { width:350px; margin-bottom:46px; }
+:root .shell .error,:root .shell .leak-alert { color:var(--error); }
+@media(max-width:1100px) {
+  :root .shell .masthead { padding:16px 24px; min-height:96px; gap:12px; }
+  :root .masthead .brand { font-size:29px; }
+  :root .masthead .nav-row { gap:7px; }
+  :root .masthead .nav-models,:root .masthead .settings-menu summary { gap:7px; font-size:14px; }
+  :root .masthead .local-indicator { padding-left:14px; gap:8px; }
+  :root .shell .privacy-workflow { padding:24px; }
+  :root .blue-import-screen.welcome { gap:24px; padding:0; grid-template-rows:minmax(0,1fr) 84px; }
+  :root .blue-import-screen .welcome-import { min-height:300px; padding:10px 20px 28px; }
+  :root .blue-import-screen .import-action { min-height:56px; font-size:18px; }
+}
+@media(max-height:740px) {
+  :root .shell .masthead { min-height:80px; padding-top:10px; padding-bottom:10px; }
+  :root .blue-import-screen.welcome { grid-template-rows:minmax(0,1fr) 64px; gap:16px; }
+  :root .blue-import-screen .welcome-import { min-height:250px; }
+  .workflow-steps > span { width:60px; height:60px; }
+}
+@media(prefers-reduced-motion:reduce) { :root .shell * { scroll-behavior:auto; } }
+
+/* Imported pages and editable document content never inherit the blue chrome. */
+:root .shell .paper-content { color-scheme:light; background:#fff; color:#202020; }
+:root .shell .paper-content > img { opacity:1; filter:none; mix-blend-mode:normal; }
+:root .shell .rich-editor { color-scheme:light; caret-color:#202020; }
+:root .shell .original-page pre { color-scheme:light; }

@@ -260,10 +260,10 @@ fn speaker_prefix_is_emitted_only_when_speaker_changes() {
 /// prueba viva de que NO hay que bloquear la diarizacion con Parakeet.
 #[test]
 fn parakeet_works_with_nemotron_diarization() {
-    let Ok(fixture) = std::env::var("LOCAL_LEGAL_DIAR_TEST_AUDIO") else {
+    let Ok(fixture) = std::env::var("BLUEDOOR_DIAR_TEST_AUDIO") else {
         return;
     };
-    let Ok(diar_model) = std::env::var("LOCAL_LEGAL_NEMOTRON_MODEL") else {
+    let Ok(diar_model) = std::env::var("BLUEDOOR_NEMOTRON_MODEL") else {
         return;
     };
     let Some(session) = open_session("parakeet-tdt-0.6b-v3-Q8_0.gguf") else {
@@ -293,10 +293,10 @@ fn parakeet_works_with_nemotron_diarization() {
 
 #[test]
 fn local_two_speaker_pipeline() {
-    let Ok(fixture) = std::env::var("LOCAL_LEGAL_DIAR_TEST_AUDIO") else {
+    let Ok(fixture) = std::env::var("BLUEDOOR_DIAR_TEST_AUDIO") else {
         return;
     };
-    let Ok(model_path) = std::env::var("LOCAL_LEGAL_DIAR_TEST_WHISPER") else {
+    let Ok(model_path) = std::env::var("BLUEDOOR_DIAR_TEST_WHISPER") else {
         return;
     };
     let audio = load_wav_as_f32(Path::new(&fixture)).unwrap();
@@ -308,7 +308,7 @@ fn local_two_speaker_pipeline() {
     };
     let model = transcribe_cpp::Model::load(&model_path).unwrap();
     let session = model.session().unwrap();
-    let diar_model = std::env::var("LOCAL_LEGAL_NEMOTRON_MODEL").unwrap();
+    let diar_model = std::env::var("BLUEDOOR_NEMOTRON_MODEL").unwrap();
     let result = run_transcription(
         audio,
         &cfg,
@@ -365,10 +365,10 @@ fn pcm_recording_decodes_without_any_executable() {
 fn missing_internal_decoder_requests_reinstall_not_system_tools() {
     let result = convert_to_wav_and_load(
         Path::new("input.mp3"),
-        Path::new("/missing/local-legal-internal-decoder"),
+        Path::new("/missing/bluedoor-internal-decoder"),
     )
     .unwrap_err();
-    assert!(result.contains("Reinstala Local Legal"));
+    assert!(result.contains("Reinstala BlueDoor"));
     assert!(!result.contains("brew"));
     assert!(!result.contains("Instala FFmpeg"));
 }

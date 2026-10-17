@@ -1,10 +1,10 @@
 {
-  "productName": "Local Legal Diarization Test",
-  "identifier": "com.locallegal.desktop.diarizationtest",
+  "productName": "BlueDoor Diarization Test",
+  "identifier": "com.bluedoor.desktop.diarizationtest",
   "app": {
     "windows": [
       {
-        "title": "Local Legal Diarization Test"
+        "title": "BlueDoor Diarization Test"
       }
     ]
   }

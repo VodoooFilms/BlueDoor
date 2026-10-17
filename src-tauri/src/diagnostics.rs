@@ -31,9 +31,9 @@ pub(crate) async fn prepare_local_setup(app_handle: tauri::AppHandle) -> Result<
                 .path()
                 .resource_dir()
                 .map_err(|e| e.to_string())?
-                .join("runtime/local-legal-ocr");
+                .join("runtime/bluedoor-ocr");
             if !ocr.is_file() {
-                return Err("Falta el componente de análisis OCR. Reinstala Local Legal.".into());
+                return Err("Falta el componente de análisis OCR. Reinstala BlueDoor.".into());
             }
         }
         crate::platform::load_owned_backends()?;
@@ -56,7 +56,7 @@ fn probe_writable_directory(directory: &std::path::Path) -> Result<(), String> {
         entry.map_err(|_| denied())?;
     }
     let _probe = tempfile::Builder::new()
-        .prefix(".local-legal-setup-")
+        .prefix(".bluedoor-setup-")
         .tempfile_in(directory)
         .map_err(|_| denied())?;
     Ok(())
@@ -88,7 +88,7 @@ pub(crate) fn check_installation(app_handle: tauri::AppHandle) -> Result<(), Str
     let decoder = crate::platform::decoder_path(&app_handle)?;
     if !decoder.is_file() {
         return Err(
-            "La instalación está incompleta. Reinstala Local Legal; tus documentos se conservan."
+            "La instalación está incompleta. Reinstala BlueDoor; tus documentos se conservan."
                 .into(),
         );
     }
@@ -103,7 +103,7 @@ pub(crate) fn check_installation(app_handle: tauri::AppHandle) -> Result<(), Str
             & 0o111
             == 0
         {
-            return Err("Un componente de audio no puede iniciarse. Reinstala Local Legal.".into());
+            return Err("Un componente de audio no puede iniciarse. Reinstala BlueDoor.".into());
         }
     }
     let directory = app_handle
@@ -114,7 +114,7 @@ pub(crate) fn check_installation(app_handle: tauri::AppHandle) -> Result<(), Str
         "No se pudo abrir el almacenamiento local. Comprueba los permisos y el espacio disponible."
     })?;
     let _probe = tempfile::Builder::new()
-        .prefix(".local-legal-write-check-")
+        .prefix(".bluedoor-write-check-")
         .tempfile_in(directory)
         .map_err(|_| {
             "No se pueden guardar documentos. Comprueba los permisos y el espacio disponible."

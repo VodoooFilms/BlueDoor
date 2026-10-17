@@ -257,7 +257,7 @@
       );
     }
     if (v && /^#[0-9a-fA-F]{6}$/.test(v)) return v;
-    return document.documentElement.dataset.theme === "light" ? "#202020" : "#ededed";
+    return "#202020";
   }
 
   function onEditorInteract() {

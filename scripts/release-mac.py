@@ -14,9 +14,9 @@ import tempfile
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = ROOT / "src-tauri/target/portable"
 REL = TARGET / "aarch64-apple-darwin/release"
-APP = REL / "bundle/macos/Local Legal.app"
+APP = REL / "bundle/macos/BlueDoor.app"
 LOGS = REL / "bundle/notarization"
-DEVELOPMENT = os.environ.get("LOCAL_LEGAL_RELEASE_MODE") == "development"
+DEVELOPMENT = os.environ.get("BLUEDOOR_RELEASE_MODE") == "development"
 
 
 def run(args, **kwargs):
@@ -62,7 +62,7 @@ def prepare_bundle():
 
     run([sys.executable, ROOT / "scripts/package-local-ai.py", APP, REL])
     verifier = load_verifier()
-    binary = APP / "Contents/MacOS/local-legal"
+    binary = APP / "Contents/MacOS/bluedoor"
     for native in verifier.macho_files(APP):
         for rpath in verifier.rpaths(native):
             if rpath.startswith("/"):
@@ -86,12 +86,12 @@ def developer_identities():
 
 def select_identity():
     identities = developer_identities()
-    requested = os.environ.get("LOCAL_LEGAL_SIGNING_IDENTITY", "").strip()
+    requested = os.environ.get("BLUEDOOR_SIGNING_IDENTITY", "").strip()
     if requested:
         matches = [item for item in identities if requested in item]
         if len(matches) != 1:
             return None, (
-                "LOCAL_LEGAL_SIGNING_IDENTITY does not select exactly one valid "
+                "BLUEDOOR_SIGNING_IDENTITY does not select exactly one valid "
                 "Developer ID Application identity in this login keychain"
             )
         return matches[0][1], None
@@ -101,34 +101,34 @@ def select_identity():
         return None, "a valid Developer ID Application certificate and private key"
     names = ", ".join(name for _, name in identities)
     return None, (
-        "LOCAL_LEGAL_SIGNING_IDENTITY selecting one available identity: " + names
+        "BLUEDOOR_SIGNING_IDENTITY selecting one available identity: " + names
     )
 
 
 def notary_auth():
-    profile = os.environ.get("LOCAL_LEGAL_NOTARY_PROFILE", "").strip()
+    profile = os.environ.get("BLUEDOOR_NOTARY_PROFILE", "").strip()
     if profile:
         return ["--keychain-profile", profile], None
     values = {
-        "LOCAL_LEGAL_NOTARY_KEY_ID": os.environ.get("LOCAL_LEGAL_NOTARY_KEY_ID", "").strip(),
-        "LOCAL_LEGAL_NOTARY_ISSUER_ID": os.environ.get("LOCAL_LEGAL_NOTARY_ISSUER_ID", "").strip(),
-        "LOCAL_LEGAL_NOTARY_KEY_PATH": os.environ.get("LOCAL_LEGAL_NOTARY_KEY_PATH", "").strip(),
+        "BLUEDOOR_NOTARY_KEY_ID": os.environ.get("BLUEDOOR_NOTARY_KEY_ID", "").strip(),
+        "BLUEDOOR_NOTARY_ISSUER_ID": os.environ.get("BLUEDOOR_NOTARY_ISSUER_ID", "").strip(),
+        "BLUEDOOR_NOTARY_KEY_PATH": os.environ.get("BLUEDOOR_NOTARY_KEY_PATH", "").strip(),
     }
     if all(values.values()):
-        key_path = Path(values["LOCAL_LEGAL_NOTARY_KEY_PATH"]).expanduser()
+        key_path = Path(values["BLUEDOOR_NOTARY_KEY_PATH"]).expanduser()
         if not key_path.is_file():
             return None, (
-                "LOCAL_LEGAL_NOTARY_KEY_PATH pointing to an existing private API key"
+                "BLUEDOOR_NOTARY_KEY_PATH pointing to an existing private API key"
             )
         return [
             "--key", key_path,
-            "--key-id", values["LOCAL_LEGAL_NOTARY_KEY_ID"],
-            "--issuer", values["LOCAL_LEGAL_NOTARY_ISSUER_ID"],
+            "--key-id", values["BLUEDOOR_NOTARY_KEY_ID"],
+            "--issuer", values["BLUEDOOR_NOTARY_ISSUER_ID"],
         ], None
     return None, (
-        "LOCAL_LEGAL_NOTARY_PROFILE naming a notarytool Keychain profile, or all of "
-        "LOCAL_LEGAL_NOTARY_KEY_ID / LOCAL_LEGAL_NOTARY_ISSUER_ID / "
-        "LOCAL_LEGAL_NOTARY_KEY_PATH"
+        "BLUEDOOR_NOTARY_PROFILE naming a notarytool Keychain profile, or all of "
+        "BLUEDOOR_NOTARY_KEY_ID / BLUEDOOR_NOTARY_ISSUER_ID / "
+        "BLUEDOOR_NOTARY_KEY_PATH"
     )
 
 
@@ -222,12 +222,12 @@ def create_dmg(output: Path):
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.exists():
         output.unlink()
-    with tempfile.TemporaryDirectory(prefix="local-legal-dmg-") as stage:
+    with tempfile.TemporaryDirectory(prefix="bluedoor-dmg-") as stage:
         stage_path = Path(stage)
-        run(["ditto", APP, stage_path / "Local Legal.app"])
+        run(["ditto", APP, stage_path / "BlueDoor.app"])
         (stage_path / "Applications").symlink_to("/Applications")
         run([
-            "hdiutil", "create", "-volname", "Local Legal",
+            "hdiutil", "create", "-volname", "BlueDoor",
             "-srcfolder", stage, "-ov", "-format", "UDZO", output,
         ])
 
@@ -245,7 +245,7 @@ def development_release(verifier, binary, version):
     sign_bundle(verifier, binary, "-", hardened_runtime=False)
     run([sys.executable, ROOT / "scripts/verify-bundle.py", APP])
     output = (
-        REL / "bundle/dmg" / f"Local Legal_{version}_development_aarch64.dmg"
+        REL / "bundle/dmg" / f"BlueDoor_{version}_development_aarch64.dmg"
     )
     create_dmg(output)
     run(["hdiutil", "verify", output])
@@ -262,14 +262,14 @@ def commercial_release(verifier, binary, version):
     run([sys.executable, ROOT / "scripts/verify-bundle.py", APP])
     run([sys.executable, ROOT / "scripts/verify-icons.py", APP])
 
-    with tempfile.TemporaryDirectory(prefix="local-legal-notary-") as temporary:
-        archive = Path(temporary) / "Local Legal.zip"
+    with tempfile.TemporaryDirectory(prefix="bluedoor-notary-") as temporary:
+        archive = Path(temporary) / "BlueDoor.zip"
         run(["ditto", "-c", "-k", "--keepParent", APP, archive])
         notary_submit(archive, "app", auth)
     run(["xcrun", "stapler", "staple", APP])
     run(["xcrun", "stapler", "validate", APP])
 
-    output = REL / "bundle/dmg" / f"Local Legal_{version}_aarch64.dmg"
+    output = REL / "bundle/dmg" / f"BlueDoor_{version}_aarch64.dmg"
     create_dmg(output)
     run(["codesign", "--force", "--timestamp", "--sign", identity, output])
     notary_submit(output, "dmg", auth)
@@ -295,7 +295,7 @@ def main():
         raise SystemExit("Use pnpm release:mac or pnpm release:mac:dev")
     version = json.loads((ROOT / "package.json").read_text())["version"]
     if not DEVELOPMENT:
-        production = REL / "bundle/dmg" / f"Local Legal_{version}_aarch64.dmg"
+        production = REL / "bundle/dmg" / f"BlueDoor_{version}_aarch64.dmg"
         for stale in (production, production.with_suffix(".dmg.sha256")):
             if stale.exists():
                 stale.unlink()
