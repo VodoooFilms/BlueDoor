@@ -26,7 +26,13 @@ try {
       };
     }, scenario);
     await page.goto('http://localhost:1420');
-    await page.getByRole('button', { name: scenario.cta, exact: true }).click();
+    const action = page.getByRole('button', { name: scenario.cta, exact: true });
+    await action.waitFor();
+    const brandBox = await page.locator('.welcome-brand').boundingBox();
+    const actionBox = await action.boundingBox();
+    assert(Math.abs(brandBox.x + brandBox.width / 2 - actionBox.x - actionBox.width / 2) < 1, 'welcome brand and action share a centre');
+    assert(Number(await action.evaluate(el => getComputedStyle(el).fontWeight)) >= 700, 'welcome action is bold');
+    await action.click();
     assert.equal(await page.getByRole('dialog').count(), 0);
     if (!scenario.voice || !scenario.privacy) await page.locator('.models').waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem('bluedoor-welcome-seen')), 'true');
