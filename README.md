@@ -1,7 +1,7 @@
 # BlueDoor
 
 <p align="center">
-  <img src="assets/branding/bluedoor-readme-logo.svg" alt="BlueDoor: puerta blanca y marca sobre fondo azul" width="500" />
+  <img src="assets/branding/bluedoor-app-icon.svg" alt="BlueDoor: icono de puerta blanca dentro de un recuadro azul" width="160" />
 </p>
 
 **Una capa de preparación local para el trabajo legal con IA.**
@@ -45,6 +45,7 @@ pnpm test:layout:ui
 ## Identidad y datos
 
 - Aplicación: **BlueDoor**, identificador `com.bluedoor.desktop`.
+- Idioma inicial: inglés; Ajustes permite cambiar a español y conserva la elección.
 - Historial y modelos: directorio de datos propio de Tauri; en macOS `~/Library/Application Support/com.bluedoor.desktop/`.
 - Las preferencias y la primera bienvenida usan claves propias. No se copian documentos, historial ni modelos personales de Belegal o Local Legal.
 - Se conservan los identificadores y hashes de los modelos existentes (incluido `belegal-pii-v1`) para no alterar la compatibilidad de sus artefactos.

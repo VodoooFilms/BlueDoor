@@ -12,6 +12,8 @@ function ok(msg) {
 
 const browser = await webkit.launch();
 const page = await browser.newPage();
+// These fixtures assert Spanish UI labels; do not depend on the app default.
+await page.addInitScript(() => localStorage.setItem('bluedoor-language', 'es'));
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
 page.on("console", (m) => {

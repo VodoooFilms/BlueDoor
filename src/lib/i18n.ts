@@ -284,7 +284,7 @@ const STORAGE_KEY = "bluedoor-language";
 
 export function getInitialLang(): Lang {
   const saved = localStorage.getItem(STORAGE_KEY);
-  return saved === "en" ? "en" : "es";
+  return saved === "es" ? "es" : "en";
 }
 
 export function saveLang(lang: Lang) {

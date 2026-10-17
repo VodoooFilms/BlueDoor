@@ -3,13 +3,15 @@ import assert from 'node:assert/strict';
 const browser = await webkit.launch();
 try {
   for (const scenario of [
+    { voice: true, privacy: true, lang: null, cta: 'Get started' },
+    { voice: true, privacy: true, lang: 'invalid', cta: 'Get started' },
     { voice: true, privacy: true, lang: 'es', cta: 'Comenzar' },
     { voice: true, privacy: false, lang: 'es', cta: 'Comenzar' },
     { voice: false, privacy: true, lang: 'en', cta: 'Get started' },
   ]) {
-    const page = await browser.newPage({ viewport: { width: 1370, height: 800 } });
+    const page = await browser.newPage({ viewport: { width: 1370, height: 800 }, locale: 'es-EC' });
     await page.addInitScript(({ voice, privacy, lang }) => {
-      localStorage.setItem('bluedoor-language', lang);
+      if (lang !== null) localStorage.setItem('bluedoor-language', lang);
       window.__TAURI_INTERNALS__ = {
         metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
         transformCallback: () => 1,
@@ -28,6 +30,7 @@ try {
     await page.goto('http://localhost:1420');
     const action = page.getByRole('button', { name: scenario.cta, exact: true });
     await action.waitFor();
+    assert.equal(await page.locator('html').getAttribute('lang'), scenario.cta === 'Get started' ? 'en' : 'es', 'English is the default even with a Spanish browser; saved preferences remain effective');
     const brandBox = await page.locator('.welcome-brand').boundingBox();
     const actionBox = await action.boundingBox();
     assert(Math.abs(brandBox.x + brandBox.width / 2 - actionBox.x - actionBox.width / 2) < 1, 'welcome brand and action share a centre');
@@ -47,9 +50,9 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await page.getByRole('dialog').count(), 0);
     await page.locator('.brand').click();
-    await page.getByRole('button', { name: scenario.lang === 'en' ? 'Close welcome' : 'Cerrar bienvenida' }).click();
+    await page.getByRole('button', { name: scenario.cta === 'Get started' ? 'Close welcome' : 'Cerrar bienvenida' }).click();
     assert.equal(await page.getByRole('dialog').count(), 0);
     await page.close();
   }
-  console.log('Welcome: first launch, readiness, Models CTA, persistence, About, Escape and close passed (ES/EN).');
+  console.log('Welcome: first launch, readiness, Models CTA, persistence, About, Escape and close passed; fresh/invalid settings default to English, saved ES/EN persist.');
 } finally { await browser.close(); }

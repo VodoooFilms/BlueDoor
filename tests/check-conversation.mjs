@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 const browser = await webkit.launch();
 const page = await browser.newPage({ viewport: { width: 1080, height: 740 } });
+// These fixtures assert Spanish UI labels; do not depend on the app default.
+await page.addInitScript(() => localStorage.setItem('bluedoor-language', 'es'));
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
 const fixture = {
