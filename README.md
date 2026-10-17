@@ -30,7 +30,7 @@ pnpm test:layout:ui
 
 ## Compilación macOS
 
-`pnpm release:mac:dev` crea una compilación de desarrollo con firma ad hoc. `pnpm release:mac` requiere identidad de distribución y notarización configuradas. No se ha generado ni publicado un instalador BlueDoor en esta adaptación.
+`pnpm release:mac:dev` crea una compilación de desarrollo con firma ad hoc. `pnpm release:mac` requiere identidad de distribución y notarización configuradas. Se generó e instaló la compilación local de desarrollo 0.4.0 en `/Applications/BlueDoor.app`; no se publicó. La instalación independiente requiere descargar sus modelos desde Ajustes.
 
 ## Identidad y datos
 
