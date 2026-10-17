@@ -47,7 +47,7 @@ try {
  assert.equal(await editor.innerText(),'Informe de prueba');
  assert.equal(await page.locator('.page-editor .editor-toolbar').count(),1,'reuse existing toolbar');
  assert.equal(await page.locator('.page-editor .ruler').count(),1,'reuse existing margin ruler');
- assert.equal(await page.locator('aside, .text-editor').count(),0,'no second editor pane');
+ assert.equal(await page.locator('aside:not(.feedback-host), .text-editor').count(),0,'no second editor pane');
  assert.equal(await editor.evaluate(el=>!!el.closest('.paper-content')),true,'editing occurs on the original page');
  const geometry=await editor.evaluate(el=>{const r=el.getBoundingClientRect(),p=el.closest('.paper-content').getBoundingClientRect(),t=document.querySelector('.editor-toolbar').getBoundingClientRect();return {left:r.left-p.left,top:r.top-p.top,toolbarBottom:t.bottom,pageTop:p.top};});
  assert(Math.abs(geometry.left-blocks[0].bounds[0])<.02 && Math.abs(geometry.top-blocks[0].bounds[1])<.02,'editor stays at original coordinates');
@@ -89,7 +89,7 @@ try {
  assert(await page.getByRole('button',{name:'Mapa privado',exact:true}).isDisabled(),'do not lose draft by switching maps');
  assert(await page.locator('#editToggle').isDisabled(),'draft survives navigation attempts');
  await page.locator('.page-editor .save-btn').click();
- await page.locator('.page-editor .status').filter({hasText:'no cabe'}).waitFor();
+ await page.locator('.feedback-host .editor-feedback').filter({hasText:'no cabe'}).waitFor();
  assert.equal(await editor.innerText(),'Demasiado texto','rejected save preserves editable draft');
  await editor.fill('Informe corregido');
  await editor.focus();
@@ -103,7 +103,7 @@ try {
  await page.locator('.page-editor .ruler-marker.left').press('ArrowRight');
  await page.locator('.page-editor .save-btn').click();
  await page.waitForFunction(()=>!!window.__savedEdit);
- assert.equal(await page.locator('.page-editor .status').count(),0,'successful save clears prior error');
+ assert.equal(await page.locator('.feedback-host .editor-feedback').count(),0,'successful save clears prior error');
  const edit=await page.evaluate(()=>window.__savedEdit);
  assert(Math.abs(edit.bounds[2]-resizedWidth)<.1,'native save carries the actual edited width');
  assert.match(edit.html,/Informe corregido/);assert.match(edit.html,/georgia/i);assert.match(edit.html,/font-weight: bold|<b>/);assert.match(edit.html,/padding-left: 5px/);assert.match(edit.html,/font-size: 14px/);

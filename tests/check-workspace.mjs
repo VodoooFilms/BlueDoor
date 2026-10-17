@@ -61,7 +61,7 @@ try {
    await editor.fill('No cabe');
    assert(await map.isDisabled(),'map navigation cannot discard text draft');
    await page.locator('.save-btn').click();
-   await page.locator('.status').filter({hasText:'no cabe'}).waitFor();
+   await page.locator('.feedback-host .editor-feedback').filter({hasText:'no cabe'}).waitFor();
    assert.equal(await editor.innerText(),'No cabe','rejected save preserves the draft');
   }
   await editor.fill('Cláusula corregida. PERSONA_1 firma el acuerdo.');

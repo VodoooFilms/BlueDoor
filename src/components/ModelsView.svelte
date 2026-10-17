@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Feedback from "./Feedback.svelte";
+  import { microphoneError } from "../lib/user-errors";
   import Icon from "./Icon.svelte";
   import { privateCopy as p } from "../lib/private-i18n";
   import { invoke } from "@tauri-apps/api/core";
@@ -30,6 +32,7 @@
   let installingId = $state<string | null>(null);
   let progress = $state<Record<string, number>>({});
   let message = $state("");
+  let messageKind = $state<"error" | "status">("error");
   let menu = $state<"stt" | "privacy" | null>(null);
   let modelPicker = $state<HTMLDialogElement>();
   let pickerReturnFocus: HTMLButtonElement | undefined;
@@ -74,7 +77,7 @@
       const [label, pct] = event.payload;
       progress = { ...progress, [label]: pct };
     });
-    try { await refresh(); } catch (e) { message = String(e); }
+    try { await refresh(); } catch (e) { messageKind = "error"; message = String(e); }
     window.addEventListener("keydown", onKeyDown);
   });
 
@@ -119,8 +122,8 @@
 
   async function install(family: SttModel | "diarization" | "privacy") {
     if (busy) return;
-    message = "";
-    try { await downloadCurrent(family); } catch (e) { message = String(e); }
+    message = ""; messageKind = "error";
+    try { await downloadCurrent(family); } catch (e) { messageKind = "error"; message = String(e); }
   }
 
   async function downloadCurrent(family: SttModel | "diarization" | "privacy") {
@@ -150,7 +153,7 @@
     setupCancelled = false;
     setupPending = true;
     localStorage.setItem(setupKey, "true");
-    message = "";
+    message = ""; messageKind = "error";
     menu = null;
     setSttModel(DEFAULT_STT);
     pickPrivacy("qwen3-fast");
@@ -162,8 +165,8 @@
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop());
-      } catch {
-        throw new Error(es ? "No se pudo acceder al micrófono. Conecta uno y permite su uso en Ajustes del Sistema → Privacidad y seguridad → Micrófono; después vuelve a intentarlo." : "Microphone access failed. Connect a microphone and allow access in your system privacy settings, then retry.");
+      } catch (error) {
+        throw new Error(microphoneError(error, es ? "es" : "en"));
       }
       await invoke("prepare_local_setup");
       await refresh();
@@ -181,13 +184,14 @@
       setupPending = false;
       localStorage.removeItem(setupKey);
       setupStatus = "";
+      messageKind = "status";
       message = nemotronAvailable
         ? (es ? "Todo listo: permisos preparados y los tres modelos descargados." : "Ready: permissions prepared and all three models downloaded.")
         : (es ? "Permisos preparados y los tres modelos descargados. La identificación de voces aún requiere configurar el motor NeMo-Speech.cpp." : "Permissions prepared and all three models downloaded. Speaker identification still requires the NeMo-Speech.cpp runtime.");
       onSetupComplete();
     } catch (e) {
       setupStatus = "";
-      message = String(e);
+      messageKind = "error"; message = String(e);
     } finally {
       setupRunning = false;
     }
@@ -204,7 +208,7 @@
     const family = pendingDelete;
     pendingDelete = null;
     if (!family || busy) return;
-    message = "";
+    message = ""; messageKind = "error";
     try {
       if (family === "privacy") {
         await invoke("delete_privacy_model", { id: privacySelected });
@@ -216,9 +220,9 @@
         await invoke("delete_model", { size: family });
       }
       await refresh();
-      message = t.deleted;
+      messageKind = "status"; message = t.deleted;
     } catch (e: any) {
-      message = String(e);
+      messageKind = "error"; message = String(e);
     }
   }
 
@@ -238,17 +242,11 @@
 </script>
 
 <section class="models">
+  <Feedback message={setupStatus || message} kind={setupStatus ? "status" : messageKind} onDismiss={setupStatus ? undefined : () => message = ""} />
   <div class="models-head">
     <div class="head-top">
     <div class="head-copy">
       <Icon name="settings" size={36} /><strong class="sr-only">{t.modelsTitle}</strong>
-      {#if setupStatus}
-        <span role="status" aria-live="polite" title={setupStatus}>{setupStatus}</span>
-      {:else if message}
-        <span role="alert" title={message}>{message}</span>
-      {:else}
-        <span class="sr-only" title={t.modelsSubtitle}>{t.modelsSubtitle}</span>
-      {/if}
     </div>
     {#if offerSetup || setupRunning || installingId}
       <div class="head-actions">
@@ -472,7 +470,6 @@
   .back-btn:disabled { opacity: .55; cursor: default; }
   .head-copy { display: flex; flex-direction: column; gap: 8px; }
   .head-copy strong { font-family: var(--font-heading); font-size: 28px; font-weight: 400; line-height: 1.2; }
-  .head-copy span { color: var(--muted); font-size: 14px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
 
   .list { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
 
@@ -563,7 +560,7 @@
     cursor: pointer;
   }
   .icon-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
-  .icon-btn:hover:not(:disabled) { background: var(--error); color: #fff; }
+  .icon-btn:hover:not(:disabled) { background: var(--error-background); color: #fff; }
   .icon-btn:disabled { opacity: .3; cursor: default; }
 
   .footer { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 18px; padding-top: 4px; }
@@ -641,7 +638,7 @@
   }
   .dialog-actions .cancel:hover { background: var(--hover); }
   .dialog-actions .danger { border-color: var(--error); color: var(--error); }
-  .dialog-actions .danger:hover { background: var(--error); color: #fff; }
+  .dialog-actions .danger:hover { background: var(--error-background); color: #fff; }
   .model-picker { width:min(760px,calc(100vw - 48px)); max-height:calc(100vh - 64px); padding:26px; border:1px solid #a7caff66; border-radius:18px; background:#1745a5; color:white; box-shadow:0 28px 90px #00194766; }
   .model-picker::backdrop { background:#051d54a6; backdrop-filter:blur(5px); }
   .picker-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:22px; }

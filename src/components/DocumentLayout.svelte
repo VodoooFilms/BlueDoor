@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Feedback from "./Feedback.svelte";
   import { tick, untrack, onDestroy, type Snippet } from "svelte";
   import { DEFAULT_FORMAT } from "../lib/types";
   import TranscriptView from "./TranscriptView.svelte";
@@ -225,7 +226,7 @@
 {/snippet}
 
 {#snippet pages(editor?: Snippet<[string]>)}
-  {#if loading}<p class="layout-note" role="status">{p("Preparando vista del documento…")}</p>{/if}
+  <Feedback message={loading ? p("Preparando vista del documento…") : ""} kind="status" />
   {#if preview}
     {#each preview.pages as page, number (number)}
       <div class="page-wrapper" style:width={`${page.width * zoom / 100}px`} style:height={`${page.height * zoom / 100}px`}>
@@ -276,13 +277,14 @@
 <section bind:this={layoutRoot} class="layout-view" aria-label={p("Documento con formato original")}>
   <SaveNotice sequence={saveSequence} />
 
-  {#if preview?.pages.some(page => page.qrRegions?.length)}<p class="layout-note" role="status">{p("QR detectados: cubiertos en blanco al proteger y exportar. Revisa si hay otros códigos sin detectar.")}</p>{/if}
-  {#if preview?.estimated}<p class="layout-note">{p("Las zonas OCR son estimaciones. Comprueba que cada dato queda cubierto por completo.")}</p>{/if}
-  {#if preview?.unlabeledAliases?.length}<p class="layout-note" role="status">{p("Las zonas muy pequeñas están protegidas sin texto de alias. Consulta sus referencias en el mapa privado.")} {preview.unlabeledAliases.join(", ")}</p>{/if}
-  {#if dirty}<div class="draft-notice" role="status">{p("Hay cambios sin aplicar. La página muestra la última versión aplicada.")}</div>{/if}
-  {#each session.warnings as warning}<p role="alert" class="layout-error">{p(warning)}</p>{/each}
-  {#if overflowing}<p class="layout-note" role="status">{p("El texto supera el espacio libre. Amplía el área o ajusta el tamaño y los márgenes antes de guardar.")}</p>{/if}
-  {#if error}<p role="alert" class="layout-error">{error}</p>{/if}
+  <Feedback kind="status" message={[
+    preview?.pages.some(page => page.qrRegions?.length) ? p("QR detectados: cubiertos en blanco al proteger y exportar. Revisa si hay otros códigos sin detectar.") : "",
+    preview?.estimated ? p("Las zonas OCR son estimaciones. Comprueba que cada dato queda cubierto por completo.") : "",
+    preview?.unlabeledAliases?.length ? `${p("Las zonas muy pequeñas están protegidas sin texto de alias. Consulta sus referencias en el mapa privado.")} ${preview.unlabeledAliases.join(", ")}` : "",
+    dirty ? p("Hay cambios sin aplicar. La página muestra la última versión aplicada.") : "",
+    overflowing ? p("El texto supera el espacio libre. Amplía el área o ajusta el tamaño y los márgenes antes de guardar.") : "",
+  ].filter(Boolean).join("\n")} />
+  <Feedback message={[...session.warnings.map(p), error].filter(Boolean).join("\n")} />
   {#if editable && session.analyzed}
     <TranscriptView transcript={blockTranscript} embedded privateDocument pageSurface={pages} surfaceActive={!!block && !busy && !loading} surfaceScale={zoom / 100} onSurfaceExtent={height => contentHeight = height}
       externalDirty={boundsDirty} externalCanUndo={boundsHistory.length > 0} externalUndoOrder={boundsHistory[boundsHistory.length - 1]?.order ?? -1} {nextUndoOrder} onResetExternal={resetBounds} onUndoExternal={undoBounds}
@@ -306,7 +308,7 @@
     <div class="page-scroll">{@render pages()}</div>
   {/if}
   <dialog bind:this={exitDialog} oncancel={event => { event.preventDefault(); if (!leaving) leaveTarget = undefined; }} aria-label={p("Salir de la edición del párrafo")}>
-    {#if leaveError}<p role="alert">{p("No se guardó el párrafo. Puedes seguir editando o descartar el borrador para salir.")}</p><p role="alert">{leaveError}</p>{:else}<p>{p("Hay cambios sin guardar en este párrafo.")}</p>{/if}
+    <div class="exit-feedback">{#if leaveError}<p role="alert">{p("No se guardó el párrafo. Puedes seguir editando o descartar el borrador para salir.")}</p><p role="alert">{leaveError}</p>{:else}<p>{p("Hay cambios sin guardar en este párrafo.")}</p>{/if}</div>
     <div class="exit-actions">
       <button class="secondary" disabled={leaving} onclick={() => leaveTarget = undefined}>{p("Seguir editando")}</button>
       <button class="secondary" disabled={leaving} onclick={() => finishSelection(leaveTarget ?? null)}>{p("Descartar cambios")}</button>
@@ -318,10 +320,9 @@
 <style>
   dialog { border:1px solid var(--line); border-radius:6px; padding:22px; background:var(--surface); color:var(--text); max-width:480px; }
   dialog::backdrop { background:#0004; }
+  .exit-feedback { height:120px; overflow:auto; }
   .exit-actions { display:flex; gap:8px; flex-wrap:wrap; }
   .layout-view { position:relative; display:flex; flex-direction:column; flex:1; min-height:0; min-width:0; border:1px solid var(--line); border-radius:5px; overflow:hidden; }
-  .layout-note { font-size:12px; color:var(--muted); }
-  .layout-note { padding:8px 16px; margin:0; }
   .page-scroll { flex:1; min-width:0; overflow:auto; scrollbar-gutter:stable; padding:22px; background:var(--panel); }
   .page-wrapper { position:relative; margin:0 auto; background:white; box-shadow:0 2px 12px #0002; }
   .paper-content { position:relative; transform-origin:top left; }
@@ -347,6 +348,4 @@
   .primary { background:var(--text); color:var(--surface); border:1px solid var(--text); }
   .secondary { background:var(--surface); color:var(--text); border:1px solid var(--line); }
 
-  .draft-notice { padding:10px 16px; background:var(--panel); font-size:12px; }
-  .layout-error { padding:12px; color:var(--error); }
 </style>

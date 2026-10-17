@@ -116,14 +116,14 @@ try {
  await page.getByRole('button',{name:'Editar texto 1, Página 1',exact:true}).click();await editor.waitFor();
  await editor.fill('NO_CABE');await page.getByRole('button',{name:'Terminar edición',exact:true}).click();
  await dialog.waitFor();await page.getByRole('button',{name:'Guardar y salir',exact:true}).click();
- await page.locator('.page-editor .status').filter({hasText:'no cabe'}).waitFor();
+ await page.locator('.feedback-host .editor-feedback').filter({hasText:'no cabe'}).waitFor();
  assert.equal(await editor.innerText(),'NO_CABE','failed save keeps the draft accessible');
  await dialog.waitFor();
  assert.match(await dialog.innerText(),/No se guardó el párrafo/,'save failure stays visible instead of reopening the generic prompt');
  assert.match(await dialog.innerText(),/no cabe/);
  await page.getByRole('button',{name:'Descartar cambios',exact:true}).click();
  assert.equal(await editor.count(),0,'a failed save must never trap the user in a paragraph');
- assert.equal(await page.locator('.page-editor .status').count(),0,'closed paragraph does not leave a stale save error');
+ assert.equal(await page.locator('.feedback-host .editor-feedback').count(),0,'closed paragraph does not leave a stale save error');
  assert(await page.getByRole('button',{name:'Documents',exact:true}).count()===0 || await page.getByRole('button',{name:'Documentos',exact:true}).isEnabled());
  console.log('PASS paragraph workflow: full paragraph, automatic wrapping/growth, new paragraph, bounded overflow, vertical resize/reset/undo, margins, save/reopen');
 } finally {await browser.close();}

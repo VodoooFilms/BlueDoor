@@ -1,6 +1,8 @@
 import { getLang } from "./i18n-store.svelte";
 
 const ENGLISH: Record<string, string> = {
+  "Avisos": "Notifications",
+  "Cerrar aviso": "Dismiss notification",
   "Audio": "Audio",
   "Seleccionar archivo": "Select file",
   "Procesamiento local": "Local processing",

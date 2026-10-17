@@ -27,7 +27,7 @@
   --progress:#bcd7ff; --progress-track:rgb(193 218 255 / 20%);
   --success:#4be6ae; --accent:#c3dcff; --violet:#c3dcff;
   --accent-soft:rgb(193 218 255 / 12%); --accent-hover:#fff;
-  --error:#ffdadc; --error-background:#653256; --shadow:rgb(0 20 80 / 12%);
+  --error:#e4eeff; --error-background:#092665; --shadow:rgb(0 20 80 / 12%);
   --secondary-ink:#bfd8ff;
 }
 :root[data-theme="dark"] { --background:#103c9d; --panel:#1645ac; --surface:#2050b4; }

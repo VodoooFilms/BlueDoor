@@ -48,6 +48,8 @@ try {
   }
   if (process.argv.includes("--brand")) {
     await run("check-bluedoor.mjs");
+  } else if (process.argv.includes("--feedback")) {
+    await run("check-feedback.mjs");
   } else if (process.argv.includes("--privacy")) {
     for (const language of ["es", "en"]) await run("check-private-ai.mjs", language);
   } else if (process.argv.includes("--workspace")) {
@@ -58,7 +60,7 @@ try {
   } else {
     for (const language of ["es", "en"]) await run("check-private-ai.mjs", language);
     for (const test of [
-      "check-bluedoor.mjs", "check-model-setup.mjs", "check-welcome.mjs", "check-editor.mjs",
+      "check-bluedoor.mjs", "check-feedback.mjs", "check-model-setup.mjs", "check-welcome.mjs", "check-editor.mjs",
       "check-history.mjs", "check-conversation.mjs", "check-pcm.mjs",
     ]) await run(test);
   }

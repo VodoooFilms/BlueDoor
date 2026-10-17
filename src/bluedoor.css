@@ -146,3 +146,7 @@
 :root .shell .download-btn,:root .shell .setup-download { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
 :root .shell .download-btn svg,:root .blue-import-screen .import-action svg,:root .shell .state-title svg { flex:none; }
 :root .shell .setup-btn { display:flex; flex-direction:column; gap:3px; }
+
+/* Action/progress replacements occupy the same footprint. */
+:root .shell .mic-panel .download-btn,:root .shell .mic-panel .download-progress { width:150px; min-height:40px; }
+:root .shell .models .right-actions > .download-btn,:root .shell .models .right-actions > .download-progress,:root .shell .models .right-actions > .ok { width:160px; min-height:40px; display:flex; align-items:center; justify-content:center; }

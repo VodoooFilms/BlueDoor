@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Feedback from "./Feedback.svelte";
+  import { microphoneError, importErrorMessage } from "../lib/user-errors";
   import Icon from "./Icon.svelte";
   import { PcmRecorder } from "../lib/pcm-recorder";
   import type { Transcript, RecordingState } from "../lib/types";
@@ -311,7 +313,7 @@
     starting = true;
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        errorMessage = t.micUnavailable;
+        errorMessage = microphoneError(null, t.langLabel === "ES" ? "es" : "en");
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -328,10 +330,7 @@
       }, 1000);
     } catch (err: any) {
       console.error("Microphone access denied:", err);
-      errorMessage =
-        err?.name === "NotAllowedError"
-          ? t.micDenied
-          : err?.message || t.micUnavailable;
+      errorMessage = microphoneError(err, t.langLabel === "ES" ? "es" : "en");
       stopCleaning();
       recStatus = "idle";
     } finally {
@@ -370,7 +369,7 @@
       onTranscribe(transcript);
     } catch (e: any) {
       console.error(e);
-      errorMessage = String(e);
+      errorMessage = importErrorMessage(e, "audio", t.langLabel === "ES" ? "es" : "en");
       recStatus = "idle";
     }
   }
@@ -520,9 +519,7 @@
       </div>
     </div>
 
-    {#if errorMessage}
-      <p class="error" role="alert">{errorMessage}</p>
-    {/if}
+    <Feedback message={errorMessage} onDismiss={() => errorMessage = ""} />
 
 {#if modelMissing}
         <div class="model-card">
@@ -913,17 +910,6 @@
     animation: spin .8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-
-  .error {
-    max-width: 420px;
-    padding: 10px 12px;
-    color: var(--error);
-    background: var(--error-background);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    font-size: 13.5px;
-    user-select: text;
-  }
 
   .model-card {
     display: flex;

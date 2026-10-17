@@ -1,6 +1,9 @@
 <script lang="ts">
+  import Feedback from "./Feedback.svelte";
+  import { importErrorMessage } from "../lib/user-errors";
+  import { getLang } from "../lib/i18n-store.svelte";
   import { privateCopy as p } from "../lib/private-i18n";
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, onDestroy, setContext } from "svelte";
   import { invoke, isTauri } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -15,8 +18,9 @@
   import { enterView } from "../lib/motion";
   import SaveNotice from "./SaveNotice.svelte";
   let saveSequence = $state(0);
+  setContext("feedbackActive", () => active);
 
-  let { onBusyChange, onSessionChange, onEdit, externalSession, comparisonRequest, textTranscript, onSaveText, onTextDirty, onConfirmReview, onValidateExport, editing = false }: { textTranscript: Transcript | null; onSaveText: (id: string, text: string, format?: DocFormat, html?: string | null) => Promise<void>; onTextDirty: (dirty: boolean, save: () => void | Promise<void>) => void; onConfirmReview: () => Promise<void>; onValidateExport: (text: string, title?: string) => Promise<void>; editing?: boolean; onBusyChange: (busy: boolean) => void; onSessionChange: (session: PrivacySession | null) => void; onEdit: (session: PrivacySession) => void; externalSession: PrivacySession | null; comparisonRequest: number } = $props();
+  let { active = true, onBusyChange, onSessionChange, onEdit, externalSession, comparisonRequest, textTranscript, onSaveText, onTextDirty, onConfirmReview, onValidateExport, editing = false }: { active?: boolean; textTranscript: Transcript | null; onSaveText: (id: string, text: string, format?: DocFormat, html?: string | null) => Promise<void>; onTextDirty: (dirty: boolean, save: () => void | Promise<void>) => void; onConfirmReview: () => Promise<void>; onValidateExport: (text: string, title?: string) => Promise<void>; editing?: boolean; onBusyChange: (busy: boolean) => void; onSessionChange: (session: PrivacySession | null) => void; onEdit: (session: PrivacySession) => void; externalSession: PrivacySession | null; comparisonRequest: number } = $props();
   let session = $state<PrivacySession | null>(null);
   let entities = $state<PrivateEntity[]>([]);
   let draftDirty = $state(false);
@@ -147,7 +151,7 @@
     busy = label; error = ""; onBusyChange(true);
     try { await action(); }
     catch (e) {
-      error = String(e);
+      error = label.startsWith("Importando") ? importErrorMessage(e, "document", getLang()) : String(e);
       if (label.startsWith("Analizando")) {
         try { adopt(await invoke<PrivacySession | null>("get_privacy_session")); } catch { }
       }
@@ -267,7 +271,7 @@
             <button class="secondary" onclick={resetMap} disabled={!!busy || !draftDirty}>{p("Restablecer cambios")}</button>
             <button class="primary apply-map" onclick={() => applyMap()} disabled={!!busy || !draftDirty}>{p(draftDirty ? "Guardar cambios" : "Guardado")}</button>
           {:else}<p class="empty-note">{p("Analiza el documento con Qwen para detectar entidades y construir el mapa.")}</p>{/if}
-          {#if draftDirty}<p class="notice">{p("Aplica los cambios al mapa para actualizar el documento.")}</p>{/if}
+          <Feedback message={draftDirty ? p("Aplica los cambios al mapa para actualizar el documento.") : ""} kind="status" />
         </section>
     {/if}
     <div class="document-surface" class:hidden={mapOpen}>
@@ -279,10 +283,9 @@
         <div class="original-page"><pre>{session.original}</pre></div>
       {/if}
     </div>
-    {#if session.warnings.length}<div class="leak-alert" role="alert"><strong>{p("Posibles filtraciones · vista previa bloqueada")}</strong>{#each session.warnings as warning}<p>{p(warning)}</p>{/each}</div>{/if}
-    {#if session.analyzed && !session.analysisComplete}<div class="leak-alert" role="alert"><strong>{p("Análisis incompleto · revisión bloqueada")}</strong></div>{/if}
+    <Feedback className="leak-alert" message={session.warnings.length ? [p("Posibles filtraciones · vista previa bloqueada"), ...session.warnings.map(p)].join("\n") : session.analyzed && !session.analysisComplete ? p("Análisis incompleto · revisión bloqueada") : ""} />
     {#if session.advisories?.length}<details class="review-advisories"><summary>{p("Lo que esta revisión no puede comprobar")}</summary>{#each session.advisories as advisory}<p>{p(advisory)}</p>{/each}</details>{/if}
-    {#if exported}<p class="notice" role="status">{p("PDF guardado con el formato original.")} {exported}</p>{/if}
+    <Feedback message={exported ? `${p("PDF guardado con el formato original.")} ${exported}` : ""} kind="status" />
   {:else}
     <div class="welcome blue-import-screen">
       <h2 class="sr-only">{p("Lo privado permanece aquí.")}</h2>
@@ -299,7 +302,7 @@
     </div>
   {/if}
   {#if busy}{@render processingIndicator()}{/if}
-  {#if error}<p class="error" role="alert">{p(error)}</p>{/if}
+  <Feedback message={error ? p(error) : ""} onDismiss={() => error = ""} />
 </section>
 
 <style>
@@ -348,15 +351,14 @@
     .welcome-import.dragging-document { transform:none; }
     .processing-orbit { animation:none; }
   }
-  .processing-slot { flex:none; padding:8px 0; }
+  .processing-slot { position:absolute; bottom:8px; left:36px; right:36px; height:40px; padding:8px 0; pointer-events:none; }
+  .processing-copy { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
   .processing-label { display:flex; align-items:center; gap:8px; justify-content:center; color:var(--muted); font-size:12px; }
   .processing-track { height:3px; margin-top:6px; overflow:hidden; background:var(--panel); }
   .processing-track span { display:block; width:35%; height:100%; background:var(--accent); animation:processing 1.8s ease-in-out infinite alternate; }
   @keyframes processing { to { transform:translateX(180%); } }
   @media(prefers-reduced-motion:reduce) { .processing-track span { animation:none; width:100%; } }
-  .notice,.error,.leak-alert,.review-advisories { flex:none; font-size:12px; margin:0; }
-  .error,.leak-alert { color:var(--error); }
-  .leak-alert { padding:10px; border:1px solid var(--error); }
+  .review-advisories { flex:none; font-size:12px; margin:0; }
   .review-advisories { color:var(--muted); }
   .review-advisories summary { cursor:pointer; }
   @media(max-width:1000px) { .workspace-header { gap:8px; } .workspace-title { max-width:240px; } .workspace-views button { padding:8px; } }

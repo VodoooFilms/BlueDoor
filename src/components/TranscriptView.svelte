@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Feedback from "./Feedback.svelte";
   import { privateCopy as p } from "../lib/private-i18n";
   import { tick, type Snippet } from "svelte";
   import type { Transcript, DocFormat } from "../lib/types";
@@ -52,6 +53,7 @@
   $effect(() => { onExportAction?.(exportAsPDF, exporting); });
   let openingServer = $state(false);
   let statusMessage = $state("");
+  let statusKind = $state<"error" | "status">("error");
   let correctedText = $state("");
   let savedCorrection = $state(false);
   let copied = $state(false);
@@ -587,10 +589,11 @@
         align: exportFormat.align,
         private: privateDocument && privateId ? { id: privateId, revision: privateRevision ?? 0 } : null,
       });
+      statusKind = "status";
       statusMessage = t.pdfSaved(saved);
     } catch (e: any) {
       console.error(e);
-      statusMessage = String(e);
+      statusKind = "error"; statusMessage = String(e);
     } finally {
       exporting = false;
     }
@@ -603,7 +606,7 @@
     rich = safeHtml;
     correctedText = htmlToPlain(safeHtml);
     try { await onSave(transcript.id, correctedText, docFormat, safeHtml, speakerNames); }
-    catch (e) { statusMessage = String(e); onSaveOutcome?.(false, statusMessage); return; }
+    catch (e) { statusKind = "error"; statusMessage = String(e); onSaveOutcome?.(false, statusMessage); return; }
     savedSnapshot = editorSnapshot(safeHtml, docFormat, speakerNames);
     savedCorrection = true;
     saveSequence++;
@@ -687,9 +690,7 @@
 
   </div>{/if}
 
-  {#if statusMessage}
-    <p class="status">{p(statusMessage)}</p>
-  {/if}
+  <Feedback className="editor-feedback" message={statusMessage ? p(statusMessage) : ""} kind={statusKind} onDismiss={() => statusMessage = ""} />
 
   {#if hasSpeakers}
     <div class="speaker-panel">
@@ -982,7 +983,6 @@
   .head-btn.primary:disabled { opacity: .6; cursor: default; }
   .head-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
-  .status { padding: 6px 10px; color: var(--muted); font-size: 13px; user-select: text; }
 
   .speaker-panel {
     flex: none;

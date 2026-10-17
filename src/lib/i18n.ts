@@ -154,7 +154,7 @@ export const COPY: Record<Lang, Copy> = {
     speakers: "Hablantes:",
     speakerNamePlaceholder: "Escribe un nombre",
     or: "o",
-    needsModel: "Primero descarga el modelo Whisper para poder transcribir.",
+    needsModel: "Primero descarga un modelo de voz (Whisper o Parakeet) en Ajustes → Modelos para poder transcribir.",
     micDenied:
       "Permiso de micrófono denegado. Concede acceso en los ajustes de privacidad del micrófono del sistema.",
     micUnavailable: "La grabación no está disponible en este dispositivo.",
@@ -245,7 +245,7 @@ export const COPY: Record<Lang, Copy> = {
     speakers: "Speakers:",
     speakerNamePlaceholder: "Enter a name",
     or: "or",
-    needsModel: "Download the Whisper model first to transcribe.",
+    needsModel: "Download a speech model (Whisper or Parakeet) in Settings → Models before transcribing.",
     micDenied:
       "Microphone permission denied. Grant access in your system microphone privacy settings.",
     micUnavailable: "Recording is not available on this device.",

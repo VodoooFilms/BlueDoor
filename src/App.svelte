@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Feedback from "./components/Feedback.svelte";
+  import FeedbackHost from "./components/FeedbackHost.svelte";
+  import { importErrorMessage } from "./lib/user-errors";
   import { privateCopy as p } from "./lib/private-i18n";
   import Icon from "./components/Icon.svelte";
   import WelcomeSplash from "./components/WelcomeSplash.svelte";
@@ -93,7 +96,6 @@
   // Flujo de importación de audio (el reconocimiento es siempre Auto).
   let importing = $state(false);
   let importError = $state("");
-  let importToastTimer: ReturnType<typeof setTimeout> | undefined;
   // --- Persistencia local (solo en este dispositivo) ---
   interface StoredSeg {
     start: number;
@@ -459,19 +461,12 @@
       handleNewTranscript(transcript);
     } catch (e: any) {
       console.error(e);
-      importError = String(e);
+      importError = importErrorMessage(e, "audio", t.langLabel === "ES" ? "es" : "en");
     } finally {
       importing = false;
     }
   }
 
-  // El aviso de importación se auto-oculta a los pocos segundos.
-  $effect(() => {
-    if (importError) {
-      clearTimeout(importToastTimer);
-      importToastTimer = setTimeout(() => (importError = ""), 4000);
-    }
-  });
 </script>
 
 <svelte:window onkeydown={closeSettings} onpointerdown={(event) => { if (settingsEl?.open && !settingsEl.contains(event.target as Node)) settingsEl.open = false; }} />
@@ -507,16 +502,12 @@
     <span class="local-indicator" role="img" aria-label={p("Procesamiento local")} title={p("Procesamiento local")}><Icon name="laptop" size={28} /><span></span></span>
   </header>
 
-  {#if storageError && hydrated}
-    <div role="alert" class="storage-error">{storageError}</div>
-  {/if}
-
-  {#if importError}
-    <div class="app-toast" role="alert">{importError}</div>
-  {/if}
+  <FeedbackHost />
+  <Feedback message={hydrated ? storageError : ""} className="storage-error" />
+  <Feedback message={importError} className="app-toast" onDismiss={() => importError = ""} />
 
   <div class="privacy-container" class:hidden={workflow !== "private"} use:enterView={workflow}>
-    <PrivateAI editing={privateEditVisible} comparisonRequest={privateComparisonRequest} externalSession={privateSession} textTranscript={privateTranscript} onSaveText={savePrivateEdit} onTextDirty={(dirty, save) => { editorDirty = dirty; editorSave = save; }} onConfirmReview={confirmPrivateReview} onValidateExport={validatePrivateExport} onSessionChange={receivePrivateSession} onEdit={() => requestNavigation(() => { workflow = "private"; privateEditVisible = true; showModels = false; })} onBusyChange={(busy) => (privacyBusy = busy)} />
+    <PrivateAI active={workflow === "private"} editing={privateEditVisible} comparisonRequest={privateComparisonRequest} externalSession={privateSession} textTranscript={privateTranscript} onSaveText={savePrivateEdit} onTextDirty={(dirty, save) => { editorDirty = dirty; editorSave = save; }} onConfirmReview={confirmPrivateReview} onValidateExport={validatePrivateExport} onSessionChange={receivePrivateSession} onEdit={() => requestNavigation(() => { workflow = "private"; privateEditVisible = true; showModels = false; })} onBusyChange={(busy) => (privacyBusy = busy)} />
   </div>
 
 
@@ -564,7 +555,7 @@
       <div class="leave-dialog" role="dialog" aria-modal="true" aria-labelledby="leave-title">
         <strong id="leave-title">{t.unsavedChangesTitle}</strong>
         <p>{t.unsavedChangesBody}</p>
-        {#if storageError}<p class="leave-error" role="alert">{storageError}</p>{/if}
+        <div class="leave-error-slot">{#if storageError}<p class="leave-error" role="alert">{storageError}</p>{/if}</div>
         <div class="leave-actions">
           <button onclick={() => (pendingNavigation = null)} disabled={savingBeforeLeave}>{t.cancel}</button>
           <button onclick={discardAndLeave} disabled={savingBeforeLeave}>{t.discardChanges}</button>
@@ -590,6 +581,7 @@
   .leave-dialog { width: min(420px, calc(100vw - 32px)); padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 12px 36px rgba(0, 0, 0, .35); }
   .leave-dialog strong { font-size: 16px; }
   .leave-dialog p { color: var(--muted); line-height: 1.5; }
+  .leave-error-slot { height:72px; overflow:auto; }
   .leave-dialog .leave-error { color: var(--error); overflow-wrap: anywhere; }
   .leave-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
   .leave-actions button { padding: 8px 12px; border: 1px solid var(--line-dark); border-radius: 7px; color: var(--text); background: var(--surface); cursor: pointer; }
@@ -724,28 +716,6 @@
   .boot-retry:hover:not(:disabled) { border-color: var(--button-hover); background: var(--button-hover); }
   .boot-retry:disabled { opacity: .6; cursor: default; }
 
-  .storage-error {
-    padding: 10px;
-    border: 1px solid var(--accent);
-    color: var(--text);
-    user-select: text;
-  }
 
-  .app-toast {
-    position: fixed;
-    left: 50%;
-    bottom: 22px;
-    transform: translateX(-50%);
-    z-index: 80;
-    max-width: 76vw;
-    padding: 11px 16px;
-    border: 1px solid var(--line-dark);
-    border-radius: 9px;
-    background: var(--surface);
-    color: var(--text);
-    font-size: 14px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, .3);
-    user-select: text;
-  }
 
 </style>
