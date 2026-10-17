@@ -11,7 +11,7 @@
 :root .masthead .settings-menu summary:hover,:root .masthead .nav-models:hover:not(:disabled) { background:rgb(255 255 255 / 7%); }
 :root .masthead .settings-popover { top:65px; width:290px; border-radius:12px; background:#1745a5; padding:12px; box-shadow:0 16px 50px #05277044; }
 :root .settings-popover button { justify-content:flex-start; min-height:48px; gap:12px; }
-:root .settings-popover button > span:last-child { margin-left:auto; }
+:root .settings-popover .settings-value { margin-left:auto; }
 :root .masthead .local-indicator { display:flex; align-items:center; gap:12px; padding-left:24px; border-left:1px solid rgb(255 255 255 / 55%); color:white; }
 .local-indicator > span { width:11px; height:11px; border-radius:50%; background:#15dcb4; }
 :root .shell .privacy-workflow { border:0; border-radius:0; padding:28px 36px; background:transparent; gap:18px; }

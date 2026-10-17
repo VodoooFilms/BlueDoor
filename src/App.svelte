@@ -494,12 +494,12 @@
         <details class="settings-menu" bind:this={settingsEl}>
           <summary><Icon name="settings" /><span>{p("Ajustes")}</span></summary>
           <div class="settings-popover">
-            <button id="modelsToggle" class:nav-active={showModels && workflow !== "private"} onclick={() => { settingsEl.open = false; openModels(); }} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="download" /><span>{t.modelsTitle}</span></button>
-            <button id="languageToggle" aria-label={t.switchLanguage} onclick={toggle}><Icon name="globe" />{p("Idioma")} <span>{t.langLabel === "ES" ? "Español" : "English"}</span></button>
-            <button id="themeToggle" aria-label={theme === "dark" ? t.lightTheme : t.darkTheme} onclick={toggleTheme}><Icon name="moon" />{p("Apariencia")} <span>{p(theme === "dark" ? "Oscuro" : "Claro")}</span></button>
+            <button id="modelsToggle" class:nav-active={showModels && workflow !== "private"} onclick={() => { settingsEl.open = false; openModels(); }} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="download" /><span class="settings-label">{t.modelsTitle}</span></button>
+            <button id="languageToggle" aria-label={t.switchLanguage} onclick={toggle}><Icon name="globe" /><span class="settings-label">{p("Idioma")}</span><span class="settings-value">{t.langLabel === "ES" ? "Español" : "English"}</span></button>
+            <button id="themeToggle" aria-label={theme === "dark" ? t.lightTheme : t.darkTheme} onclick={toggleTheme}><Icon name="moon" /><span class="settings-label">{p("Apariencia")}</span><span class="settings-value">{p(theme === "dark" ? "Oscuro" : "Claro")}</span></button>
             <hr />
-            <button id="fullscreenToggle" onclick={toggleFullScreen}><Icon name="expand" />{p(fullScreen ? "Salir de pantalla completa" : "Pantalla completa")}</button>
-            <button onclick={() => { settingsEl.open = false; openAbout(); }}><Icon name="info" />{p("Acerca de BlueDoor")}</button>
+            <button id="fullscreenToggle" onclick={toggleFullScreen}><Icon name="expand" /><span class="settings-label">{p(fullScreen ? "Salir de pantalla completa" : "Pantalla completa")}</span></button>
+            <button onclick={() => { settingsEl.open = false; openAbout(); }}><Icon name="info" /><span class="settings-label">{p("Acerca de BlueDoor")}</span></button>
           </div>
         </details>
       </div>
@@ -581,10 +581,10 @@
   .settings-menu summary::-webkit-details-marker { display:none; }
   .settings-menu summary:hover { background:var(--hover); }
   .settings-popover { position:absolute; right:0; top:40px; z-index:100; width:260px; padding:10px; background:var(--surface); border:1px solid var(--line); border-radius:7px; box-shadow:0 10px 30px #0002; }
-  .settings-popover button { display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; padding:10px; background:transparent; border:0; border-radius:4px; color:var(--text); font:inherit; cursor:pointer; text-align:left; }
+  .settings-popover button { display:flex; justify-content:flex-start; align-items:center; gap:12px; width:100%; padding:10px; background:transparent; border:0; border-radius:4px; color:var(--text); font:inherit; cursor:pointer; text-align:left; }
   .settings-popover button:hover { background:var(--hover); }
   .settings-popover button:disabled { opacity:.45; }
-  .settings-popover button span { color:var(--muted); font-size:12px; }
+  .settings-popover button .settings-value { margin-left:auto; color:var(--muted); font-size:12px; }
   .settings-popover hr { border:0; border-top:1px solid var(--line); }
   .leave-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: rgba(0, 0, 0, .5); }
   .leave-dialog { width: min(420px, calc(100vw - 32px)); padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 12px 36px rgba(0, 0, 0, .35); }
