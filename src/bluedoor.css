@@ -17,9 +17,11 @@
 :root .shell .privacy-workflow { border:0; border-radius:0; padding:28px 36px; background:transparent; gap:18px; }
 :root .blue-import-screen.welcome { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:minmax(0,1fr) 100px; gap:28px 36px; padding:8px 10px 6px; min-height:0; align-items:center; }
 .blue-secondary { opacity:.8; }
-:root .blue-import-screen .welcome-import { min-width:0; width:100%; height:100%; min-height:340px; max-height:650px; border:1.5px dashed #bfd8ffaa; border-radius:18px; background:transparent; padding:18px 28px 38px; gap:5px; justify-content:center; }
+:root .blue-import-screen .welcome-import { min-width:0; width:100%; height:100%; min-height:340px; max-height:650px; container-type:size; border:1.5px dashed #bfd8ffaa; border-radius:18px; background:transparent; padding:18px 28px 38px; gap:5px; justify-content:center; }
 :root .blue-import-screen .welcome-import:hover:not(:disabled),:root .blue-import-screen .welcome-import.dragging-document { background:#c5ddff0b; border-color:#fff; transform:none; }
-:root .blue-import-screen .import-art { width:min(100%,400px); max-height:65%; object-fit:contain; }
+/* Move only the artwork; retain its flex footprint so the action never moves.
+   Its visible SVG bounds are centred at 55% of the image height. */
+:root .blue-import-screen .import-art { width:min(100%,400px); max-height:65%; object-fit:contain; transform:translateY(calc(-25cqh + 20% + 11.25px)); }
 :root .blue-import-screen .import-action { display:grid; place-items:center; width:min(100%,400px); min-height:66px; padding:14px 20px; border-radius:12px; color:#1248bc; background:#fff; font:500 21px/1.3 var(--font-heading); }
 :root .blue-import-screen .protect-art { width:100%; max-height:100%; object-fit:contain; }
 .workflow-steps { grid-column:1 / -1; display:flex; align-items:center; justify-content:center; gap:16px; color:var(--secondary-ink); }
@@ -80,6 +82,7 @@
   :root .shell .privacy-workflow { padding:24px; }
   :root .blue-import-screen.welcome { gap:24px; padding:0; grid-template-rows:minmax(0,1fr) 84px; }
   :root .blue-import-screen .welcome-import { min-height:300px; padding:10px 20px 28px; }
+  :root .blue-import-screen .import-art { transform:translateY(calc(-25cqh + 20% + 12.75px)); }
   :root .blue-import-screen .import-action { min-height:56px; font-size:18px; }
 }
 @media(max-height:740px) {
