@@ -1,6 +1,16 @@
 # BlueDoor
 
+<p align="center">
+  <img src="assets/branding/bluedoor-readme-logo.svg" alt="BlueDoor: puerta blanca y marca sobre fondo azul" width="500" />
+</p>
+
+**Una capa de preparación local para el trabajo legal con IA.**
+
 Aplicación de escritorio para preparar documentos legales y transcripciones en tu propio equipo: análisis local de información sensible, alias revisables, edición enriquecida y exportación PDF.
+
+<p align="center">
+  <img src="assets/branding/bluedoor-workspace.png" alt="BlueDoor: pantalla de importación de documentos, navegación de audio y edición, con procesamiento local" width="1200" />
+</p>
 
 Proyecto independiente de escritorio, con datos y preferencias propios. Repositorio de desarrollo: [VodoooFilms/BlueDoor](https://github.com/VodoooFilms/BlueDoor). Presentación del producto: [BlueDoor en Prompthea](https://www.prompthea.com/projects/bluedoor).
 
