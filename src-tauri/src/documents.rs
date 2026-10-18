@@ -36,15 +36,20 @@ fn docx_text(bytes: &[u8]) -> Result<String, String> {
             .read_event()
             .map_err(|_| "El texto del DOCX está dañado.")?
         {
-            Event::Start(e) if e.local_name().as_ref() == b"t" => in_text = true,
-            Event::End(e) if e.local_name().as_ref() == b"t" => in_text = false,
-            Event::End(e) if e.local_name().as_ref() == b"p" => output.push('\n'),
-            Event::Empty(e) if e.local_name().as_ref() == b"tab" => output.push('\t'),
-            Event::Empty(e) if matches!(e.local_name().as_ref(), b"br" | b"cr") => {
-                output.push('\n')
-            }
-            Event::Text(e) if in_text => {
-                output.push_str(&e.unescape().map_err(|_| "Texto XML no válido.")?)
+            Event::Start(e) if e.local_name().as_ref() == "t" => in_text = true,
+            Event::End(e) if e.local_name().as_ref() == "t" => in_text = false,
+            Event::End(e) if e.local_name().as_ref() == "p" => output.push('\n'),
+            Event::Empty(e) if e.local_name().as_ref() == "tab" => output.push('\t'),
+            Event::Empty(e) if matches!(e.local_name().as_ref(), "br" | "cr") => output.push('\n'),
+            Event::Text(e) if in_text => output.push_str(&e),
+            Event::GeneralRef(e) if in_text => {
+                // En quick-xml 0.42 las referencias (&amp; &#39;…) llegan como
+                // eventos aparte con el nombre crudo; `unescape` resuelve las
+                // predefined y las numéricas de una sola vez.
+                let raw = format!("&{};", e.into_inner());
+                output.push_str(
+                    &quick_xml::escape::unescape(&raw).map_err(|_| "Texto XML no válido.")?,
+                );
             }
             Event::DocType(_) => return Err("No se admiten declaraciones externas en DOCX.".into()),
             Event::Eof => break,
@@ -240,9 +245,9 @@ mod tests {
                 zip::write::SimpleFileOptions::default(),
             )
             .unwrap();
-        writer.write_all(br#"<w:document xmlns:w="urn:w"><w:body><w:p><w:r><w:t>Ana &amp; </w:t></w:r><w:r><w:t>Pedro</w:t></w:r></w:p><w:p><w:r><w:t>0912345678</w:t></w:r></w:p></w:body></w:document>"#).unwrap();
+        writer.write_all(br#"<w:document xmlns:w="urn:w"><w:body><w:p><w:r><w:t>Ana &amp; </w:t></w:r><w:r><w:t>&#39;Pedro&#39;</w:t></w:r></w:p><w:p><w:r><w:t>0912345678</w:t></w:r></w:p></w:body></w:document>"#).unwrap();
         let bytes = writer.finish().unwrap().into_inner();
-        assert_eq!(docx_text(&bytes).unwrap(), "Ana & Pedro\n0912345678\n");
+        assert_eq!(docx_text(&bytes).unwrap(), "Ana & 'Pedro'\n0912345678\n");
     }
     #[test]
     fn utf8_import_is_exact_and_invalid_or_large_files_fail() {

@@ -1,0 +1,8 @@
+pdf-extract 0.12.1
+Copyright holder per crate metadata: Jeff Muizelaar <jmuizelaar@mozilla.com>
+Source: https://github.com/jrmuizel/pdf-extract
+License per repository: MIT (declared in Cargo.toml of the published crate;
+the upstream repository and crates.io archive publish no standalone license
+file). Text above is the standard MIT text for the declared SPDX expression,
+verified against the crate's registered metadata (registry source checksummed
+in Cargo.lock).
