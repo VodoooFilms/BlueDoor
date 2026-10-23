@@ -35,6 +35,11 @@ __pycache__/
 # Sales / outreach logs (PII de terceros; nueva estrategia fuera de git)
 sales/
 
+# Material de marca y vídeo producido con herramientas externas: exports,
+# proyectos de edición y capturas. Pesado y no es fuente de la aplicación.
+output/
+video Bluedoor/
+
 # Experimento local de diarización: venv, binarios NeMo, fuentes, modelos y
 # audio de muestra. Nada de esto se versiona (cientos de MB y binarios).
 experiments/diarization/local/
