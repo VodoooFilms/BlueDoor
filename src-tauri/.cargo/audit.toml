@@ -1,0 +1,20 @@
+# Política de auditoría de dependencias de BlueDoor.
+#
+# Solo se ignoran avisos con exposición demostrada y fecha de revisión. Cada
+# excepción debe estar justificada en un documento de `docs/` y volver a
+# revisarse en la fecha indicada; si la condición deja de cumplirse, se retira
+# la entrada y se corrige la dependencia.
+#
+# Se ejecuta con `cargo audit` desde `src-tauri/`, junto a Cargo.lock: cargo-audit
+# solo lee `.cargo/audit.toml` del directorio de trabajo, no de los padres.
+[advisories]
+ignore = [
+  # lopdf 0.26.0 (RUSTSEC-2026-0187, desbordamiento de pila al parsear objetos
+  # PDF muy anidados). Cadena: genpdf 0.2 → printpdf 0.3.4. genpdf está
+  # archivado y no publica versión con lopdf >= 0.42. La cadena solo GENERA
+  # PDF propios: no se invoca `Document::load*` ni se parsea un PDF de
+  # terceros por esta vía. La ruta que sí parsea entrada no confiable
+  # (pdf-extract) usa lopdf 0.42. Revisión: 2027-01-23.
+  # Ver docs/SECURITY_2026-10-23.md.
+  "RUSTSEC-2026-0187",
+]
