@@ -10,7 +10,9 @@ document.getElementById("record")!.onclick = async () => {
     oscillator.connect(destination);
     oscillator.start();
     const recorder = await PcmRecorder.create(destination.stream);
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    // 1,5 s: una primera pasada en frío de WebKit renderiza audio más lento
+    // que en tiempo real y 700 ms dejaban menos de las 4 000 muestras exigidas.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     const blob = await recorder.stop();
     oscillator.stop();
     destination.stream.getTracks().forEach((t) => t.stop());
