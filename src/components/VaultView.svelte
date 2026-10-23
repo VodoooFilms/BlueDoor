@@ -161,6 +161,7 @@
   // cuando la sesión ya no es válida.
   $effect(() => {
     const timer = setInterval(() => {
+      if (busy) return;
       if (screen !== 'library' && screen !== 'security') return;
       const limit = (status?.autoLockSeconds ?? 300) * 1000;
       if (Date.now() - lastActivity >= limit) {
