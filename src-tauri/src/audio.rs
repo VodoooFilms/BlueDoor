@@ -14,6 +14,22 @@ const AUDIO_EXTENSIONS: &[&str] = &[
     "aiff", "wma", "3gp",
 ];
 
+/// Tope del cuerpo binario aceptado por `transcribe_blob`. Un WAV de 1 GiB son
+/// ~9 h a 16 kHz mono 16 bits; por encima de eso el audio no es una grabación
+/// de la app y solo sirve para agotar la memoria del proceso.
+pub(crate) const MAX_BLOB_BYTES: usize = 1024 * 1024 * 1024;
+
+/// Frecuencias de muestreo admitidas al decodificar WAV. El suelo de 8 kHz
+/// evita que un fichero fabricado con `sample_rate = 1` amplifique la señal
+/// 16 000 veces al remuestrear; el techo descarta valores sin sentido.
+const MIN_SAMPLE_RATE: u32 = 8_000;
+const MAX_SAMPLE_RATE: u32 = 384_000;
+
+/// Techo absoluto de muestras tras remuestrear (12 h a 16 kHz). No es un
+/// límite de producto: con el suelo de 8 kHz el factor de remuestreo nunca
+/// pasa de 2, así que solo actúa como red de seguridad ante un WAV fabricado.
+pub(crate) const MAX_RESAMPLED_SAMPLES: usize = 12 * 60 * 60 * 16_000;
+
 fn run_transcription(
     audio_data: Vec<f32>,
     config: &WhisperConfig,
@@ -341,6 +357,12 @@ pub(crate) async fn transcribe_blob(
         }
     };
     let config = state.consume_blob_config(token)?;
+    if data.len() > MAX_BLOB_BYTES {
+        return Err(format!(
+            "El audio supera el tamaño máximo admitido ({} GiB).",
+            MAX_BLOB_BYTES / (1024 * 1024 * 1024)
+        ));
+    }
     let resolved = state.resolve_config(&config, app_handle.clone());
     let use_diarization = resolved.diarize;
     let diarization_model = crate::diarization::managed_model_path(&app_handle);
@@ -407,6 +429,17 @@ fn load_wav_reader<R: std::io::Read + std::io::Seek>(input: R) -> Result<Vec<f32
     if spec.channels == 0 || spec.sample_rate == 0 {
         return Err("El formato de audio no es válido.".into());
     }
+    if !(MIN_SAMPLE_RATE..=MAX_SAMPLE_RATE).contains(&spec.sample_rate) {
+        return Err(format!(
+            "La frecuencia de muestreo del audio no es compatible ({} Hz).",
+            spec.sample_rate
+        ));
+    }
+    // Se comprueba la duración declarada antes de materializar las muestras:
+    // un WAV puede anunciar horas de audio en una cabecera pequeña.
+    if u64::from(reader.duration()) > MAX_RESAMPLED_SAMPLES as u64 {
+        return Err("El audio es demasiado largo para procesarlo de una vez.".into());
+    }
     let samples: Vec<f32> = match (spec.sample_format, spec.bits_per_sample) {
         (hound::SampleFormat::Float, 32) => reader
             .samples::<f32>()
@@ -455,7 +488,10 @@ fn load_wav_reader<R: std::io::Read + std::io::Seek>(input: R) -> Result<Vec<f32
     // Resample to 16kHz if needed
     if spec.sample_rate != 16000 {
         let ratio = 16000.0 / spec.sample_rate as f32;
-        let new_len = (mono.len() as f32 * ratio) as usize;
+        let new_len = (mono.len() as f64 * ratio as f64) as usize;
+        if new_len > MAX_RESAMPLED_SAMPLES {
+            return Err("El audio es demasiado largo para procesarlo de una vez.".into());
+        }
         let mut resampled = Vec::with_capacity(new_len);
         for i in 0..new_len {
             let src_idx = i as f32 / ratio;
@@ -490,7 +526,11 @@ pub(crate) fn cleanup_leftovers(models_dir: &Path) {
         for entry in entries.flatten() {
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if name.starts_with("bluedoor-rec-") || name.starts_with("bluedoor-dec-") {
+            // Solo ficheros: los restos de decodificación son directorios
+            // (`bluedoor-dec-*`) y se borran por su propio RAII.
+            if (name.starts_with("bluedoor-rec-") || name.starts_with("bluedoor-dec-"))
+                && entry.path().is_file()
+            {
                 let _ = std::fs::remove_file(entry.path());
             }
         }

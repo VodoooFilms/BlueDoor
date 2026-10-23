@@ -16,6 +16,20 @@ pub fn auto_threads() -> i32 {
         .clamp(2, 16)
 }
 
+/// Tope duro de hilos por sesión. `threads` llega del renderer: un valor
+/// absurdo satura la máquina o hace fallar la creación de la sesión.
+pub const MAX_THREADS: i32 = 64;
+
+/// Número de hilos efectivo: `0` significa automático y cualquier valor
+/// explícito se acota al rango soportado por el motor.
+pub fn resolve_threads(threads: i32) -> i32 {
+    if threads > 0 {
+        threads.clamp(1, MAX_THREADS)
+    } else {
+        auto_threads()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Segment {
     pub start: f64,
@@ -276,7 +290,7 @@ impl AppState {
             return Err("No hay un modelo de transcripción descargado.".to_string());
         }
         // threads == 0 => automático, con el mismo tope que usaba whisper-rs.
-        let n_threads = if threads > 0 { threads } else { auto_threads() };
+        let n_threads = resolve_threads(threads);
         {
             let guard = self.stt.lock().unwrap();
             if let Some(entry) = guard.as_ref() {
@@ -332,6 +346,20 @@ mod tests {
                 .unwrap();
         assert!(!config.diarize);
         assert_eq!(config.model_path, "ggml-small.bin");
+    }
+
+    #[test]
+    fn explicit_thread_count_is_clamped_to_supported_range() {
+        assert_eq!(resolve_threads(1), 1);
+        assert_eq!(resolve_threads(8), 8);
+        assert_eq!(resolve_threads(MAX_THREADS), MAX_THREADS);
+        assert_eq!(resolve_threads(MAX_THREADS + 1), MAX_THREADS);
+        assert_eq!(resolve_threads(i32::MAX), MAX_THREADS);
+        // 0 (y negativos) significan automático, nunca "sin hilos".
+        let auto = auto_threads();
+        assert_eq!(resolve_threads(0), auto);
+        assert_eq!(resolve_threads(-4), auto);
+        assert!((2..=16).contains(&auto));
     }
 
     #[test]

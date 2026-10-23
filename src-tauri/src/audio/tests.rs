@@ -362,6 +362,81 @@ fn pcm_recording_decodes_without_any_executable() {
 }
 
 #[test]
+fn wav_with_implausible_sample_rate_is_rejected() {
+    // Un WAV fabricado con 1 Hz amplificaría 16 000 veces al remuestrear;
+    // debe rechazarse antes de reservar memoria.
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    {
+        let mut writer = hound::WavWriter::new(
+            &mut bytes,
+            hound::WavSpec {
+                channels: 1,
+                sample_rate: 1,
+                bits_per_sample: 16,
+                sample_format: hound::SampleFormat::Int,
+            },
+        )
+        .unwrap();
+        writer.write_sample(0i16).unwrap();
+        writer.finalize().unwrap();
+    }
+    bytes.set_position(0);
+    let error = load_wav_reader(bytes).unwrap_err();
+    assert!(error.contains("frecuencia de muestreo"), "error: {error}");
+
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    {
+        let mut writer = hound::WavWriter::new(
+            &mut bytes,
+            hound::WavSpec {
+                channels: 1,
+                sample_rate: MAX_SAMPLE_RATE + 6,
+                bits_per_sample: 16,
+                sample_format: hound::SampleFormat::Int,
+            },
+        )
+        .unwrap();
+        writer.write_sample(0i16).unwrap();
+        writer.finalize().unwrap();
+    }
+    bytes.set_position(0);
+    assert!(load_wav_reader(bytes).is_err());
+}
+
+#[test]
+fn telephony_rate_wav_is_resampled_to_16k() {
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    {
+        let mut writer = hound::WavWriter::new(
+            &mut bytes,
+            hound::WavSpec {
+                channels: 1,
+                sample_rate: 8_000,
+                bits_per_sample: 16,
+                sample_format: hound::SampleFormat::Int,
+            },
+        )
+        .unwrap();
+        for _ in 0..100 {
+            writer.write_sample(1000i16).unwrap();
+        }
+        writer.finalize().unwrap();
+    }
+    bytes.set_position(0);
+    let audio = load_wav_reader(bytes).unwrap();
+    assert_eq!(audio.len(), 200);
+    assert!(audio.iter().all(|sample| (*sample - 0.0305).abs() < 0.001));
+}
+
+#[test]
+fn blob_body_cap_matches_documented_hours() {
+    // 1 GiB a 16 kHz mono 16 bits son algo más de 9 h; el tope debe seguir
+    // siendo holgado para grabaciones largas. Se comprueba en compilación.
+    const { assert!(MAX_BLOB_BYTES == 1024 * 1024 * 1024) };
+    const { assert!(MAX_BLOB_BYTES / 2 / 16_000 > 8 * 60 * 60) };
+}
+
+#[test]
 fn missing_internal_decoder_requests_reinstall_not_system_tools() {
     let result = convert_to_wav_and_load(
         Path::new("input.mp3"),
