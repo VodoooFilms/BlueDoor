@@ -9,6 +9,7 @@
   import Recorder from "./components/Recorder.svelte";
   import TranscriptView from "./components/TranscriptView.svelte";
   import ModelsView from "./components/ModelsView.svelte";
+  import VaultView from "./components/VaultView.svelte";
   import type { Transcript, DocFormat } from "./lib/types";
   import type { PrivacySession } from "./lib/privacy";
   import { DEFAULT_FORMAT } from "./lib/types";
@@ -26,7 +27,7 @@
   let activeTranscript = $state<Transcript | null>(null);
   let theme = $state<"dark" | "light">("light");
   let showModels = $state(false);
-  let workflow = $state<"private" | "audio">("private");
+  let workflow = $state<"private" | "audio" | "vault">("private");
   let privacyBusy = $state(false);
   let privateSession = $state<PrivacySession | null>(null);
   let privateEditVisible = $state(false);
@@ -286,6 +287,11 @@
     requestNavigation(() => { workflow = "private"; privateEditVisible = false; showModels = false; privateComparisonRequest += 1; });
   }
 
+  function goVault() {
+    if (recorderBusy || importing || privacyBusy || modelsBusy) return;
+    requestNavigation(() => { workflow = "vault"; privateEditVisible = false; showModels = false; });
+  }
+
   function goHome() {
     if (recorderBusy || importing || privacyBusy || modelsBusy) return;
     requestNavigation(() => {
@@ -483,6 +489,7 @@
         <button class="nav-models" class:nav-active={workflow === "private" && !privateEditVisible} onclick={goPrivate} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="document" /><span>{p("Documentos")}</span></button>
         <button class="nav-models" class:nav-active={workflow === "audio" && !showModels && !activeTranscript} id="recordToggle" onclick={goHome} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title={recorderBusy || importing ? t.navigationBlocked : t.recordNav}><Icon name="audio" /><span>{p("Audio")}</span></button>
         <button class="nav-models" class:nav-active={(workflow === "private" && privateEditVisible) || (!showModels && workflow === "audio" && !!activeTranscript)} id="editToggle" onclick={goEdit} disabled={recorderBusy || importing || privacyBusy || modelsBusy || (!privateTranscript && !editTranscript)} title={recorderBusy || importing ? t.navigationBlocked : t.editNav}><Icon name="edit" /><span>{t.editNav}</span></button>
+        <button class="nav-models" class:nav-active={workflow === "vault"} onclick={goVault} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title="Vault · Cifrado local"><Icon name="vault" /><span>Vault</span></button>
         <details class="settings-menu" bind:this={settingsEl}>
           <summary><Icon name="settings" /><span>{p("Ajustes")}</span></summary>
           <div class="settings-popover">
@@ -508,7 +515,11 @@
 
 
 
-  {#if workflow !== "private"}
+  {#if workflow === "vault"}
+    <VaultView />
+  {/if}
+
+  {#if workflow === "audio"}
   <div class="audio-container" use:enterView={`${showModels}:${activeTranscript?.id ?? "record"}`}>
   {#if !hydrated}
     <section class="boot-error" role="alert">

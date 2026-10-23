@@ -6,7 +6,7 @@
 
 **Una capa de preparación local para el trabajo legal con IA.**
 
-Aplicación de escritorio para preparar documentos legales y transcripciones en tu propio equipo: análisis local de información sensible, alias revisables, edición enriquecida y exportación PDF.
+Aplicación de escritorio para preparar documentos legales y transcripciones en tu propio equipo: análisis local de información sensible, alias revisables, edición enriquecida, exportación PDF y un Vault cifrado para lo que quieres conservar.
 
 <p align="center">
   <img src="assets/branding/bluedoor-workspace.png" alt="BlueDoor: pantalla de importación de documentos, navegación de audio y edición, con procesamiento local" width="1200" />
@@ -36,6 +36,7 @@ pnpm test:ui
 pnpm test:brand:ui
 pnpm test:workspace:ui
 pnpm test:layout:ui
+pnpm test:vault:ui
 ```
 
 ## Compilación macOS
@@ -48,6 +49,7 @@ pnpm test:layout:ui
 - Idioma inicial: inglés; Ajustes permite cambiar a español y conserva la elección.
 - Historial y modelos: directorio de datos propio de Tauri; en macOS `~/Library/Application Support/com.bluedoor.desktop/`.
 - Las preferencias y la primera bienvenida usan claves propias. No se copian documentos, historial ni modelos personales de Belegal o Local Legal.
+- El Vault cifra documentos, transcripciones y originales en reposo con una contraseña y una frase de recuperación. Su modelo de amenaza y sus límites están en [docs/VAULT_2026-10-23.md](docs/VAULT_2026-10-23.md).
 - Se conservan los identificadores y hashes de los modelos existentes (incluido `belegal-pii-v1`) para no alterar la compatibilidad de sus artefactos.
 - Marca SVG e iconos editables en `src/assets/` y `assets/branding/`.
 

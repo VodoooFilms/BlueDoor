@@ -11,6 +11,7 @@ mod platform;
 mod privacy;
 mod store;
 mod types;
+mod vault;
 
 use std::sync::Mutex;
 use tauri::Manager;
@@ -60,6 +61,7 @@ pub fn run() {
         .manage(app_state)
         .manage(llm::LlmState::default())
         .manage(privacy::PrivacyState::default())
+        .manage(vault::VaultState::default())
         .setup(|app| {
             #[cfg(target_os = "macos")]
             if let Ok(executable) = std::env::current_exe() {
@@ -132,6 +134,18 @@ pub fn run() {
             pdf::generate_pdf,
             store::load_transcripts,
             store::save_transcripts,
+            vault::vault_status,
+            vault::vault_create,
+            vault::vault_unlock,
+            vault::vault_unlock_recovery,
+            vault::vault_lock,
+            vault::vault_list,
+            vault::vault_import,
+            vault::vault_export_entry,
+            vault::vault_delete_entry,
+            vault::vault_backup,
+            vault::vault_restore,
+            vault::vault_migrate_transcripts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running BlueDoor");

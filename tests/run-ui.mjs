@@ -46,7 +46,10 @@ try {
     servers.push(server);
     await server.listen();
   }
-  if (process.argv.includes("--brand")) {
+  if (process.argv.includes("--vault")) {
+    await run("check-vault.mjs");
+    await run("check-bluedoor.mjs");
+  } else if (process.argv.includes("--brand")) {
     await run("check-bluedoor.mjs");
   } else if (process.argv.includes("--feedback")) {
     await run("check-feedback.mjs");

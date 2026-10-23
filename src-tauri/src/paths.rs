@@ -17,3 +17,12 @@ pub fn transcripts_file(app_handle: &tauri::AppHandle) -> std::path::PathBuf {
         .expect("failed to get app data dir")
         .join("transcripts.json")
 }
+
+/// Directorio del Vault cifrado: `vault.key`, `index.enc` y `entries/`.
+pub fn vault_dir(app_handle: &tauri::AppHandle) -> std::path::PathBuf {
+    app_handle
+        .path()
+        .app_data_dir()
+        .expect("failed to get app data dir")
+        .join("vault")
+}

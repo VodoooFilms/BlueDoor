@@ -35,6 +35,7 @@
 | `pdf.rs` | Destino autorizado, validación de exportación y render PDF. |
 | `pdf/html.rs` | Parser del subconjunto HTML del editor y texto visible usado para validar exportaciones. |
 | `store.rs`, `types.rs`, `platform.rs`, `paths.rs` | Escritura atómica, estado, rutas y recursos de plataforma. |
+| `vault.rs`, `vault/tests.rs` | Vault cifrado local: claves envueltas, entradas cifradas, copia y traslado del historial. |
 
 Las pruebas extensas de audio, privacidad y PDF viven en `audio/tests.rs`, `privacy/tests.rs` y `pdf/tests.rs`, como módulos hijos. Mantienen acceso a los detalles internos sin convertirlos en API pública.
 
