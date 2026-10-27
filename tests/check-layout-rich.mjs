@@ -1,10 +1,10 @@
-import {webkit} from 'playwright';
+import { browserType } from './browser.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const pages=JSON.parse(readFileSync('artifacts/layout-workflow/layout-document.pdf.preview.json'));
 const editedPages=JSON.parse(readFileSync('artifacts/layout-workflow/rich-edited.preview.json'));
 const blocks=JSON.parse(readFileSync('artifacts/layout-workflow/text-blocks.json'));
-const browser=await webkit.launch();
+const browser=await browserType.launch();
 try {
  const page=await browser.newPage({viewport:{width:1600,height:1050}});page.setDefaultTimeout(15000);
  await page.addInitScript(({pages,editedPages,blocks})=>{

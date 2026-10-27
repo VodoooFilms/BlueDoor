@@ -414,6 +414,7 @@ mod tests {
     fn helpers_only_receive_absolute_paths() {
         assert!(AppState::absolute_process_path(Path::new("-etc/expediente.pdf")).is_err());
         assert!(AppState::absolute_process_path(Path::new("escritura.pdf")).is_err());
-        assert!(AppState::absolute_process_path(Path::new("/tmp/escritura.pdf")).is_ok());
+        let absolute = std::env::temp_dir().join("escritura.pdf");
+        assert!(AppState::absolute_process_path(&absolute).is_ok());
     }
 }

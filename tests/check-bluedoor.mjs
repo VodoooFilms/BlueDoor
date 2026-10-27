@@ -1,9 +1,9 @@
-import { webkit } from 'playwright';
+import { browserType } from './browser.mjs';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 
 mkdirSync('artifacts/bluedoor', { recursive:true });
-const browser = await webkit.launch();
+const browser = await browserType.launch();
 try {
   const page=await browser.newPage({viewport:{width:1440,height:960},deviceScaleFactor:1,reducedMotion:"reduce"});
   page.setDefaultTimeout(12000);

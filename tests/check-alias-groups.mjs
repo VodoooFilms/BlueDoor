@@ -1,9 +1,9 @@
-import {webkit} from 'playwright';
+import { browserType } from './browser.mjs';
 import assert from 'node:assert/strict';
 
 // Exercise the real map/PDF components with a deterministic native-command
 // boundary. Distinct private values deliberately share the same alias.
-const browser = await webkit.launch();
+const browser = await browserType.launch();
 try {
   const page = await browser.newPage({viewport:{width:1440,height:1000}});
   await page.addInitScript(() => {

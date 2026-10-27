@@ -1,4 +1,4 @@
-import { webkit } from 'playwright';
+import { browserType } from './browser.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const language = process.env.BLUEDOOR_TEST_LANG || 'es';
@@ -7,7 +7,7 @@ const english = JSON.parse(copySource.slice(copySource.indexOf('= {')+2,copySour
 const ui = text => language === 'en' ? (english[text] || text.replace(/^Eliminar entidad/, 'Remove entity')) : text;
 
 
-const browser = await webkit.launch();
+const browser = await browserType.launch();
 try {
   const page = await browser.newPage({viewport:{width:1370,height:800}});
   const requests=[];

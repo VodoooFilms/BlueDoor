@@ -1,11 +1,11 @@
-import { webkit } from 'playwright';
+import { browserType } from './browser.mjs';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 
 // Ejercita la interfaz real del Vault contra un límite IPC determinista: el
 // backend nativo tiene sus propias pruebas en `src-tauri/src/vault/tests.rs`.
 mkdirSync('artifacts/vault', { recursive: true });
-const browser = await webkit.launch();
+const browser = await browserType.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 828 }, reducedMotion: 'reduce' });
   page.setDefaultTimeout(10000);

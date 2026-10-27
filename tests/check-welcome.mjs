@@ -1,6 +1,6 @@
-import { webkit } from 'playwright';
+import { browserType } from './browser.mjs';
 import assert from 'node:assert/strict';
-const browser = await webkit.launch();
+const browser = await browserType.launch();
 try {
   for (const scenario of [
     { voice: true, privacy: true, lang: null, cta: 'Get started' },

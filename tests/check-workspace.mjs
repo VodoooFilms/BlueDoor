@@ -1,4 +1,4 @@
-import { webkit } from 'playwright';
+import { browserType } from './browser.mjs';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 
@@ -7,7 +7,7 @@ import { mkdirSync } from 'node:fs';
 const language = process.env.BLUEDOOR_TEST_LANG || 'es';
 const english = language === 'en';
 const label = (es, en) => english ? en : es;
-const browser = await webkit.launch();
+const browser = await browserType.launch();
 mkdirSync('artifacts/workspace', { recursive: true });
 try {
  for (const layout of [true, false]) {

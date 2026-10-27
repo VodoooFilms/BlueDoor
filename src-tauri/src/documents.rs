@@ -9,6 +9,11 @@ use tauri_plugin_dialog::DialogExt;
 const MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
 const MAX_XML_BYTES: u64 = 4 * 1024 * 1024;
 
+#[cfg(test)]
+pub(crate) fn qa_extract_pdf(path: &Path) -> Result<String, String> {
+    extract(path, None)
+}
+
 fn docx_text(bytes: &[u8]) -> Result<String, String> {
     let mut archive =
         zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|_| "El DOCX no es válido.")?;

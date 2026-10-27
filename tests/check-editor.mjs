@@ -1,4 +1,4 @@
-import { webkit } from "playwright";
+import { browserType } from './browser.mjs';
 
 const BASE = "http://localhost:5198/";
 
@@ -10,7 +10,7 @@ function ok(msg) {
   console.log("ok: " + msg);
 }
 
-const browser = await webkit.launch();
+const browser = await browserType.launch();
 const page = await browser.newPage();
 // These fixtures assert Spanish UI labels; do not depend on the app default.
 await page.addInitScript(() => localStorage.setItem('bluedoor-language', 'es'));

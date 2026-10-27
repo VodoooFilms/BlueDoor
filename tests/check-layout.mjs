@@ -1,4 +1,4 @@
-import {webkit} from 'playwright';
+import { browserType } from './browser.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
@@ -10,7 +10,7 @@ const originalPages=JSON.parse(execFileSync('src-tauri/resources/runtime/bluedoo
 const editedPlan=structuredClone(plan);
 for(const area of editedPlan.redactions)if(area.entityIndex===0&&area.alias)area.alias='CLIENTE_01';
 const editedPages=JSON.parse(execFileSync('src-tauri/resources/runtime/bluedoor-layout',['--preview'],{input:JSON.stringify(editedPlan),maxBuffer:64*1024*1024}));
-const browser=await webkit.launch();
+const browser=await browserType.launch();
 try {
  const page=await browser.newPage({viewport:{width:1440,height:1000}});
  page.setDefaultTimeout(15000);
