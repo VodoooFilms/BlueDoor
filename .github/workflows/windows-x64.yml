@@ -48,6 +48,11 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target/windows-x64
+          cache-on-failure: true
+          key: windows-x64-cpu
       - uses: msys2/setup-msys2@v2
         id: msys2
         with:

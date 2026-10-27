@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 import time
 import urllib.request
 
@@ -102,9 +103,13 @@ def main():
     tests = list((release / 'deps').glob('bluedoor_lib-*.exe'))
     if len(tests) != 1:
         raise ValueError(f'Expected one test executable: {tests}')
-    measured([str(tests[0]), '--test-threads=1'], output / 'native-suite', 900)
+    failures = []
+    try:
+        measured([str(tests[0]), '--test-threads=1'], output / 'native-suite', 900)
+    except RuntimeError as error:
+        failures.append(str(error))
     # Never put weights inside resource paths or artifact upload paths.
-    models = release.parent.parent / 'qa-models'
+    models = Path(os.environ.get('RUNNER_TEMP', tempfile.gettempdir())) / 'bluedoor-qa-models'
     models.mkdir(exist_ok=True)
     for model_id, filename in [('qwen3-fast', 'ggml-qwen3-1.7b-instruct-q4.gguf'),
                                ('qwen3-q8', 'ggml-qwen3-1.7b-instruct-q8.gguf')]:
@@ -137,9 +142,11 @@ def main():
             (destination / 'independent-pdf.json').write_text(json.dumps({'passed': True, 'all_objects_checked': True}))
         except Exception as error:
             (destination / 'error.json').write_text(json.dumps({'error': str(error)}, indent=2), encoding='utf-8')
-            raise
+            failures.append(f'{model_id}: {error}')
         finally:
             path.unlink(missing_ok=True)
+    if failures:
+        raise RuntimeError('; '.join(failures))
 
 
 if __name__ == '__main__':
