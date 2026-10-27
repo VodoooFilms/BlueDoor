@@ -1,4 +1,22 @@
 mod html;
+#[cfg(test)]
+pub(crate) async fn qa_write_pdf(text: String, destination: PathBuf) -> Result<String, String> {
+    generate_pdf_at_path(
+        "Documento protegido".into(),
+        vec![],
+        "es".into(),
+        "local".into(),
+        0.0,
+        destination,
+        Some(text),
+        None,
+        None,
+        "system".into(),
+        12.0,
+        "left".into(),
+    )
+    .await
+}
 pub(crate) use html::html_visible_text;
 use html::parse_html_to_blocks;
 

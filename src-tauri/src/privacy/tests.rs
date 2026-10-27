@@ -1,6 +1,103 @@
 use super::*;
 use std::path::Path;
 
+/// Opt-in CI uses only manifest-verified current weights and synthetic data.
+/// Run once per catalog quantization, in separate processes to measure RAM.
+#[test]
+#[ignore = "Requires BLUEDOOR_WINDOWS_QA_MODEL and BLUEDOOR_WINDOWS_QA_OUTPUT"]
+fn windows_x64_detect_protect_export() {
+    let model = std::env::var("BLUEDOOR_WINDOWS_QA_MODEL").unwrap();
+    let output = std::path::PathBuf::from(std::env::var("BLUEDOOR_WINDOWS_QA_OUTPUT").unwrap());
+    std::fs::create_dir_all(&output).unwrap();
+    let start = std::time::Instant::now();
+    crate::models::verify_model_file(Path::new(&model)).unwrap();
+    let engine = crate::llm::LlmEngine::load(&model).unwrap();
+    let load_seconds = start.elapsed().as_secs_f64();
+    let sensitive = ["Ana Perez", "ana@example.com", "0912345678"];
+    let original = format!(
+        "La cliente {} presenta una demanda. Email: {}. Telefono: {}.",
+        sensitive[0], sensitive[1], sensitive[2]
+    );
+    let input = output.join("input.pdf");
+    tauri::async_runtime::block_on(crate::pdf::qa_write_pdf(original, input.clone())).unwrap();
+    let text = crate::documents::qa_extract_pdf(&input).unwrap();
+    for value in sensitive {
+        assert!(
+            text.replace('\u{a0}', " ").contains(value),
+            "missing {value:?} in extracted fixture {text:?}"
+        );
+    }
+    let started = std::time::Instant::now();
+    let analysis = analyze_with_progress(&engine, &text, &mut |_, _, _| {}).unwrap();
+    let detect_seconds = started.elapsed().as_secs_f64();
+    assert!(analysis.complete(), "incomplete detection must fail CI");
+    let mut session = Session::new("input.pdf".into(), text).unwrap();
+    session.entities = analysis.entities;
+    for value in sensitive {
+        assert!(
+            session
+                .entities
+                .iter()
+                .any(|e| e.original.replace('\u{a0}', " ").contains(value)),
+            "not detected: {value}"
+        );
+    }
+    session.sanitized =
+        sanitize_for_file(&session.original, &session.entities, &session.file_name).unwrap();
+    session.analyzed = true;
+    session.analysis_complete = true;
+    let authorization = crate::pdf::PrivateExport {
+        id: session.id.clone(),
+        revision: session.revision,
+    };
+    let gate = |session: &Session, payload: &str| {
+        check_export_authorization(
+            Some(session),
+            Some(&authorization),
+            payload,
+            None,
+            "Documento protegido",
+            &[("modelo", "local")],
+        )
+    };
+    assert!(
+        gate(&session, &session.sanitized).is_err(),
+        "unreviewed export must fail"
+    );
+    session.reviewed = true; // Synthetic reviewer confirms the detected map.
+    gate(&session, &session.sanitized).unwrap();
+    assert!(
+        gate(&session, &session.original).is_err(),
+        "original must stay blocked"
+    );
+    let destination = output.join("protected.pdf");
+    tauri::async_runtime::block_on(crate::pdf::qa_write_pdf(
+        session.sanitized.clone(),
+        destination.clone(),
+    ))
+    .unwrap();
+    let extracted = crate::documents::qa_extract_pdf(&destination).unwrap();
+    for value in sensitive {
+        assert!(
+            !extracted.replace('\u{a0}', " ").contains(value),
+            "export leaked {value}"
+        );
+    }
+    assert!(extracted.contains("PERSON_"));
+    std::fs::write(
+        output.join("workflow.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "model": Path::new(&model).file_name().unwrap().to_string_lossy(),
+            "load_seconds": load_seconds, "detect_seconds": detect_seconds,
+            "total_seconds": start.elapsed().as_secs_f64(), "entities": session.entities.len(),
+            "failed_fragments": analysis.failed_fragments, "export_verified": true,
+            "review": "synthetic confirmation", "errors": []
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+}
+
 /// llama.cpp initialises one Metal device per context and refuses a second
 /// concurrent one, so the real-inference tests must not run in parallel.
 /// The app itself never has this problem: `analyze_private_document`

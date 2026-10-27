@@ -117,6 +117,7 @@ fn owned_backends_dir() -> Result<PathBuf, String> {
     Ok(directory)
 }
 
+#[cfg(not(all(target_os = "windows", target_arch = "x86_64")))]
 fn load_one_backend(file: &Path) -> Result<(), String> {
     let path = std::ffi::CString::new(file.to_string_lossy().as_bytes())
         .map_err(|_| "Ruta de aplicación no válida")?;
@@ -165,6 +166,57 @@ fn load_one_backend(file: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Score only application-owned CPU modules. Do not use load_all_from_path:
+/// upstream also consults GGML_BACKEND_PATH, even with an explicit directory.
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+fn load_x64_cpu(directory: &Path) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn LoadLibraryExW(
+            name: *const u16,
+            file: *mut std::ffi::c_void,
+            flags: u32,
+        ) -> *mut std::ffi::c_void;
+        fn GetProcAddress(module: *mut std::ffi::c_void, name: *const u8) -> *mut std::ffi::c_void;
+        fn FreeLibrary(module: *mut std::ffi::c_void) -> i32;
+    }
+    let mut best = None;
+    let mut best_score = 0;
+    for entry in std::fs::read_dir(directory).map_err(|e| e.to_string())? {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        let name = path.file_name().unwrap_or_default().to_string_lossy();
+        if !name.starts_with("ggml-cpu-") || path.extension().is_none_or(|e| e != "dll") {
+            continue;
+        }
+        let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+        unsafe {
+            // DLL's own directory + system/application dirs; exclude CWD/PATH.
+            let module = LoadLibraryExW(wide.as_ptr(), std::ptr::null_mut(), 0x1100);
+            if module.is_null() {
+                continue;
+            }
+            let symbol = GetProcAddress(module, c"ggml_backend_score".as_ptr().cast());
+            if !symbol.is_null() {
+                let score: unsafe extern "C" fn() -> i32 = std::mem::transmute(symbol);
+                let score = score();
+                if score > best_score {
+                    best_score = score;
+                    best = Some(path);
+                }
+            }
+            FreeLibrary(module);
+        }
+    }
+    let path = best.ok_or("Falta un backend de CPU compatible. Reinstala BlueDoor.")?;
+    let path = std::ffi::CString::new(path.to_string_lossy().as_bytes())
+        .map_err(|_| "Ruta de aplicación no válida")?;
+    if unsafe { llama_cpp_sys_2::ggml_backend_load(path.as_ptr()) }.is_null() {
+        return Err("No se pudo cargar el backend de CPU de BlueDoor.".into());
+    }
+    Ok(())
+}
+
 pub(crate) fn load_owned_backends() -> Result<(), String> {
     static LOADED: std::sync::OnceLock<Result<(), String>> = std::sync::OnceLock::new();
     LOADED
@@ -182,7 +234,9 @@ pub(crate) fn load_owned_backends() -> Result<(), String> {
                     load_one_backend(&file)?;
                 }
             }
-            #[cfg(target_os = "windows")]
+            #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+            load_x64_cpu(&directory)?;
+            #[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
             {
                 // CMake emits a CPU backend DLL on Windows. Names vary between
                 // llama.cpp revisions (with/without a lib prefix), so discover

@@ -9,7 +9,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "src-tauri/resources/runtime"
 LICENSES = OUT / "licenses"
-TARGET = "aarch64-apple-darwin"
+TARGET = os.environ.get("BLUEDOOR_NOTICE_TARGET", "aarch64-apple-darwin")
 
 LICENSE_FALLBACKS = {
     "alloc-stdlib": "alloc-stdlib",
