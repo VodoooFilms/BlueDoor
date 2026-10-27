@@ -58,7 +58,6 @@ jobs:
         shell: pwsh
         run: |
           'C:\Program Files\LLVM\bin' | Out-File $env:GITHUB_PATH -Append -Encoding utf8
-          '${{ steps.msys2.outputs.msys2-location }}\usr\bin' | Out-File $env:GITHUB_PATH -Append -Encoding utf8
           'LIBCLANG_PATH=C:\Program Files\LLVM\bin' | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           'MSYS2_BASH=${{ steps.msys2.outputs.msys2-location }}\usr\bin\bash.exe' | Out-File $env:GITHUB_ENV -Append -Encoding utf8
       - run: pnpm install --frozen-lockfile

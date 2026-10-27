@@ -41,7 +41,9 @@ $PosixPath = (($env:PATH -split ';' | Where-Object { $_ -ne "" } | ForEach-Objec
 $BuildScript = Join-Path $env:TEMP "bluedoor-ffmpeg-$PID.sh"
 $BuildPayload = @"
 set -euo pipefail
-export PATH="$PosixPath"
+# POSIX tools belong only to this subprocess. Globally prepending MSYS2's
+# usr/bin would make Cargo resolve its `link.exe` instead of MSVC's linker.
+export PATH="/usr/bin:$PosixPath"
 export BLUEDOOR_FFMPEG_ARCH='$Arch'
 export BLUEDOOR_FFMPEG_TARGET='$Target'
 export BLUEDOOR_FFMPEG_WINDOWS=1
