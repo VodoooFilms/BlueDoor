@@ -1,6 +1,15 @@
 # BlueDoor Windows x64 CPU
 
-Estado al 27 de octubre de 2026: rama y PR publicadas con autorización; el instalador Windows x64 ya compiló, se instaló y abrió una ventana que responde en Actions. **Todavía falta aprobar todas las pruebas para entregar su artifact.** El usuario autorizó subir una rama y ejecutar Actions; no se creará una release ni se fusionará la PR automáticamente. El remoto existente pertenece a `VodoooFilms/BlueDoor`; no se modificó su configuración.
+Estado al 27 de octubre de 2026: rama y PR publicadas con autorización; **instalador Windows x64 generado y aprobado por todos los gates de Actions**, incluida instalación, arranque, inferencia real Q4/Q8, privacidad del PDF y suite UI Chromium. Código verificado: `a13f902befd3808d7aaf6ace13fa8f56da14bf75`, basado en `ea9a9e5` de GitHub y sin el commit local `939ecaa` de la Bóveda. El usuario autorizó subir una rama y ejecutar Actions; no se creará una release ni se fusionará la PR automáticamente. El remoto existente pertenece a `VodoooFilms/BlueDoor`; no se modificó su configuración.
+
+## Entrega comprobada
+
+- [Instalador y SHA-256, artifact BlueDoor-Windows-x64-CPU-4](https://github.com/VodoooFilms/BlueDoor/actions/runs/40496004892/artifacts/12731830253).
+- [Reporte y evidencias sintéticas, artifact BlueDoor-Windows-x64-report-4](https://github.com/VodoooFilms/BlueDoor/actions/runs/40496004892/artifacts/12731915222).
+- [Workflow Windows aprobado](https://github.com/VodoooFilms/BlueDoor/actions/runs/40496004892) y [CI general aprobado](https://github.com/VodoooFilms/BlueDoor/actions/runs/40496004861).
+- Archivo: `BlueDoor_0.4.0_x64-setup.exe`, **23,617,351 bytes** (~23.6 MB), sin pesos de modelos.
+- SHA-256 del `.exe`: `1d5e0c06652c7af6d8973549b3bdd0284e67c87ea419e06b6709c4c1e581a040`. Se verificó también después de descargarlo al equipo local.
+- Copia local: `/Users/antoin/Documents/BlueDoor/installers/windows-x64-actions-40496004892/`, con `.exe`, `.sha256`, este reporte y evidencias. Los artifacts de Actions caducan tras 14 días; la copia local se conserva.
 
 ## Infraestructura reutilizada
 
@@ -25,7 +34,7 @@ La documentación oficial describe el [empaquetado NSIS de Tauri](https://v2.tau
 3. El job usa `windows-2022`, Rust 1.98.1, Node 22, pnpm 12.3.4 y los lockfiles. Compila MSVC x64, FFmpeg y llama.cpp; genera NSIS y comprueba el payload instalado. No crea releases ni publica automáticamente.
 4. Si pasan todos los gates, descargar `BlueDoor-Windows-x64-CPU-<run>`: contiene `*-setup.exe` y SHA-256. El reporte `BlueDoor-Windows-x64-report-<run>` se intenta guardar también ante errores. Retención: 14 días.
 
-El código y las dependencias están fijados por lockfiles/checksums; la imagen mantenida por GitHub, las acciones y sus herramientas pueden actualizarse. El reporte registra versiones y host; no se promete identidad binaria entre runners de fechas distintas. Primera ejecución y depuración de Windows aún pendientes.
+El código y las dependencias están fijados por lockfiles/checksums; la imagen mantenida por GitHub, las acciones y sus herramientas pueden actualizarse. El reporte registra versiones y host; no se promete identidad binaria entre runners de fechas distintas. La ejecución 4 completó todas las comprobaciones; los fallos de preparación encontrados y sus correcciones quedan registrados abajo.
 
 Para reproducir en Windows desde un checkout limpio, usar el entorno de desarrollador Visual Studio x64, Rust 1.98.1 con target MSVC, LLVM, Python, Node/pnpm y MSYS2 con make/nasm/diffutils/pkgconf. Ejecutar `pnpm install --frozen-lockfile`, `pnpm typecheck` y `pnpm release:windows:x64`. El workflow muestra la instalación exacta. No reutilizar un directorio de recursos con ejecutables de macOS: el gate lo rechaza.
 
@@ -56,11 +65,11 @@ Host: macOS Apple Silicon, Rust 1.98.1. Las pruebas locales iniciales se ejecuta
 | `pnpm test:ui` | PASS, incluida configuración de modelos y privacidad ES/EN. |
 | `pnpm test:privacy:ui` | PASS ES/EN. |
 | `python3 tests/check-windows-packaging.py` | PASS: 7 pruebas. |
-| YAML y configuración generada Tauri | Parseo YAML y validación con el esquema local de Tauri: PASS. PowerShell pendiente de ejecución Windows. |
+| YAML y configuración generada Tauri | Parseo YAML y validación con el esquema local de Tauri: PASS. PowerShell ejecutado y aprobado en Windows. |
 | Nuevo flujo PDF con Qwen real Q4 | PASS: 3 entidades, 0 fragmentos fallidos; carga 0.83 s, detección 2.65 s, flujo 5.32 s, usando Metal en macOS. |
 | Inspección independiente del PDF Q4 | PASS: texto, metadatos, objetos y streams sin los datos ficticios. |
-| Q8 real y descarga limpia de ambos pesos | Pendiente del runner; no se descargaron nuevos pesos en el equipo del usuario. |
-| Build/instalación/arranque Windows | PASS en la segunda ejecución: NSIS x64, DLL CPU `haswell`, ventana que responde y estabilidad de diez segundos. Flujo completo pendiente. |
+| Q8 real y descarga limpia de ambos pesos | PASS en Actions para Q4 y Q8, sin descargar nuevos pesos de modelos en el equipo del usuario. |
+| Build/instalación/arranque Windows | PASS en la ejecución final: NSIS x64, DLL CPU propia, ventana que responde, estabilidad de diez segundos y todos los gates posteriores aprobados. |
 
 La primera ejecución nativa local encontró cuatro fallos de coordenadas en pruebas macOS. La comparación aislada con HEAD pasó y, tras recompilar los helpers Swift, la suite completa pasó sin cambios en maquetación. La primera versión de la prueba nueva también detectó espacios no separables en la extracción del fixture; se corrigieron sus aserciones, sin cambiar el texto procesado ni el pipeline de producto.
 
@@ -72,16 +81,18 @@ Evidencias locales: `artifacts/windows-x64-local/` (ignorado por Git), incluyend
 - [Ejecución 2](https://github.com/VodoooFilms/BlueDoor/actions/runs/40489807252), commit `d116204`: instalador `BlueDoor_0.4.0_x64-setup.exe` compilado y validado. Instalación silenciosa, carga de DLL CPU, decoder y arranque de ventana aprobados. `startup.json` registra 15.97 s, cero errores y 23,449,600 bytes de pico del proceso principal (no incluye WebView2 ni modelos). Suite Rust: 111 aprobadas, 15 omitidas y una prueba fallida por usar `/tmp/...` como ruta absoluta. Se cambió únicamente el fixture a `std::env::temp_dir()`, conservando las aserciones de rechazo de rutas relativas.
 - [Ejecución 3](https://github.com/VodoooFilms/BlueDoor/actions/runs/40492601482), commit `63d0c09`: finalizada. Añade caché de dependencias compiladas y recoge resultados de ambos modelos aunque falle una prueba independiente; cualquier fallo sigue bloqueando el artifact aprobado. Los pesos temporales están fuera del directorio cacheado. Build, instalación y arranque aprobados; suite Windows: **112 aprobadas, 15 omitidas, 0 fallos**. Q4 y Q8 descargados y verificados de nuevo; ambos completaron Detect → Protect → Export y la inspección independiente de objetos/streams del PDF, con tres entidades y cero fragmentos fallidos. La suite UI falló porque WebKit en Windows no proporciona `AudioContext` para la prueba de grabación. Se selecciona Chromium en Windows (motor afín a [WebView2](https://learn.microsoft.com/en-us/microsoft-edge/webview2/)) mediante un helper de pruebas; macOS/Linux conservan WebKit. La suite completa pasó localmente con Chromium antes de volver a ejecutar Actions.
 
-### Medición real de CPU, ejecución 3
+- [Ejecución 4](https://github.com/VodoooFilms/BlueDoor/actions/runs/40496004892), commit `a13f902`: **SUCCESS**. Siete pruebas de empaquetado; NSIS, instalación y arranque; **112 pruebas Rust aprobadas y 15 omitidas explícitamente**; Q4/Q8 con descarga limpia, SHA-256, inferencia CPU y PDF revisado por dos parsers; suite completa de interfaz Chromium, incluidas privacidad ES/EN, configuración de modelos y captura PCM. Se generaron los artifacts del instalador y del reporte. El CI general del mismo commit también terminó en verde, incluyendo las pruebas macOS/WebKit.
 
-VM Windows Server 2022, CPU AMD (AuthenticAMD Family 25 Model 1), cuatro procesadores lógicos y 17,174,360,064 bytes de RAM del host (~16 GiB). Son mediciones del fixture pequeño y del proceso nativo de QA; no incluyen el consumo total de Windows y WebView2 ni establecen un mínimo de RAM.
+### Medición real de CPU, ejecución final 4
+
+VM Windows Server 2022, CPU AMD (AuthenticAMD Family 25 Model 17), cuatro procesadores lógicos y 17,174,360,064 bytes de RAM del host (~16 GiB). Son mediciones del fixture pequeño y del proceso nativo de QA; no incluyen el consumo total de Windows y WebView2 ni establecen un mínimo de RAM.
 
 | Peso existente | Descarga verificada | Carga verificada | Detect | Flujo completo | Pico RSS muestreado | Resultado PDF |
 | --- | --- | --- | --- | --- | --- | --- |
-| Qwen3 1.7B Q4 | 26.86 s, 1,359,279,776 bytes | 2.43 s | 14.90 s | 17.61 s | 2,909,061,120 bytes (~2.71 GiB) | PASS, 3 entidades, 0 fugas del fixture |
-| Qwen3 1.7B Q8 | 18.28 s, 2,220,088,992 bytes | 2.22 s | 20.16 s | 22.67 s | 2,953,519,104 bytes (~2.75 GiB) | PASS, 3 entidades, 0 fugas del fixture |
+| Qwen3 1.7B Q4 | 29.53 s, 1,359,279,776 bytes | 2.01 s | 10.29 s | 12.56 s | 2,908,934,144 bytes (~2.71 GiB) | PASS, 3 entidades, 0 fugas del fixture |
+| Qwen3 1.7B Q8 | 24.88 s, 2,220,088,992 bytes | 1.93 s | 15.59 s | 17.78 s | 2,954,027,008 bytes (~2.75 GiB) | PASS, 3 entidades, 0 fugas del fixture |
 
-La carga incluye la verificación Rust del archivo. El tiempo del flujo excluye la descarga. Los reportes por modelo tienen `errors: []`, `failed_fragments: 0`, `export_verified: true` y `independent-pdf.json` aprobado. Artifact de evidencia: [BlueDoor-Windows-x64-report-3](https://github.com/VodoooFilms/BlueDoor/actions/runs/40492601482/artifacts/12729189210). El artifact aprobado del instalador sigue bloqueado hasta que pase también la suite UI Windows.
+La carga incluye la verificación Rust del archivo. El tiempo del flujo excluye la descarga. Los reportes por modelo tienen `errors: []`, `failed_fragments: 0`, `export_verified: true` y `independent-pdf.json` aprobado. Artifact de evidencia: [BlueDoor-Windows-x64-report-4](https://github.com/VodoooFilms/BlueDoor/actions/runs/40496004892/artifacts/12731915222). La suite UI Windows también pasó; el artifact del instalador está disponible. El arranque final registró 16.78 s, ventana que responde, cero errores y 23,437,312 bytes de pico del proceso principal; no incluye WebView2 ni modelos. El módulo CPU elegido fue `ggml-cpu-icelake.dll`, nombre de la variante ISA, sobre un host AMD.
 
 ## Pendiente en Windows físico
 
