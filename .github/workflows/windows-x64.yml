@@ -81,7 +81,7 @@ jobs:
         run: python scripts/test-windows-x64.py --release "$env:CARGO_TARGET_DIR\x86_64-pc-windows-msvc\release" --output artifacts/windows-x64
       - name: Existing privacy and setup UI regressions (mock IPC)
         run: |
-          pnpm exec playwright install webkit
+          pnpm exec playwright install chromium
           pnpm test:ui
       - name: Installer checksum
         shell: pwsh

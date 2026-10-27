@@ -1,6 +1,6 @@
 # BlueDoor Windows x64 CPU
 
-Estado al 26 de octubre de 2026: implementación preparada localmente; **todavía no hay instalador Windows compilado ni ejecución de Actions verificada**. El usuario autorizó subir una rama y ejecutar Actions; no se creará una release ni se fusionará la PR automáticamente. El remoto existente pertenece a `VodoooFilms/BlueDoor`; no se modificó su configuración.
+Estado al 27 de octubre de 2026: rama y PR publicadas con autorización; el instalador Windows x64 ya compiló, se instaló y abrió una ventana que responde en Actions. **Todavía falta aprobar todas las pruebas para entregar su artifact.** El usuario autorizó subir una rama y ejecutar Actions; no se creará una release ni se fusionará la PR automáticamente. El remoto existente pertenece a `VodoooFilms/BlueDoor`; no se modificó su configuración.
 
 ## Infraestructura reutilizada
 
@@ -60,11 +60,28 @@ Host: macOS Apple Silicon, Rust 1.98.1. Las pruebas locales iniciales se ejecuta
 | Nuevo flujo PDF con Qwen real Q4 | PASS: 3 entidades, 0 fragmentos fallidos; carga 0.83 s, detección 2.65 s, flujo 5.32 s, usando Metal en macOS. |
 | Inspección independiente del PDF Q4 | PASS: texto, metadatos, objetos y streams sin los datos ficticios. |
 | Q8 real y descarga limpia de ambos pesos | Pendiente del runner; no se descargaron nuevos pesos en el equipo del usuario. |
-| Instalador/arranque/CPU/RAM Windows | Pendiente de Actions. No existe aún un `.exe` entregable verificado. |
+| Build/instalación/arranque Windows | PASS en la segunda ejecución: NSIS x64, DLL CPU `haswell`, ventana que responde y estabilidad de diez segundos. Flujo completo pendiente. |
 
 La primera ejecución nativa local encontró cuatro fallos de coordenadas en pruebas macOS. La comparación aislada con HEAD pasó y, tras recompilar los helpers Swift, la suite completa pasó sin cambios en maquetación. La primera versión de la prueba nueva también detectó espacios no separables en la extracción del fixture; se corrigieron sus aserciones, sin cambiar el texto procesado ni el pipeline de producto.
 
 Evidencias locales: `artifacts/windows-x64-local/` (ignorado por Git), incluyendo `native-suite.log`, `ui-suite.log`, `clippy.log`, `baseline-layout.log`, `qwen3-fast.log` y `qwen3-fast/{input.pdf,protected.pdf,workflow.json,independent-pdf.json}`.
+
+## Ejecuciones Windows en GitHub
+
+- [Ejecución 1](https://github.com/VodoooFilms/BlueDoor/actions/runs/40432242182): typecheck y pruebas de empaquetado aprobadas; FFmpeg compilado. Falló el enlace de Rust porque MSYS2 anteponía su `link.exe` al de MSVC. Se aisló el PATH de MSYS2 dentro del subprocess de FFmpeg.
+- [Ejecución 2](https://github.com/VodoooFilms/BlueDoor/actions/runs/40489807252), commit `d116204`: instalador `BlueDoor_0.4.0_x64-setup.exe` compilado y validado. Instalación silenciosa, carga de DLL CPU, decoder y arranque de ventana aprobados. `startup.json` registra 15.97 s, cero errores y 23,449,600 bytes de pico del proceso principal (no incluye WebView2 ni modelos). Suite Rust: 111 aprobadas, 15 omitidas y una prueba fallida por usar `/tmp/...` como ruta absoluta. Se cambió únicamente el fixture a `std::env::temp_dir()`, conservando las aserciones de rechazo de rutas relativas.
+- [Ejecución 3](https://github.com/VodoooFilms/BlueDoor/actions/runs/40492601482), commit `63d0c09`: finalizada. Añade caché de dependencias compiladas y recoge resultados de ambos modelos aunque falle una prueba independiente; cualquier fallo sigue bloqueando el artifact aprobado. Los pesos temporales están fuera del directorio cacheado. Build, instalación y arranque aprobados; suite Windows: **112 aprobadas, 15 omitidas, 0 fallos**. Q4 y Q8 descargados y verificados de nuevo; ambos completaron Detect → Protect → Export y la inspección independiente de objetos/streams del PDF, con tres entidades y cero fragmentos fallidos. La suite UI falló porque WebKit en Windows no proporciona `AudioContext` para la prueba de grabación. Se selecciona Chromium en Windows (motor afín a [WebView2](https://learn.microsoft.com/en-us/microsoft-edge/webview2/)) mediante un helper de pruebas; macOS/Linux conservan WebKit. La suite completa pasó localmente con Chromium antes de volver a ejecutar Actions.
+
+### Medición real de CPU, ejecución 3
+
+VM Windows Server 2022, CPU AMD (AuthenticAMD Family 25 Model 1), cuatro procesadores lógicos y 17,174,360,064 bytes de RAM del host (~16 GiB). Son mediciones del fixture pequeño y del proceso nativo de QA; no incluyen el consumo total de Windows y WebView2 ni establecen un mínimo de RAM.
+
+| Peso existente | Descarga verificada | Carga verificada | Detect | Flujo completo | Pico RSS muestreado | Resultado PDF |
+| --- | --- | --- | --- | --- | --- | --- |
+| Qwen3 1.7B Q4 | 26.86 s, 1,359,279,776 bytes | 2.43 s | 14.90 s | 17.61 s | 2,909,061,120 bytes (~2.71 GiB) | PASS, 3 entidades, 0 fugas del fixture |
+| Qwen3 1.7B Q8 | 18.28 s, 2,220,088,992 bytes | 2.22 s | 20.16 s | 22.67 s | 2,953,519,104 bytes (~2.75 GiB) | PASS, 3 entidades, 0 fugas del fixture |
+
+La carga incluye la verificación Rust del archivo. El tiempo del flujo excluye la descarga. Los reportes por modelo tienen `errors: []`, `failed_fragments: 0`, `export_verified: true` y `independent-pdf.json` aprobado. Artifact de evidencia: [BlueDoor-Windows-x64-report-3](https://github.com/VodoooFilms/BlueDoor/actions/runs/40492601482/artifacts/12729189210). El artifact aprobado del instalador sigue bloqueado hasta que pase también la suite UI Windows.
 
 ## Pendiente en Windows físico
 

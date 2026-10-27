@@ -1,8 +1,8 @@
-import { webkit } from 'playwright';
+import { browserType } from './browser.mjs';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 
-const browser = await webkit.launch();
+const browser = await browserType.launch();
 const startLabel = 'Descargar todos los modelos y aprobar todos los permisos';
 async function scenario(options = {}) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });

@@ -1,7 +1,7 @@
-import { webkit } from "playwright";
+import { browserType } from './browser.mjs';
 import assert from "node:assert/strict";
 
-const browser = await webkit.launch();
+const browser = await browserType.launch();
 try {
   for (const failedLoad of [true, false]) {
     const page = await browser.newPage();
