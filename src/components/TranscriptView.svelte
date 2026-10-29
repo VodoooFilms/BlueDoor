@@ -559,7 +559,8 @@
         await onValidateExport(exportText, transcript.title);
       }
       const exportTitle = privateDocument ? p(transcript.title) : transcript.title;
-      const path = await invoke<string | null>("choose_pdf_destination", {
+      const mobile = await invoke<string>("app_platform").catch(() => "unknown") === "android";
+      const path = await invoke<string | null>(mobile ? "prepare_share_export" : "choose_pdf_destination", {
         defaultName: pdfFileName(exportTitle),
       });
       if (!path) return;
@@ -578,10 +579,10 @@
         align: exportFormat.align,
         private: privateDocument && privateId ? { id: privateId, revision: privateRevision ?? 0 } : null,
       });
+      if (mobile) await invoke("share_export", { path: saved });
       statusKind = "status";
       statusMessage = t.pdfSaved(saved);
     } catch (e: any) {
-      console.error(e);
       statusKind = "error"; statusMessage = String(e);
     } finally {
       exporting = false;
@@ -776,19 +777,19 @@
     {#if toolbarLeading}{@render toolbarLeading()}{/if}
     {#if actions}{@render actions()}{:else}
       <div class="head-actions editor-actions">
-      <button class="head-btn" onclick={resetToOriginal} disabled={!surfaceActive || !canReset} title={t.reset}>
+      <button class="head-btn" onclick={resetToOriginal} disabled={!surfaceActive || !canReset} title={t.reset} aria-label={t.reset}>
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
           <path d="M21 3v5h-5"></path>
         </svg>
-        {t.reset}
+        <span class="history-action-label">{t.reset}</span>
       </button>
-      <button class="head-btn" onclick={undo} disabled={!surfaceActive || !canUndo} title={`${t.undo} (Ctrl+Z)`}>
+      <button class="head-btn" onclick={undo} disabled={!surfaceActive || !canUndo} title={`${t.undo} (Ctrl+Z)`} aria-label={t.undo}>
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
           <path d="M3 3v5h5"></path>
         </svg>
-        {t.undo}
+        <span class="history-action-label">{t.undo}</span>
       </button>
       <button class="head-btn" class:copied={copied} onclick={copyToClipboard} disabled={!surfaceActive}>{copied ? t.copied : t.copy}</button>
       <button class="head-btn save-btn" class:saved={savedCorrection && !externalDirty} onclick={saveCorrection} disabled={!surfaceActive || (savedCorrection && !externalDirty)}>

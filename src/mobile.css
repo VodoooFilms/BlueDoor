@@ -1,0 +1,82 @@
+/* Mobile spacing: 16px page gutters; 8/12/16/24px spacing between controls. */
+.mobile-tools { padding:12px; border:1px solid #bfd8ff80; border-radius:10px; }
+.mobile-tools textarea { display:block; width:100%; box-sizing:border-box; margin:12px 0; font:inherit; }
+.mobile-source, .entity-context, .mobile-tools, .local-performance { display:none; }
+.mobile-app .mobile-source, .mobile-app .mobile-tools, .mobile-app .local-performance { display:block; }
+
+@media(max-width:600px) {
+  :root { font-size:14px; }
+  html, body, #app { min-width:0 !important; width:100%; height:100%; overflow:auto !important; }
+  :root body .shell {
+    min-width:0; height:100dvh; overflow:auto;
+    padding:max(12px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  }
+  :root .shell .masthead { flex:none; min-height:0; padding:0 0 16px; gap:12px; flex-wrap:wrap; }
+  :root .shell .brand { font-size:24px; gap:12px; }
+  :root .shell .nav-right { width:100%; margin:0; align-items:stretch; }
+  :root .shell .nav-row { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); width:100%; gap:8px; }
+  :root .shell .nav-models, :root .shell .settings-menu summary {
+    flex-direction:column; gap:6px; padding:8px 4px; min-height:60px; font-size:12px;
+  }
+  :root .shell .settings-menu { min-width:0; }
+  :root .shell .settings-popover { top:72px; right:0; max-width:calc(100vw - 32px); }
+  :root .shell .local-indicator { display:none; }
+  :root .shell .privacy-container { flex:1 0 auto; }
+  :root .shell .privacy-workflow { flex:1 1 auto; min-width:0; padding:16px 0 0; gap:16px; overflow:visible; }
+  :root .shell .mobile-tools, :root .shell .local-performance { flex:none; margin:0; padding:12px; border:1px solid var(--line); border-radius:10px; }
+  :root .shell .mobile-tools summary, :root .shell .local-performance summary { line-height:20px; }
+  :root .shell .mobile-tools[open] { display:flex; flex-direction:column; gap:12px; }
+  :root .shell .mobile-tools[open] label { display:grid; gap:8px; }
+  :root .shell .mobile-tools[open] p, :root .shell .mobile-tools[open] textarea { margin:0; }
+  :root .shell .local-performance { font-size:12px; }
+  :root .shell .mobile-source button { padding-inline:16px; }
+  :root .shell .workspace-header { gap:12px; padding:0 0 16px; align-items:center; }
+  :root .shell .workspace-title { flex-basis:100%; max-width:100%; gap:8px; }
+  :root .shell .workspace-title strong { white-space:normal; overflow-wrap:anywhere; line-height:1.45; }
+  :root .shell .workspace-views { flex-basis:100%; gap:12px; }
+  :root .shell .workspace-views button { flex:1; justify-content:center; padding-inline:12px; }
+  :root .shell button, :root .shell select, :root .shell input { min-height:44px; }
+  :root .shell .document-surface { flex:none; width:100%; min-width:0; min-height:320px; }
+  :root .shell .original-page { padding:16px; width:100%; box-sizing:border-box; display:flex; flex-direction:column; gap:16px; overflow:visible; }
+  :root .shell .original-page > button { align-self:flex-start; padding-inline:16px; }
+  :root .shell .original-page pre { box-sizing:border-box; width:100%; min-height:320px; margin:0; padding:24px; white-space:pre-wrap; overflow-wrap:anywhere; }
+  :root .shell .original-page textarea { box-sizing:border-box; width:100%; font:inherit; }
+  :root .shell .blue-import-screen.welcome { display:flex; flex-direction:column; flex:none; padding:8px 0 0; gap:24px; }
+  :root .shell .blue-import-screen .welcome-import { box-sizing:border-box; height:360px; min-height:300px; padding:24px; gap:24px; }
+  :root .shell .blue-import-screen .import-art { width:220px; max-height:220px; transform:none; }
+  :root .shell .blue-import-screen .import-action { box-sizing:border-box; width:100%; min-height:52px; padding:12px 16px; font-size:17px; }
+  :root .shell .protect-art { display:none; }
+  :root .shell .workflow-steps { width:100%; gap:12px; min-height:64px; }
+  :root .shell .workflow-steps > span { flex:0 0 56px; width:56px; height:56px; border-radius:12px; }
+  :root .shell .workflow-steps > span > svg { width:28px; height:28px; }
+  :root .shell .workflow-steps b { flex:1; max-width:48px; }
+  :root .shell .map-page { flex:none; padding:16px; overflow:visible; }
+  :root .shell .map-heading { align-items:flex-start; flex-wrap:wrap; gap:8px; }
+  :root .shell .map-help { margin:16px 0 24px; line-height:1.65; }
+  :root .shell .entity-list { margin:0 0 24px; gap:24px; }
+  :root .shell .entity-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px 12px; border-bottom:1px solid var(--line); padding:0 0 24px; }
+  :root .shell .entity-row label { gap:8px; min-width:0; }
+  :root .shell .entity-row input, :root .shell .entity-row select { box-sizing:border-box; width:100%; padding:10px 12px; }
+  :root .shell .entity-context { display:block; grid-column:1 / -1; overflow-wrap:anywhere; line-height:1.6; }
+  :root .shell .entity-context summary { padding:8px 0; }
+  :root .shell .entity-context p { margin:8px 0 0; }
+  :root .shell .entity-row .remove { width:44px; justify-self:end; }
+  :root .shell .add-entity { flex-wrap:wrap; gap:12px; margin-bottom:24px; }
+  :root .shell .add-entity input { flex-basis:100%; }
+  :root .shell .map-page > button { margin:0 12px 12px 0; }
+  :root .shell .viewer { width:100%; min-width:0; overflow:hidden; }
+  :root .shell .editor-toolbar { flex-wrap:wrap; padding:16px; gap:12px; }
+  :root .shell .editor-toolbar .format-controls { flex-wrap:wrap; flex-shrink:1; min-width:0; max-width:100%; gap:8px; }
+  :root .shell .editor-toolbar .toolbar-actions { flex-basis:100%; margin:4px 0 0; gap:12px; }
+  :root .shell .editor-toolbar .editor-actions { gap:12px; justify-content:flex-start; }
+  :root .shell .editor-toolbar .editor-actions .head-btn { padding:10px 12px; min-height:44px; }
+  :root .shell .compact-action-label { display:none; }
+  :root .shell .gpt-button, :root .shell .compact-action { display:inline-flex; align-items:center; justify-content:center; flex:none; box-sizing:border-box; width:44px; min-width:44px; min-height:44px; padding:10px; gap:0; }
+  :root .shell .editor-actions .history-action-label { display:none; }
+  :root .shell .editor-toolbar .editor-actions .head-btn:has(.history-action-label) { width:44px; padding:10px; justify-content:center; }
+  :root .shell .private-document .viewer-body { padding:12px; }
+  :root .shell .private-document .corrected { min-height:360px; padding:24px; }
+  :root .shell .page { max-width:100%; min-width:0; }
+  :root .shell .feedback-host { position:static; flex:none; order:10; width:100%; max-height:25dvh; margin:16px 0 0; }
+  :root .shell .vault-layout, :root .shell .vault-shell { display:flex; flex-direction:column; min-width:0; }
+}

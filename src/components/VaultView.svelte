@@ -2,6 +2,7 @@
   import Icon from './Icon.svelte';
   import { tick, onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { listen } from '@tauri-apps/api/event';
 
   type Kind = 'document' | 'audio' | 'map' | 'folder';
   type Entry = {
@@ -144,6 +145,16 @@
   }
 
   onMount(() => {
+    let disposed = false;
+    let stopBackground: (() => void) | undefined;
+    const clearVisibleSecrets = () => { entries = []; selected = null; password = ''; confirmation = ''; recoveryPhrase = ''; screen = 'locked'; dialog?.close(); };
+    void listen("mobile-background", clearVisibleSecrets).then(stop => { if (disposed) stop(); else stopBackground = stop; }).catch(() => {});
+    const onVisibility = () => {
+      if (document.hidden && document.documentElement.classList.contains('mobile-app')) {
+        void invoke('vault_lock'); clearVisibleSecrets();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     void (async () => {
       try {
         await enterVault();
@@ -154,6 +165,7 @@
         ready = true;
       }
     })();
+    return () => { disposed = true; stopBackground?.(); document.removeEventListener('visibilitychange', onVisibility); };
   });
 
   // Bloqueo por inactividad: la comprobación real vive también en Rust; este

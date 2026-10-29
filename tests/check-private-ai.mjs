@@ -2,6 +2,7 @@ import { browserType } from './browser.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const language = process.env.BLUEDOOR_TEST_LANG || 'es';
+const mobile = process.env.BLUEDOOR_TEST_MOBILE === '1';
 const copySource = readFileSync(new URL('../src/lib/private-i18n.ts',import.meta.url),'utf8');
 const english = JSON.parse(copySource.slice(copySource.indexOf('= {')+2,copySource.indexOf('\n};')+2));
 const ui = text => language === 'en' ? (english[text] || text.replace(/^Eliminar entidad/, 'Remove entity')) : text;
@@ -9,11 +10,11 @@ const ui = text => language === 'en' ? (english[text] || text.replace(/^Eliminar
 
 const browser = await browserType.launch();
 try {
-  const page = await browser.newPage({viewport:{width:1370,height:800}});
+  const page = await browser.newPage({viewport:mobile?{width:412,height:850}:{width:1370,height:800}});
   const requests=[];
   page.on('request',r=>requests.push(r.url()));
   await page.addInitScript(lang => { localStorage.setItem('bluedoor-language',lang); localStorage.setItem('bluedoor-welcome-seen','true'); }, language);
-  await page.addInitScript(() => {
+  await page.addInitScript(mobile => {
     window.isTauri=true;
     const original='María Pérez demanda a Banco Andino. Email: maria@example.com. Reclama USD 1500 el 2026-09-30.';
     // El OCR perdió una letra; la extracción inicial difiere del texto actual.
@@ -25,6 +26,8 @@ try {
     window.__emitDrop=(event,payload)=>dropCallbacks.get(event)?.({event,id:1,payload});
     window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},transformCallback:callback=>{callbacks.set(++callbackId,callback);return callbackId;},invoke:async(cmd,args)=>{
       calls.push({cmd,args});
+      if(cmd==='app_platform')return mobile?'android':'macos';
+      if(cmd==='share_export')return;
       if(cmd==='check_installation')return;
       if(cmd==='load_transcripts')return [];
       if(cmd==='save_transcripts')return;
@@ -91,7 +94,7 @@ try {
         if(args.title&&/@|\d{8,}/.test(args.title))throw new Error('PDF bloqueado: el título contiene posibles datos privados.');
         return;
       }
-      if(cmd==='choose_pdf_destination')return '/tmp/bluedoor-audit.pdf';
+      if(cmd==='choose_pdf_destination'||cmd==='prepare_share_export')return '/tmp/bluedoor-audit.pdf';
       if(cmd==='generate_pdf'){
         // The writer, not the renderer, decides what reaches the disk.
         if(args.private&&(!args.private.id||args.private.revision!==session.revision))throw new Error('Stale private export');
@@ -103,14 +106,16 @@ try {
       function assertRevision(args){if(args.id!==session.id || args.revision!==session.revision)throw new Error('Stale revision');}
       function advisories(entities){return entities.some(e=>e.kind==='PERSON')?[]:['El mapa no contiene ninguna persona. Los nombres no tienen un detector determinista: Qwen puede omitirlos y las reglas no los comprueban. Revísalos tú.'];}
     }};
-  });
+  }, mobile);
   await page.goto('http://localhost:1420');
   await page.getByRole('heading',{name:ui('Lo privado permanece aquí.'),exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).count(),0,'no protection without a document');
   assert.equal(await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).count(),0);
   const importZone=page.getByRole('button',{name:ui('Importar documento'),exact:true});
   const zone=await importZone.boundingBox();
-  assert(zone.width>=500 && zone.height>=220,'import area is a large drop zone');
+  assert(zone.width>=(mobile?280:500) && zone.height>=220,'import area is usable');
+  if(mobile) { assert.equal(await page.locator('#recordToggle').count(),0); assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)); }
+  if(mobile && language === 'es') await page.screenshot({path:'artifacts/android-ui-importar.png',animations:'disabled'});
   const emitDrop=async(event,paths=[],inside=true)=>page.evaluate(({event,paths,zone,inside})=>{
     const position={x:(inside?zone.x+zone.width/2:0)*devicePixelRatio,y:(inside?zone.y+zone.height/2:0)*devicePixelRatio};
     window.__emitDrop(event,{paths,position});
@@ -131,6 +136,7 @@ try {
   assert.equal(await page.getByRole('heading',{name:ui('Lo privado permanece aquí.'),exact:true}).count(),0,'welcome copy is not part of the workspace');
   assert((await page.locator('.original-page').innerText()).includes('María Pérez'));
   assert.equal(await page.getByTestId('private-initial-extraction').count(),0);
+  if(mobile && language === 'es') await page.screenshot({path:'artifacts/android-ui-documento.png',animations:'disabled'});
   const before=await page.locator('.workspace-header').boundingBox();
   await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).click();
   await page.getByRole('progressbar',{name:ui('Procesando documento')}).waitFor();
@@ -156,17 +162,21 @@ try {
   assert(!/SAFE/.test(await page.locator('.workspace-title span').innerText()),'analysis alone does not promise safety');
   assert.equal(await page.locator('.boundary-grid').count(),0,'legacy split comparison is gone');
   assert.equal(await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).count(),0,'no repeated protection inside Edit');
+  if(mobile && language === 'es') await page.screenshot({path:'artifacts/android-ui-editor.png',animations:'disabled'});
   await map.click();
+  if(mobile && language === 'es') await page.screenshot({path:'artifacts/android-ui-mapa.png',animations:'disabled'});
   await page.getByLabel('Alias 1',{exact:true}).fill('CLIENTE_01');
   const document=page.getByRole('button',{name:ui('Documento'),exact:true});
   assert(await document.isDisabled(),'unapplied map blocks view switching');
   await page.locator('.map-page').getByRole('button',{name:ui('Guardar cambios'),exact:true}).click();
   await page.waitForFunction(()=>!document.querySelector('.workspace-views button:first-child').disabled);
   await document.click();
+  if(mobile) await page.getByRole("button",{name:"Aprobar revisión",exact:true}).click();
   await page.getByRole('button',{name:ui('Exportar PDF'),exact:true}).click();
   await page.waitForFunction(()=>window.__privacyCalls.some(c=>c.cmd==='generate_pdf'));
   const exported=await page.evaluate(()=>window.__privacyCalls.find(c=>c.cmd==='generate_pdf'));
-  const destination=await page.evaluate(()=>window.__privacyCalls.find(c=>c.cmd==='choose_pdf_destination'));
+  const destination=await page.evaluate(()=>window.__privacyCalls.find(c=>c.cmd==='choose_pdf_destination'||c.cmd==='prepare_share_export'));
+  if(mobile) await page.waitForFunction(()=>window.__privacyCalls.some(c=>c.cmd==='share_export'));
   assert.match(destination.args.defaultName,/^(Documento protegido|Protected document)_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.pdf$/);
   assert.equal(exported.args.title,language==='en'?'Protected document':'Documento protegido');
   assert.equal(exported.args.private.id,'local-1');
@@ -178,6 +188,9 @@ try {
   assert((await page.locator('.rich-editor').innerText()).includes('Texto añadido.'),'language switch preserves the draft');
   await page.locator('#languageToggle').click();
   await page.keyboard.press('Escape');
+  if(mobile) { assert(await page.getByRole('button',{name:ui('Exportar PDF'),exact:true}).isDisabled()); await page.locator('.save-btn').click(); }
+
+  if(mobile) await page.getByRole('button',{name:'Aprobar revisión',exact:true}).click();
   await page.getByRole('button',{name:ui('Exportar PDF'),exact:true}).click();
   await page.waitForFunction(()=>window.__privacyCalls.filter(c=>c.cmd==='generate_pdf').length===2);
   const latest=await page.evaluate(()=>window.__privacyCalls.filter(c=>c.cmd==='generate_pdf').at(-1));

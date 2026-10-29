@@ -33,6 +33,7 @@
   let analysisStep = $state("");
   let analysisId: string | null = null;
   let analysisRevision: number | null = null;
+  let unlistenDownload: (() => void) | undefined;
   let unlistenAnalysis: (() => void) | undefined;
   let disposed = false;
   let importZone = $state<HTMLButtonElement>();
@@ -71,6 +72,25 @@
     ? p(sanitizing ? "Protegiendo el documento" : "Analizando con AI local")
     : p(busy).replace(/(?:…|\.{3})$/, ""));
   let error = $state("");
+  let pasted = $state("");
+  let mobile = $state(false);
+  onMount(() => { void invoke<string>("app_platform").then(p => mobile = p === "android").catch(() => {}); });
+  let performance = $state<{ stage: string; elapsedMs: number; peakRssKb: number | null }[]>([]);
+  let compareOriginal = $state(false);
+  let sourceEditing = $state(false);
+  let sourceDraft = $state("");
+  let modelBusy = $state(false);
+  let contextTokens = $state(4096);
+  let chunkChars = $state(2000);
+  let modelStatus = $state("");
+  async function installMobileModel() {
+    modelBusy = true; modelStatus = "Descargando Qwen3-1.7B Q4_K_M (1,36 GB)…";
+    try { await invoke("download_privacy_model", { id: "qwen3-fast" }); modelStatus = "Qwen instalado. Disponible sin conexión."; }
+    catch (e) { modelStatus = String(e); } finally { modelBusy = false; }
+  }
+  async function importPasted() {
+    await run("Importando texto local…", async () => { adopt(await invoke<PrivacySession>("import_private_text", { text: pasted, name: "Texto pegado.txt" })); pasted = ""; });
+  }
   let addText = $state("");
   let addKind = $state<EntityKind>("PERSON");
   let mapOpen = $state(false);
@@ -97,6 +117,8 @@
   function adopt(next: PrivacySession | null) {
     if (next?.id !== session?.id) { zoom = 100; fitWidth = true; exported = ""; exportReady = false; }
     if (!next?.analyzed || next.id !== session?.id) mapOpen = false;
+    if (next) localStorage.setItem("bluedoor-session-in-memory", "true"); else localStorage.removeItem("bluedoor-session-in-memory");
+    sourceDraft = next?.original ?? ""; sourceEditing = false;
     session = next;
     onSessionChange(next);
     entities = next?.entities.map(e => ({ ...e })) ?? [];
@@ -126,6 +148,10 @@
   }
   $effect(() => { if (externalSession && (session?.id !== externalSession.id || session.revision !== externalSession.revision)) adopt(externalSession); });
   onMount(async () => {
+    const interruptedNativeSession = await invoke<boolean>("interrupted_private_session").catch(() => false);
+    if (localStorage.getItem("bluedoor-interrupted-operation")) { error = "La operación anterior se interrumpió. Importa el original y vuelve a analizar; no se ha guardado sin cifrar."; localStorage.removeItem("bluedoor-interrupted-operation"); }
+    const stopDownload = await listen<[string, number]>("model-download-progress", event => { if (event.payload[0] === "qwen3-fast") modelStatus = `Descargando Qwen · ${event.payload[1]} %`; });
+    if (disposed) { stopDownload(); return; } unlistenDownload = stopDownload;
     const stop = await listen<[string, number, string]>("private-analysis-progress", event => {
       const [id, revision, phase] = event.payload;
       if (busy.startsWith("Analizando") && id === analysisId && revision === analysisRevision) {
@@ -140,15 +166,18 @@
     if (disposed) { stop(); return; }
     unlistenAnalysis = stop;
     try {
+      const hadSession = localStorage.getItem("bluedoor-session-in-memory") === "true";
       const restored = await invoke<PrivacySession | null>("get_privacy_session");
       adopt(restored);
+      if (!restored && (hadSession || interruptedNativeSession)) error = "La sesión anterior terminó. Vuelve a importar el documento; el original no se guardó sin cifrar.";
       if (restored?.analyzed) onEdit(restored);
     } catch { error = "Abre el demo con Tauri para importar documentos y ejecutar Qwen localmente."; }
   });
-  onDestroy(() => { disposed = true; unlistenAnalysis?.(); unlistenDrop?.(); });
+  onDestroy(() => { disposed = true; unlistenAnalysis?.(); unlistenDrop?.(); unlistenDownload?.(); });
 
   async function run(label: string, action: () => Promise<void>) {
     if (busy) return;
+    localStorage.setItem("bluedoor-interrupted-operation", "true");
     busy = label; error = ""; onBusyChange(true);
     try { await action(); }
     catch (e) {
@@ -157,7 +186,7 @@
         try { adopt(await invoke<PrivacySession | null>("get_privacy_session")); } catch { }
       }
     }
-    finally { busy = ""; sanitizing = false; analysisId = null; analysisRevision = null; onBusyChange(false); }
+    finally { localStorage.removeItem("bluedoor-interrupted-operation"); busy = ""; sanitizing = false; analysisId = null; analysisRevision = null; onBusyChange(false); }
   }
   async function importDocument(path?: string) {
     await run("Importando documento local…", async () => {
@@ -205,7 +234,7 @@
   async function clear() {
     await run("Cerrando documento…", async () => { await invoke("clear_privacy_session"); adopt(null); });
   }
-  $effect(() => { onBusyChange(!!busy || layoutDirty || draftDirty || textEditorDirty); });
+  $effect(() => { onBusyChange(!!busy || layoutDirty || draftDirty || textEditorDirty || sourceEditing); });
   async function exportOriginalLayout() {
     if (!session || draftDirty) return;
     await run("Exportando PDF con formato original…", async () => {
@@ -228,13 +257,33 @@
     <div class="processing-label" role="status" aria-live="polite">
       <span class="processing-orbit" aria-hidden="true"></span><span class="processing-copy" title={stepLabel || processingLabel}>{stepLabel || processingLabel}</span>
     </div>
+    {#if mobile && busy.startsWith("Importando")}<button class="secondary" onclick={() => invoke("cancel_private_import")}>Cancelar extracción</button>{/if}
+    {#if busy.startsWith("Analizando")}<button class="secondary" onclick={() => invoke("cancel_private_analysis")}>Cancelar análisis</button>{/if}
     <div class="processing-track processing" role="progressbar" aria-label={p("Procesando documento")} aria-busy="true"><span></span></div>
   </div>
 {/snippet}
 
 <section class="privacy-workflow" aria-label="Private Legal" use:enterView={`${session?.id ?? "welcome"}:${editing}:${mapOpen}`}>
   <SaveNotice sequence={saveSequence} />
+    <details class="mobile-tools"><summary>Modelo local y texto pegado</summary>
+      <p>Qwen3-1.7B Q4_K_M · descarga inicial de 1,36 GB. El contenido permanece en el dispositivo.</p>
+      <button class="secondary" onclick={installMobileModel} disabled={modelBusy}>Descargar Qwen</button>
+      <button class="secondary" onclick={() => invoke("cancel_model_download")}>Cancelar descarga</button>
+      <button class="secondary" onclick={async () => { try { await invoke("unload_privacy_model"); modelStatus = "Modelo liberado de la memoria."; } catch (e) { modelStatus = String(e); } }}>Liberar modelo</button>
+      <label>Contexto (tokens)<input type="number" min="4096" max="8192" step="1024" bind:value={contextTokens} /></label>
+      <label>Fragmento (caracteres)<input type="number" min="900" max="2400" step="100" bind:value={chunkChars} /></label>
+      <button class="secondary" disabled={!!busy} onclick={async () => { try { await invoke("configure_mobile_analysis", { contextTokens, chunkChars }); modelStatus = "Perfil aplicado; el modelo se cargará al analizar."; } catch (e) { modelStatus = String(e); } }}>Aplicar perfil</button>
+      <p role="status">{modelStatus}</p>
+      <textarea aria-label="Texto para proteger" bind:value={pasted} placeholder="Pega aquí el documento" rows="5"></textarea>
+      <button class="primary" onclick={importPasted} disabled={!pasted.trim() || !!busy}>Importar texto</button>
+    </details>
+  <details class="local-performance"><summary>Mediciones locales</summary>
+    <button class="secondary" onclick={async () => { performance = await invoke("get_local_performance"); }}>Actualizar mediciones</button>
+    <p>Intentos en este dispositivo. El máximo de memoria es del proceso completo; puede incluir etapas anteriores.</p>
+    {#each performance as sample}<p>{sample.stage}: {(sample.elapsedMs / 1000).toFixed(2)} s · {sample.peakRssKb === null ? "memoria no disponible" : `${Math.round(sample.peakRssKb / 1024)} MB de máximo residente`}</p>{/each}
+  </details>
   {#if session}
+    <div class="mobile-source"><button class="secondary" onclick={async () => { try { await invoke("preview_import_source"); } catch (e) { error = String(e); } }}>Ver fuente PDF / imagen</button></div>
     <div class="workspace-header">
       <div class="workspace-title"><strong>{session.fileName}</strong><span>{p(session.analyzed ? (session.reviewed ? "Revisión confirmada" : "Pendiente de revisión") : "Documento original")}{#if pageCount} · {pageCount} {p("páginas")}{/if}</span></div>
       {#if editing && session.analyzed}
@@ -242,7 +291,12 @@
           <button class="secondary" class:active-page={!mapOpen} aria-pressed={!mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = false} aria-label={p("Documento")} title={p("Documento")}><Icon name="document" /><span>{p("Documento")}</span></button>
           <button class="secondary" class:active-page={mapOpen} aria-pressed={mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = true} aria-label={p("Mapa privado")} title={p("Mapa privado")}><Icon name="map" /><span>{p("Mapa privado")}</span></button>
         </div>
-        <button class="primary" onclick={() => session?.layoutAvailable ? exportOriginalLayout() : textExport?.()} disabled={!!busy || textExportBusy || (session.layoutAvailable && !exportReady) || (!session.layoutAvailable && !textExport) || draftDirty || layoutDirty || !session.analysisComplete || !!session.warnings.length}>{p("Exportar PDF")}</button>
+        {#if mobile}<button class="secondary" disabled={!!busy || draftDirty || layoutDirty || !session.analysisComplete || !!session.warnings.length || session.reviewed} onclick={async () => {
+          if (!session) return;
+          if (textEditorDirty) { error = "Guarda la edición antes de aprobar."; return; }
+          await run("Confirmando revisión…", async () => { await onConfirmReview(); adopt(await invoke<PrivacySession | null>("get_privacy_session")); });
+        }}>{session.reviewed ? "Revisión aprobada" : "Aprobar revisión"}</button>{/if}
+        <button class="primary" onclick={() => session?.layoutAvailable ? exportOriginalLayout() : textExport?.()} disabled={!!busy || textExportBusy || (mobile && (!session.reviewed || textEditorDirty)) || (session.layoutAvailable && !exportReady) || (!session.layoutAvailable && !textExport) || draftDirty || layoutDirty || !session.analysisComplete || !!session.warnings.length}>{p("Exportar PDF")}</button>
         <ChatGPTButton disabled={!!busy || textExportBusy} />
       {:else}
         <details class="document-menu"><summary aria-label={p("Acciones del documento")}>···</summary><div>
@@ -252,7 +306,7 @@
         <button class="secondary" onclick={() => importDocument()} disabled={!!busy}>{p("Importar otro documento")}</button>
         {#if session.layoutAvailable}<label class="workspace-zoom"><span class="sr-only">{p("Zoom")}</span><Icon name="search" size={18} /> <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy}><option value="fit">{p("Ajustar al ancho")}</option>{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>{/if}
         {#if session.analyzed}<button class="primary" onclick={() => { if (session) onEdit(session); }} disabled={!!busy}>{p("Revisar y editar")}</button>
-        {:else}<button class="primary analyze-button" onclick={analyze} disabled={!!busy}>{p("Proteger documento")}</button>{/if}
+        {:else}<button class="primary analyze-button" onclick={analyze} disabled={!!busy || sourceEditing}>{p("Proteger documento")}</button>{/if}
       {/if}
     </div>
     {#if mapOpen && editing}
@@ -266,30 +320,41 @@
                   <label><span>{p("Categoría")}</span><select bind:value={entity.kind} onchange={edited} disabled={!!busy}>{#each ENTITY_KINDS as kind}<option value={kind.value}>{p(kind.label)}</option>{/each}</select></label>
                   <label><span>{p("Valor privado")}</span><input aria-label={`${p("Valor privado")} ${i+1}`} bind:value={entity.original} oninput={edited} disabled={!!busy}/></label>
                   <label><span>{p("Alias")}</span><input aria-label={`Alias ${i+1}`} value={entity.alias} onfocus={() => beginAliasEdit(i)} oninput={event => renameAlias(i, event.currentTarget.value)} disabled={!!busy} spellcheck="false"/></label>
+                  <details class="entity-context"><summary>Ver contexto</summary><p>{session.original.slice(Math.max(0, session.original.indexOf(entity.original) - 90), session.original.indexOf(entity.original) + entity.original.length + 90)}</p></details>
                   <button class="remove" aria-label={`${p("Eliminar entidad")} ${i+1}`} disabled={!!busy} onclick={() => { entities = entities.filter((_, n) => n !== i); aliasEdit = null; edited(); }}>×</button>
                 </div>
               {/each}
             </div>
             <div class="add-entity"><select aria-label={p("Tipo de nueva entidad")} bind:value={addKind} disabled={!!busy}>{#each ENTITY_KINDS as kind}<option value={kind.value}>{p(kind.label)}</option>{/each}</select><input aria-label={p("Nueva entidad privada")} bind:value={addText} placeholder={p("Texto exacto del original")} disabled={!!busy}/><button class="secondary" onclick={addEntity} disabled={!!busy || !addText.trim()}>{p("Añadir entidad")}</button></div>
-            <button class="secondary" onclick={resetMap} disabled={!!busy || !draftDirty}>{p("Restablecer cambios")}</button>
+            <button class="secondary compact-action" onclick={resetMap} disabled={!!busy || !draftDirty} aria-label={p("Restablecer cambios")} title={p("Restablecer cambios")}><Icon name="history" /><span class="compact-action-label">{p("Restablecer cambios")}</span></button>
             <button class="primary apply-map" onclick={() => applyMap()} disabled={!!busy || !draftDirty}>{p(draftDirty ? "Guardar cambios" : "Guardado")}</button>
           {:else}<p class="empty-note">{p("Analiza el documento con Qwen para detectar entidades y construir el mapa.")}</p>{/if}
           <Feedback message={draftDirty ? p("Aplica los cambios al mapa para actualizar el documento.") : ""} kind="status" />
         </section>
     {/if}
+    {#if editing && !session.layoutAvailable}<button class="secondary" onclick={() => compareOriginal = !compareOriginal}>{compareOriginal ? "Ver copia protegida" : "Ver original extraído"}</button>{/if}
     <div class="document-surface" class:hidden={mapOpen}>
+      {#if compareOriginal && editing && !session.layoutAvailable}<div class="original-page"><pre>{session.original}</pre></div>
+      {:else}
       {#if session.layoutAvailable}
         <DocumentLayout toolbarLeading={editing ? editorZoom : undefined} bind:zoom {fitWidth} onExportReady={(ready, count) => { exportReady = ready; pageCount = count; }} onSessionChange={adopt} onTextDirty={layoutEdited} {session} {entities} editable={editing} dirty={draftDirty} busy={!!busy} onAliasFocus={beginAliasEdit} onAliasChange={renameAlias} onApply={() => applyMap()} />
       {:else if editing && textTranscript}
         <TranscriptView transcript={textTranscript} privateDocument privateReviewed={session.reviewed} privateId={session.id} privateRevision={session.revision} onSave={onSaveText} onExportAction={(action, exporting) => { textExport = action; textExportBusy = exporting; }} onDirtyChange={(dirty, save) => { textEditorDirty = dirty; onTextDirty(dirty, save); }} {onConfirmReview} {onValidateExport} />
       {:else}
-        <div class="original-page"><pre>{session.original}</pre></div>
+        <div class="original-page">
+          {#if mobile}<button class="secondary" onclick={() => sourceEditing = !sourceEditing} disabled={!!busy}>{sourceEditing ? "Cancelar corrección" : "Corregir texto extraído"}</button>{/if}
+          {#if sourceEditing}<textarea aria-label="Corrección del texto extraído" bind:value={sourceDraft} rows="14"></textarea>
+            <button class="primary" disabled={!!busy || !sourceDraft.trim()} onclick={async () => { if (!session) return; const current = session; await run("Guardando extracción corregida…", async () => { adopt(await invoke<PrivacySession>("update_private_source", { id: current.id, revision: current.revision, text: sourceDraft })); }); }}>Guardar corrección</button>
+          {:else}<pre>{session.original}</pre>{/if}
+        </div>
+      {/if}
       {/if}
     </div>
     <Feedback className="leak-alert" message={session.warnings.length ? [p("Posibles filtraciones · vista previa bloqueada"), ...session.warnings.map(p)].join("\n") : session.analyzed && !session.analysisComplete ? p("Análisis incompleto · revisión bloqueada") : ""} />
     {#if session.advisories?.length}<details class="review-advisories"><summary>{p("Lo que esta revisión no puede comprobar")}</summary>{#each session.advisories as advisory}<p>{p(advisory)}</p>{/each}</details>{/if}
     <Feedback message={exported ? `${p("PDF guardado con el formato original.")} ${exported}` : ""} kind="status" />
   {:else}
+
     <div class="welcome blue-import-screen">
       <h2 class="sr-only">{p("Lo privado permanece aquí.")}</h2>
       <button bind:this={importZone} class="welcome-import" class:dragging-document={draggingDocument} aria-label={p("Importar documento")} title={p("Importar documento")} onclick={() => importDocument()} disabled={!!busy}>
