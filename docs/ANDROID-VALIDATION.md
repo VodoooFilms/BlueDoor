@@ -1,0 +1,70 @@
+# Validación de Android — 29 de octubre de 2026
+
+Primera entrega local en la rama `codex/android-protection`. No se ha publicado el APK ni el código de esta entrega. Los archivos de prueba contienen exclusivamente datos sintéticos.
+
+## Entornos
+
+- Mac Apple Silicon: compilación, pruebas de Rust/Svelte y prueba explícita de Qwen en CPU con perfil de 4096 tokens.
+- Emulador Android 15/API 35, `sdk_gphone64_arm64`, ARM64, 4 GB configurados, páginas de 4096 bytes. No es un Redmi ni una simulación de su CPU, temperatura o rendimiento.
+- Compilación Android: JDK 17, SDK 36, Build Tools 35.0.0, NDK r27c, Rust ARM64. APK de prueba optimizado y firmado con clave local; validación APK Signature v2/v3, alineación ZIP y segmentos ELF a 16 KiB. Incluye licencia de Liberation Sans.
+
+## Resultados reales
+
+| Verificación | Resultado |
+|---|---|
+| `pnpm check` | Tipado sin errores y compilación de frontend correctos. |
+| Privacidad UI escritorio, español e inglés | Aprobación, revisiones, aliases, cambios y bloqueos de filtraciones correctos. |
+| Privacidad UI móvil a 412 px, español e inglés | Recorrido correcto con márgenes de 16 px, controles compactos y acciones secundarias mediante iconos. |
+| UI de editor, agrupación de aliases y espacio de trabajo | Correcto. |
+| Vault UI y marca en escritorio | Correcto. |
+| Suite Rust compartida | 124 pruebas correctas, 0 fallidas; 18 pruebas optativas omitidas en la ejecución ordinaria. |
+| `cargo clippy --all-targets -- -D warnings` y formato | Correcto en el host. El build Android conserva avisos de código de escritorio desactivado y APIs de sus dependencias. |
+| Qwen real en CPU del Mac, perfil móvil | Importación, tres entidades sintéticas, aprobación y PDF sin valores privados. Prueba optativa ejecutada explícitamente. |
+| Qwen real en Android, sin red | Perfil 4096/1024, validación de revisión, PDF, cancelación y liberación de modelo correctos mediante JNI/Rust. |
+| Documento legal español en Android | Análisis completo; siete categorías: persona, organización, ID, email, teléfono, dirección y referencia procesal. |
+| OCR incluido, sin red | Imagen y PDF escaneado seleccionados con SAF, reconocidos por ML Kit y entregados a sesión sin aprobación automática. |
+| APK optimizado mediante su UI | Importar PDF escaneado → analizar con Qwen → aprobar → generar PDF → abrir Compartir. No se seleccionó ni envió a ningún destinatario. |
+| Residuales en PDF Android | El lector Rust verificó aliases y ausencia de nombres, identificadores, correo, organización y proceso de las dos fuentes sintéticas. |
+| Vault Android | Crear, bloquear, contraseña incorrecta, desbloquear, importar/exportar mediante SAF y guardar/restaurar copia cifrada correctos. |
+| Ciclo de vida Vault | Bloqueo nativo al pausar la Activity, incluido Compartir. |
+| Modelo ausente o malformado | Análisis y aprobación bloqueados; no se presentan como protección terminada. |
+| Visor de fuente | Apertura interna, márgenes, controles accesibles, zoom, arrastre y doble toque para ajustar. |
+| Orientación de fotos | Dos pruebas instrumentadas Android correctas: los ocho giros/reflejos EXIF conservan los píxeles y el zoom vuelve al ajuste inicial sin reemplazar el bitmap. |
+| Muerte del proceso | Prueba de `force-stop` con marcador nativo de un byte, repetida también en el APK optimizado final; sin originales ni mapas recuperados y aviso visible para reimportar. No depende de que WebStorage alcance a escribir. |
+
+## Mediciones observadas, sin equivalencia con el Redmi
+
+El registro nativo del emulador, durante pruebas sintéticas repetidas, observó:
+
+- Verificación SHA-256 del modelo: 2,56–2,76 s.
+- Carga posterior a verificación: 0,127–0,137 s. La verificación había calentado la caché del sistema; no es una medición de arranque en frío del teléfono.
+- Análisis del documento corto: 9,09–9,20 s. El documento legal con siete categorías tardó 40,51 s incluyendo preparación de su llamada.
+- OCR de los fixtures: 0,347–0,394 s en el registro observado.
+- Máximo residente del proceso durante varias pruebas: hasta 2.164.604 KiB, aproximadamente 2,06 GiB. Es VmHWM acumulado del proceso; no una asignación de memoria exclusiva de cada etapa.
+- Las lecturas de batería y temperatura del emulador no se consideran evidencia térmica del dispositivo objetivo.
+
+Los JSON y PDFs de evidencia están en `artifacts/android-emulator/` local, excluido de Git. El instrumento para el Redmi es `scripts/measure-android.py` y el procedimiento está en [ANDROID.md](ANDROID.md).
+
+## Repetir las comprobaciones
+
+```sh
+pnpm check
+pnpm test:native
+pnpm check:native
+pnpm test:privacy:ui
+BLUEDOOR_TEST_MOBILE=1 BLUEDOOR_TEST_BROWSER=chromium pnpm test:privacy:ui
+```
+
+Las pruebas JNI de `tests/check-android-native.mjs` y `tests/check-android-ocr.mjs` requieren un APK **debug** instalado en un emulador de prueba, su WebView reenviado mediante `adb forward` al puerto 9223 y los fixtures sintéticos seleccionables con SAF. La prueba nativa requiere además el Qwen verificado en el almacenamiento privado de esa instalación. No están habilitadas en el APK de entrega optimizado.
+
+Las pruebas de imagen residen en `app/src/androidTest/` del proyecto Android. Después de construir el APK debug mediante Tauri, se genera su APK de prueba con `:app:assembleUniversalDebugAndroidTest -x rustBuildUniversalDebug` desde Gradle y se ejecuta `com.bluedoor.desktop.test/androidx.test.runner.AndroidJUnitRunner` mediante `adb shell am instrument -w` en el emulador elegido.
+
+## Límites y verificaciones pendientes
+
+- No hubo acceso al Redmi físico. Faltan memoria, latencia, calentamiento, batería, selector/Compartir del fabricante y pruebas sostenidas en ese dispositivo.
+- Qwen se copió desde el archivo existente y verificado del Mac para las pruebas del emulador. No se repitió una descarga completa de 1,36 GB desde Android; el flujo de descarga y su verificación nativa están implementados.
+- No se indujo un agotamiento real de RAM. Se verificaron fallos de modelo, cancelación y muerte explícita del proceso; queda probar presión de memoria real en el Redmi.
+- La geometría de los ocho valores EXIF está probada. Queda una prueba con fotografías de la cámara real, distintas orientaciones y condiciones de iluminación.
+- PDF móvil se exporta como documento de texto nuevo; no conserva el diseño gráfico del original. DOCX incluye encabezados, pies y notas, pero sus imágenes incrustadas deben convertirse a PDF para OCR. TIFF depende del decodificador del sistema.
+- Documentos: hasta 10 MB y 64 KiB de texto; OCR hasta 30 páginas/60 KiB. Vault móvil: hasta 32 MB por entrada; transferencia de copias cifradas acotada a 4 GB. Superar límites da error, sin truncamiento silencioso.
+- Esta entrega ofrece pseudonimización revisada, no una garantía de anonimato ni de detección exhaustiva sin revisión humana.
