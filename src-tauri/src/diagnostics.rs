@@ -85,25 +85,30 @@ mod setup_tests {
 /// downloadable models are checked separately and repaired by the model manager.
 #[tauri::command]
 pub(crate) fn check_installation(app_handle: tauri::AppHandle) -> Result<(), String> {
-    let decoder = crate::platform::decoder_path(&app_handle)?;
-    if !decoder.is_file() {
-        return Err(
-            "La instalación está incompleta. Reinstala BlueDoor; tus documentos se conservan."
-                .into(),
-        );
-    }
-    #[cfg(unix)]
+    #[cfg(not(target_os = "android"))]
     {
-        use std::os::unix::fs::PermissionsExt;
-        if decoder
-            .metadata()
-            .map_err(|e| e.to_string())?
-            .permissions()
-            .mode()
-            & 0o111
-            == 0
+        let decoder = crate::platform::decoder_path(&app_handle)?;
+        if !decoder.is_file() {
+            return Err(
+                "La instalación está incompleta. Reinstala BlueDoor; tus documentos se conservan."
+                    .into(),
+            );
+        }
+        #[cfg(unix)]
         {
-            return Err("Un componente de audio no puede iniciarse. Reinstala BlueDoor.".into());
+            use std::os::unix::fs::PermissionsExt;
+            if decoder
+                .metadata()
+                .map_err(|e| e.to_string())?
+                .permissions()
+                .mode()
+                & 0o111
+                == 0
+            {
+                return Err(
+                    "Un componente de audio no puede iniciarse. Reinstala BlueDoor.".into(),
+                );
+            }
         }
     }
     let directory = app_handle

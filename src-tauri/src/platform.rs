@@ -90,12 +90,91 @@ pub(crate) fn font_directories() -> Vec<PathBuf> {
             .unwrap_or_else(|| PathBuf::from(r"C:\\Windows"));
         vec![system_root.join("Fonts")]
     }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    #[cfg(target_os = "android")]
+    {
+        // Android only ships Roboto and not every weight. PDF export uses the
+        // font embedded in the application (see `bundled_font`).
+        vec![PathBuf::from("/system/fonts")]
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "android")))]
     {
         vec![PathBuf::from("/usr/share/fonts/truetype/msttcorefonts")]
     }
 }
 
+/// Liberation Sans is metrically compatible with Arial, covers Spanish
+/// accents and is licensed under the SIL Open Font License. Bundling the four
+/// faces keeps PDF export identical and offline on Android, where no Arial or
+/// Times New Roman exists.
+#[cfg(target_os = "android")]
+pub(crate) fn bundled_font(weight: usize) -> Option<&'static [u8]> {
+    Some(match weight {
+        0 => include_bytes!("../fonts/LiberationSans-Regular.ttf"),
+        1 => include_bytes!("../fonts/LiberationSans-Bold.ttf"),
+        2 => include_bytes!("../fonts/LiberationSans-Italic.ttf"),
+        3 => include_bytes!("../fonts/LiberationSans-BoldItalic.ttf"),
+        _ => return None,
+    })
+}
+
+/// Identifies the running platform for the shared frontend bundle.
+#[tauri::command]
+pub(crate) fn app_platform() -> &'static str {
+    std::env::consts::OS
+}
+
+/// Android export: the app writes the reviewed PDF into its private cache and
+/// hands it to the system share sheet. Desktop keeps the explicit save dialog.
+#[tauri::command]
+pub(crate) fn prepare_share_export(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, crate::types::AppState>,
+    default_name: String,
+) -> Result<String, String> {
+    let directory = app
+        .path()
+        .app_cache_dir()
+        .map_err(|_| "No se pudo preparar la carpeta de exportación.")?
+        .join("exports");
+    std::fs::create_dir_all(&directory)
+        .map_err(|_| "No se pudo preparar la carpeta de exportación.")?;
+    // Export names cannot smuggle source names/identifiers into a share URI.
+    let _ = default_name;
+    let name = format!("documento-protegido-{}.pdf", uuid::Uuid::new_v4());
+    let path = state.authorize_pdf_path(&directory.join(name))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Opens the Android share sheet for an already authorized export.
+#[tauri::command]
+pub(crate) fn share_export(path: String, app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let candidate = Path::new(&path)
+            .canonicalize()
+            .map_err(|_| "El PDF no existe.")?;
+        let directory = app
+            .path()
+            .app_cache_dir()
+            .map_err(|_| "Caché no disponible.")?
+            .join("exports")
+            .canonicalize()
+            .map_err(|_| "No hay exportaciones.")?;
+        if candidate.parent() != Some(directory.as_path())
+            || candidate.extension().and_then(|s| s.to_str()) != Some("pdf")
+        {
+            return Err("Solo se pueden compartir los PDF exportados por BlueDoor.".into());
+        }
+        crate::android::share_file(&candidate)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (path, app);
+        Err("Compartir con otras aplicaciones está disponible en Android.".into())
+    }
+}
+
+#[cfg(not(target_os = "android"))]
 fn owned_backends_dir() -> Result<PathBuf, String> {
     let executable = std::env::current_exe().map_err(|e| e.to_string())?;
     let executable_dir = executable
@@ -117,7 +196,10 @@ fn owned_backends_dir() -> Result<PathBuf, String> {
     Ok(directory)
 }
 
-#[cfg(not(all(target_os = "windows", target_arch = "x86_64")))]
+#[cfg(all(
+    not(target_os = "android"),
+    not(all(target_os = "windows", target_arch = "x86_64"))
+))]
 fn load_one_backend(file: &Path) -> Result<(), String> {
     let path = std::ffi::CString::new(file.to_string_lossy().as_bytes())
         .map_err(|_| "Ruta de aplicación no válida")?;
@@ -218,10 +300,18 @@ fn load_x64_cpu(directory: &Path) -> Result<(), String> {
 }
 
 pub(crate) fn load_owned_backends() -> Result<(), String> {
-    static LOADED: std::sync::OnceLock<Result<(), String>> = std::sync::OnceLock::new();
-    LOADED
-        .get_or_init(|| {
-            let directory = owned_backends_dir()?;
+    #[cfg(target_os = "android")]
+    {
+        // llama.cpp and its CPU backend are linked statically into the
+        // application library; the registry is populated at process start.
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        static LOADED: std::sync::OnceLock<Result<(), String>> = std::sync::OnceLock::new();
+        LOADED
+            .get_or_init(|| {
+                let directory = owned_backends_dir()?;
             #[cfg(target_os = "macos")]
             {
                 // Apple Silicon CPU baseline plus Metal, both bundled by the
@@ -255,4 +345,93 @@ pub(crate) fn load_owned_backends() -> Result<(), String> {
             Ok(())
         })
         .clone()
+    }
+}
+
+/// System picker input with an Android cache copy removed on every exit path.
+pub(crate) struct PickedInput {
+    path: PathBuf,
+    temporary: bool,
+}
+impl std::ops::Deref for PickedInput {
+    type Target = Path;
+    fn deref(&self) -> &Path {
+        &self.path
+    }
+}
+impl Drop for PickedInput {
+    fn drop(&mut self) {
+        if self.temporary {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
+pub(crate) fn picked_input(picked: tauri_plugin_dialog::FilePath) -> Result<PickedInput, String> {
+    #[cfg(target_os = "android")]
+    if let tauri_plugin_dialog::FilePath::Url(uri) = &picked {
+        return Ok(PickedInput {
+            path: crate::android::materialize_vault_uri(uri.as_str())?,
+            temporary: true,
+        });
+    }
+    let path = picked
+        .into_path()
+        .map_err(|_| "El archivo no es una ruta local válida.")?;
+    Ok(PickedInput {
+        path,
+        temporary: false,
+    })
+}
+
+/// SAF output is staged privately and copied only to the URI chosen by Android.
+pub(crate) struct PickedOutput {
+    path: PathBuf,
+    uri: Option<String>,
+    _temp: Option<tempfile::TempDir>,
+}
+impl std::ops::Deref for PickedOutput {
+    type Target = Path;
+    fn deref(&self) -> &Path {
+        &self.path
+    }
+}
+impl PickedOutput {
+    pub(crate) fn new(
+        app: &tauri::AppHandle,
+        picked: tauri_plugin_dialog::FilePath,
+    ) -> Result<Self, String> {
+        #[cfg(not(target_os = "android"))]
+        let _ = app;
+        #[cfg(target_os = "android")]
+        if let tauri_plugin_dialog::FilePath::Url(uri) = &picked {
+            let cache = app
+                .path()
+                .app_cache_dir()
+                .map_err(|_| "Caché no disponible.")?;
+            let temp =
+                tempfile::tempdir_in(cache).map_err(|_| "No se pudo preparar la exportación.")?;
+            return Ok(Self {
+                path: temp.path().join("vault-export"),
+                uri: Some(uri.to_string()),
+                _temp: Some(temp),
+            });
+        }
+        let path = picked
+            .into_path()
+            .map_err(|_| "El destino no es una ruta válida.")?;
+        Ok(Self {
+            path,
+            uri: None,
+            _temp: None,
+        })
+    }
+    pub(crate) fn finish(&self) -> Result<String, String> {
+        #[cfg(target_os = "android")]
+        if let Some(uri) = &self.uri {
+            crate::android::write_document(&self.path, uri)?;
+            return Ok(uri.clone());
+        }
+        let _ = &self.uri;
+        Ok(self.path.to_string_lossy().to_string())
+    }
 }

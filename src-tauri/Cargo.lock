@@ -434,6 +434,7 @@ dependencies = [
  "fs2",
  "genpdf",
  "hound",
+ "jni",
  "llama-cpp-2",
  "llama-cpp-sys-2",
  "pdf-extract",

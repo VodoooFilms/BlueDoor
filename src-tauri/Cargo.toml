@@ -16,11 +16,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
-tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-transcribe-cpp = "0.2.4"
-hound = "3.5"
+
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 ureq = { version = "2", features = ["tls"] }
@@ -39,13 +37,25 @@ base64 = "0.22"
 pdf-extract = "0.12"
 zip = { version = "9", default-features = false, features = ["deflate"] }
 quick-xml = "0.42"
-llama-cpp-2 = { version = "=0.1.156", default-features = false, features = ["dynamic-link", "dynamic-backends"] }
 tauri-plugin-opener = "=2.5.5"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+tauri-plugin-single-instance = "2"
+llama-cpp-2 = { version = "=0.1.156", default-features = false, features = ["dynamic-link", "dynamic-backends"] }
+transcribe-cpp = "0.2.4"
+hound = "3.5"
+
+# Android links llama.cpp statically inside the application library: no
+# runtime backend discovery, no extra .so files to package, and a single C++
+# runtime baked into the APK.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+llama-cpp-2 = { version = "=0.1.156", default-features = false, features = ["android-static-stdcxx"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 llama-cpp-sys-2 = { version = "=0.1.156", default-features = false, features = ["dynamic-link", "dynamic-backends", "metal"] }
 
-[target.'cfg(not(target_os = "macos"))'.dependencies]
+[target.'cfg(all(not(target_os = "macos"), not(target_os = "android")))'.dependencies]
 llama-cpp-sys-2 = { version = "=0.1.156", default-features = false, features = ["dynamic-link", "dynamic-backends"] }
 # Keep full model verification fast in development on Apple Silicon.
 [target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]

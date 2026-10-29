@@ -30,10 +30,100 @@ impl ExtractionCache {
     }
 }
 
+// Android starts with a bounded 4096-token KV cache. Suitability for the
+// target 8 GB device must be measured; overlap still covers the full text.
+// Desktop keeps the larger default window.
+#[cfg(target_os = "android")]
+const N_CTX: u32 = 4096;
+#[cfg(not(target_os = "android"))]
 const N_CTX: u32 = 8192;
+static CONTEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(N_CTX);
+pub(crate) static CHUNK_SIZE: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(crate::privacy::CHUNK_CHARS);
+fn context_size() -> u32 {
+    CONTEXT.load(std::sync::atomic::Ordering::Relaxed)
+}
+#[tauri::command]
+pub(crate) fn configure_mobile_analysis(
+    context_tokens: u32,
+    chunk_chars: usize,
+    state: tauri::State<'_, LlmState>,
+) -> Result<(), String> {
+    if !(4096..=8192).contains(&context_tokens) || !(900..=2400).contains(&chunk_chars) {
+        return Err(
+            "Usa un contexto de 4096–8192 tokens y fragmentos de 900–2400 caracteres.".into(),
+        );
+    }
+    let mut cache = state
+        .0
+        .try_lock()
+        .map_err(|_| "Espera a que termine el análisis.")?;
+    *cache = None;
+    CONTEXT.store(context_tokens, std::sync::atomic::Ordering::Relaxed);
+    OUTPUT_TOKENS.store(
+        if context_tokens <= 4096 {
+            1024
+        } else {
+            MAX_OUTPUT_TOKENS
+        },
+        std::sync::atomic::Ordering::Relaxed,
+    );
+    CHUNK_SIZE.store(chunk_chars, std::sync::atomic::Ordering::Relaxed);
+    Ok(())
+}
 // Default ceiling for generic local generation. Entity extraction has a
 // smaller response budget and subdivides overflowing tasks without omission.
+#[cfg(target_os = "android")]
+const MAX_OUTPUT_TOKENS: usize = 1024;
+#[cfg(not(target_os = "android"))]
 const MAX_OUTPUT_TOKENS: usize = 2048;
+static CANCELLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub(crate) struct AnalysisLease;
+impl Drop for AnalysisLease {
+    fn drop(&mut self) {
+        ACTIVE.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+pub(crate) fn begin_analysis() -> Result<AnalysisLease, String> {
+    ACTIVE
+        .compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        )
+        .map_err(|_| "Ya hay un análisis local en curso.")?;
+    CANCELLED.store(false, std::sync::atomic::Ordering::SeqCst);
+    Ok(AnalysisLease)
+}
+#[tauri::command]
+pub(crate) fn cancel_private_analysis() {
+    CANCELLED.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+pub(crate) fn check_cancelled() -> Result<(), String> {
+    if CANCELLED.load(std::sync::atomic::Ordering::SeqCst) {
+        Err("Análisis cancelado. La revisión sigue bloqueada.".into())
+    } else {
+        Ok(())
+    }
+}
+#[tauri::command]
+pub(crate) fn unload_privacy_model(state: tauri::State<'_, LlmState>) -> Result<(), String> {
+    let mut cache = state
+        .0
+        .try_lock()
+        .map_err(|_| "Cancela el análisis y espera antes de liberar el modelo.")?;
+    *cache = None;
+    Ok(())
+}
+static OUTPUT_TOKENS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(MAX_OUTPUT_TOKENS);
+#[cfg(test)]
+pub(crate) fn mobile_profile_for_test() {
+    CONTEXT.store(4096, std::sync::atomic::Ordering::Relaxed);
+    OUTPUT_TOKENS.store(1024, std::sync::atomic::Ordering::Relaxed);
+}
 const SAMPLER_SEED: u32 = 42;
 /// Tokens between UI progress reports while a fragment is being read.
 const PROGRESS_EVERY: usize = 24;
@@ -171,10 +261,13 @@ user\nDOCUMENT DATA:\n{}\nEND DOCUMENT DATA\n/no_think\n\nassistant\n<think>\n\n
 }
 
 pub(crate) fn output_budget(prompt_tokens: usize) -> Result<usize, String> {
-    if prompt_tokens == 0 || prompt_tokens + MAX_OUTPUT_TOKENS >= N_CTX as usize {
+    if prompt_tokens == 0
+        || prompt_tokens + OUTPUT_TOKENS.load(std::sync::atomic::Ordering::Relaxed)
+            >= context_size() as usize
+    {
         return Err("El fragmento supera el contexto local. No se ha omitido contenido; reduce el documento.".into());
     }
-    Ok(MAX_OUTPUT_TOKENS)
+    Ok(OUTPUT_TOKENS.load(std::sync::atomic::Ordering::Relaxed))
 }
 
 fn cleanup_qwen3_output(raw: &str) -> String {
@@ -313,7 +406,16 @@ impl LlmEngine {
         let mut backend =
             LlamaBackend::init().map_err(|_| "No se pudo iniciar llama.cpp".to_string())?;
         backend.void_logs();
-        let model = LlamaModel::load_from_file(&backend, path, &LlamaModelParams::default())
+        let params = LlamaModelParams::default();
+        #[cfg(test)]
+        let params = if std::env::var_os("BLUEDOOR_QA_CPU").is_some() {
+            params.with_n_gpu_layers(0)
+        } else {
+            params
+        };
+        #[cfg(target_os = "android")]
+        let params = params.with_n_gpu_layers(0);
+        let model = LlamaModel::load_from_file(&backend, path, &params)
             .map_err(|e| format!("No se pudo cargar el modelo LLM: {}", e))?;
         let qwen3 = model
             .meta_val_str("general.architecture")
@@ -378,7 +480,11 @@ impl LlmEngine {
         prompt: &str,
         on_token: &mut dyn FnMut(usize),
     ) -> Result<String, String> {
-        self.generate_with_limit(prompt, on_token, MAX_OUTPUT_TOKENS)
+        self.generate_with_limit(
+            prompt,
+            on_token,
+            OUTPUT_TOKENS.load(std::sync::atomic::Ordering::Relaxed),
+        )
     }
     fn generate_with_limit(
         &self,
@@ -390,9 +496,19 @@ impl LlmEngine {
         self.generations
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let threads = crate::types::auto_threads();
+        #[cfg(target_os = "android")]
+        let threads = threads.min(4);
+        let prefill_batch = if context_size() <= 4096 {
+            256
+        } else {
+            context_size()
+        };
         let ctx_params = LlamaContextParams::default()
-            .with_n_ctx(Some(NonZeroU32::new(N_CTX).expect("N_CTX is non-zero")))
-            .with_n_batch(N_CTX)
+            .with_n_ctx(Some(
+                NonZeroU32::new(context_size()).expect("N_CTX is non-zero"),
+            ))
+            .with_n_batch(prefill_batch)
+            .with_n_ubatch(prefill_batch.min(512))
             .with_n_threads(threads)
             .with_n_threads_batch(threads);
 
@@ -427,14 +543,23 @@ impl LlmEngine {
         let n_prompt = tokens.len() as i32;
         let mut pos = n_prompt;
 
-        let mut batch = LlamaBatch::new(tokens.len(), 1);
-        for (i, t) in tokens.iter().enumerate() {
-            batch
-                .add(*t, i as i32, &[0], i == tokens.len() - 1)
-                .map_err(|e| format!("Error al añadir token: {}", e))?;
+        // Bounded prefill limits mobile scratch memory and checks cancellation
+        // between batches, instead of one long uninterruptible prompt decode.
+        let mut batch = LlamaBatch::new(prefill_batch as usize, 1);
+        let mut last_batch_len = 0;
+        for (batch_index, prompt_batch) in tokens.chunks(prefill_batch as usize).enumerate() {
+            check_cancelled()?;
+            batch.clear();
+            last_batch_len = prompt_batch.len();
+            for (index, token) in prompt_batch.iter().enumerate() {
+                let position = batch_index * prefill_batch as usize + index;
+                batch
+                    .add(*token, position as i32, &[0], position == tokens.len() - 1)
+                    .map_err(|e| format!("Error al añadir token: {}", e))?;
+            }
+            ctx.decode(&mut batch)
+                .map_err(|e| format!("Error al decodificar el prompt: {}", e))?;
         }
-        ctx.decode(&mut batch)
-            .map_err(|e| format!("Error al decodificar el prompt: {}", e))?;
 
         let mut output = String::new();
         let mut decoder = encoding_rs::UTF_8.new_decoder();
@@ -442,9 +567,10 @@ impl LlmEngine {
         let mut generated = 0usize;
         let mut ended = false;
 
-        let mut current = ctx.sampled_token_ith(n_prompt - 1);
+        let mut current = ctx.sampled_token_ith(last_batch_len as i32 - 1);
         let mut current_batch = LlamaBatch::new(1, 1);
         while let Some(tok) = current {
+            check_cancelled()?;
             if self.model.is_eog_token(tok) {
                 ended = true;
                 break;

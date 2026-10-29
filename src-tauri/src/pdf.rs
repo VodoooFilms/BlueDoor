@@ -390,33 +390,62 @@ fn font_file_names(base: &str, weight: usize, suffix: &str) -> Vec<String> {
 pub(crate) fn load_font_family(
     font: &str,
 ) -> Result<genpdf::fonts::FontFamily<genpdf::fonts::FontData>, String> {
-    // Familia del PDF según la opción del frontend. "system"/Helvetica se resuelven
-    // a Arial (los .ttc de Helvetica no los soporta genpdf).
-    let base = match resolve_family(font) {
-        "times" => "Times New Roman",
-        "georgia" => "Georgia",
-        "courier" => "Courier New",
-        "verdana" => "Verdana",
-        _ => "Arial",
-    };
-    let kinds = [
-        ("regular", ""),
-        ("bold", " Bold"),
-        ("italic", " Italic"),
-        ("bold_italic", " Bold Italic"),
-    ];
-    // Cargamos cada peso de la familia elegida; si falta algún archivo, caemos a Arial.
-    let mut weights: [Option<genpdf::fonts::FontData>; 4] = [None, None, None, None];
-    for (i, (_, kind)) in kinds.iter().enumerate() {
-        for dir in crate::platform::font_directories() {
-            for fam in [base, "Arial"] {
-                for name in font_file_names(fam, i, kind) {
-                    let file = dir.join(name);
-                    if file.exists() {
-                        weights[i] = Some(
-                            genpdf::fonts::FontData::load(&file, None)
-                                .map_err(|e| format!("No se pudo cargar la fuente: {}", e))?,
-                        );
+    #[cfg(target_os = "android")]
+    {
+        let _ = font;
+        let mut faces = Vec::with_capacity(4);
+        for weight in 0..4 {
+            let bytes = crate::platform::bundled_font(weight)
+                .ok_or("Falta una fuente del documento. Reinstala BlueDoor.")?;
+            faces.push(
+                genpdf::fonts::FontData::new(bytes.to_vec(), None)
+                    .map_err(|e| format!("No se pudo cargar la fuente: {}", e))?,
+            );
+        }
+        let [regular, bold, italic, bold_italic]: [genpdf::fonts::FontData; 4] =
+            faces
+                .try_into()
+                .map_err(|_| "Faltan fuentes del documento. Reinstala BlueDoor.")?;
+        return Ok(genpdf::fonts::FontFamily {
+            regular,
+            bold,
+            italic,
+            bold_italic,
+        });
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        // Familia del PDF según la opción del frontend. "system"/Helvetica se resuelven
+        // a Arial (los .ttc de Helvetica no los soporta genpdf).
+        let base = match resolve_family(font) {
+            "times" => "Times New Roman",
+            "georgia" => "Georgia",
+            "courier" => "Courier New",
+            "verdana" => "Verdana",
+            _ => "Arial",
+        };
+        let kinds = [
+            ("regular", ""),
+            ("bold", " Bold"),
+            ("italic", " Italic"),
+            ("bold_italic", " Bold Italic"),
+        ];
+        // Cargamos cada peso de la familia elegida; si falta algún archivo, caemos a Arial.
+        let mut weights: [Option<genpdf::fonts::FontData>; 4] = [None, None, None, None];
+        for (i, (_, kind)) in kinds.iter().enumerate() {
+            for dir in crate::platform::font_directories() {
+                for fam in [base, "Arial"] {
+                    for name in font_file_names(fam, i, kind) {
+                        let file = dir.join(name);
+                        if file.exists() {
+                            weights[i] = Some(
+                                genpdf::fonts::FontData::load(&file, None)
+                                    .map_err(|e| format!("No se pudo cargar la fuente: {}", e))?,
+                            );
+                            break;
+                        }
+                    }
+                    if weights[i].is_some() {
                         break;
                     }
                 }
@@ -424,18 +453,15 @@ pub(crate) fn load_font_family(
                     break;
                 }
             }
-            if weights[i].is_some() {
-                break;
-            }
         }
+        let [regular, bold, italic, bold_italic] = weights;
+        Ok(genpdf::fonts::FontFamily {
+            regular: regular.ok_or("Falta la fuente regular")?,
+            bold: bold.ok_or("Falta la fuente bold")?,
+            italic: italic.ok_or("Falta la fuente italic")?,
+            bold_italic: bold_italic.ok_or("Falta la fuente bold italic")?,
+        })
     }
-    let [regular, bold, italic, bold_italic] = weights;
-    Ok(genpdf::fonts::FontFamily {
-        regular: regular.ok_or("Falta la fuente regular")?,
-        bold: bold.ok_or("Falta la fuente bold")?,
-        italic: italic.ok_or("Falta la fuente italic")?,
-        bold_italic: bold_italic.ok_or("Falta la fuente bold italic")?,
-    })
 }
 
 /// Decorador de página: dibuja cabecera superior (marca + titulo), una regla,

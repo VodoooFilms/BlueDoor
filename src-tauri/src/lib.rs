@@ -1,5 +1,15 @@
+#[cfg(target_os = "android")]
+mod android;
+#[cfg(not(target_os = "android"))]
+mod audio;
+#[cfg(target_os = "android")]
+#[path = "audio_stub.rs"]
 mod audio;
 mod diagnostics;
+#[cfg(not(target_os = "android"))]
+mod diarization;
+#[cfg(target_os = "android")]
+#[path = "diarization_stub.rs"]
 mod diarization;
 mod documents;
 mod layout;
@@ -7,8 +17,10 @@ mod llm;
 mod models;
 mod paths;
 mod pdf;
+mod performance;
 mod platform;
 mod privacy;
+mod session_status;
 mod store;
 mod types;
 mod vault;
@@ -27,6 +39,7 @@ pub fn run() {
             threads: 0, // 0 = automático (todos los cores)
             diarize: false,
         }),
+        #[cfg(not(target_os = "android"))]
         stt: Mutex::new(None),
         authorized_audio_paths: Mutex::new(std::collections::HashSet::new()),
         authorized_pdf_paths: Mutex::new(std::collections::HashSet::new()),
@@ -34,7 +47,9 @@ pub fn run() {
         pending_blob_configs: Mutex::new(std::collections::HashMap::new()),
     };
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(not(target_os = "android"))]
+    let builder = builder
         // One process owns the private session and transcripts.json. Without
         // this, two instances race on the history file and hold two copies of
         // the private document in memory. Must be the first plugin.
@@ -44,7 +59,8 @@ pub fn run() {
                 let _ = window.show();
                 let _ = window.set_focus();
             }
-        }))
+        }));
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .on_window_event(|window, event| {
@@ -63,6 +79,8 @@ pub fn run() {
         .manage(privacy::PrivacyState::default())
         .manage(vault::VaultState::default())
         .setup(|app| {
+            #[cfg(target_os = "android")]
+            android::set_app(app.handle().clone());
             #[cfg(target_os = "macos")]
             if let Ok(executable) = std::env::current_exe() {
                 if let Some(directory) = executable.parent() {
@@ -96,39 +114,63 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             diagnostics::check_installation,
             diagnostics::prepare_local_setup,
+            platform::app_platform,
+            performance::get_local_performance,
+            platform::prepare_share_export,
+            platform::share_export,
+            #[cfg(target_os = "android")]
+            android::preview_import_source,
+            #[cfg(target_os = "android")]
+            android::cancel_private_import,
             platform::open_chatgpt_home,
             documents::import_private_document,
+            documents::import_private_text,
             layout::preview_private_layout,
             layout::save_private_layout_text,
             layout::review_private_layout,
             layout::export_private_layout,
             privacy::get_privacy_session,
+            session_status::interrupted_private_session,
             privacy::get_private_extraction,
             privacy::clear_privacy_session,
             privacy::reset_private_analysis,
             privacy::analyze_private_document,
+            llm::cancel_private_analysis,
+            llm::unload_privacy_model,
+            llm::configure_mobile_analysis,
             privacy::review_private_document,
             privacy::update_private_document,
+            privacy::update_private_source,
             privacy::validate_private_export,
             privacy::suggest_private_ocr,
             privacy::apply_private_ocr,
             privacy::preview_private_outbound,
             models::download_privacy_model,
             models::delete_privacy_model,
+            #[cfg(not(target_os = "android"))]
             diarization::diarization_available,
             models::get_model_path,
             models::check_model_exists,
+            #[cfg(not(target_os = "android"))]
             models::download_model,
             models::cancel_model_download,
             models::list_models,
+            #[cfg(not(target_os = "android"))]
             models::download_diarization_model,
             models::delete_model,
+            #[cfg(not(target_os = "android"))]
             models::delete_diarization_model,
+            #[cfg(not(target_os = "android"))]
             models::download_parakeet_model,
+            #[cfg(not(target_os = "android"))]
             models::delete_parakeet_model,
+            #[cfg(not(target_os = "android"))]
             audio::choose_audio_file,
+            #[cfg(not(target_os = "android"))]
             audio::transcribe_file,
+            #[cfg(not(target_os = "android"))]
             audio::prepare_transcribe_blob,
+            #[cfg(not(target_os = "android"))]
             audio::transcribe_blob,
             pdf::choose_pdf_destination,
             pdf::generate_pdf,

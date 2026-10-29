@@ -17,22 +17,53 @@ pub(crate) fn qa_extract_pdf(path: &Path) -> Result<String, String> {
 fn docx_text(bytes: &[u8]) -> Result<String, String> {
     let mut archive =
         zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|_| "El DOCX no es válido.")?;
-    let mut entry = archive
-        .by_name("word/document.xml")
-        .map_err(|_| "El DOCX no contiene texto principal.")?;
-    if entry.size() > MAX_XML_BYTES {
-        return Err("El DOCX supera el tamaño de extracción permitido.".into());
+    if archive.by_name("word/document.xml").is_err() {
+        return Err("El DOCX no contiene texto principal.".into());
     }
-    let mut xml = String::new();
-    entry
-        .by_ref()
-        .take(MAX_XML_BYTES + 1)
-        .read_to_string(&mut xml)
-        .map_err(|_| "No se pudo leer el DOCX.")?;
-    if xml.len() as u64 > MAX_XML_BYTES {
-        return Err("El DOCX supera el tamaño de extracción permitido.".into());
+    let all_names = archive
+        .file_names()
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "El DOCX contiene nombres de partes no válidos.")?;
+    let mut names: Vec<String> = all_names
+        .into_iter()
+        .filter(|name| {
+            name.as_ref() == "word/document.xml"
+                || name.as_ref() == "word/footnotes.xml"
+                || name.as_ref() == "word/endnotes.xml"
+                || (name.starts_with("word/header") || name.starts_with("word/footer"))
+                    && name.ends_with(".xml")
+        })
+        .map(|name| name.into_owned())
+        .collect();
+    names.sort_by_key(|name| (name != "word/document.xml", name.clone()));
+    let mut output = String::new();
+    for name in names {
+        let mut entry = archive.by_name(&name).map_err(|_| "El DOCX está dañado.")?;
+        if entry.size() > MAX_XML_BYTES {
+            return Err("El DOCX supera el tamaño de extracción permitido.".into());
+        }
+        let mut xml = String::new();
+        entry
+            .by_ref()
+            .take(MAX_XML_BYTES + 1)
+            .read_to_string(&mut xml)
+            .map_err(|_| "No se pudo leer el DOCX.")?;
+        if xml.len() as u64 > MAX_XML_BYTES {
+            return Err("El DOCX supera el tamaño de extracción permitido.".into());
+        }
+        if !output.is_empty() && !output.ends_with('\n') {
+            output.push('\n');
+        }
+        output.push_str(&docx_xml_text(&xml)?);
+        if output.len() > MAX_DOCUMENT_BYTES {
+            return Err("El documento supera 64 KB de texto; no se truncará.".into());
+        }
     }
-    let mut reader = quick_xml::Reader::from_str(&xml);
+    Ok(output)
+}
+
+fn docx_xml_text(xml: &str) -> Result<String, String> {
+    let mut reader = quick_xml::Reader::from_str(xml);
     let mut output = String::new();
     let mut in_text = false;
     loop {
@@ -66,6 +97,7 @@ fn docx_text(bytes: &[u8]) -> Result<String, String> {
     }
     Ok(output)
 }
+#[cfg(not(target_os = "android"))]
 fn ocr_text(path: &Path, executable: Option<&Path>) -> Result<String, String> {
     // El helper lee la ruta como argumento posicional: se exige absoluta
     // (diálogos y drop la entregan así) para que `-algo` nunca sea una opción.
@@ -111,6 +143,8 @@ fn ocr_executable(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
 }
 
 fn extract(path: &Path, ocr_executable: Option<&Path>) -> Result<String, String> {
+    #[cfg(target_os = "android")]
+    let _ = ocr_executable;
     let meta = path
         .metadata()
         .map_err(|_| "No se pudo abrir el documento.")?;
@@ -135,7 +169,21 @@ fn extract(path: &Path, ocr_executable: Option<&Path>) -> Result<String, String>
         "txt" | "md" => String::from_utf8(bytes)
             .map_err(|_| "Guarda el texto como UTF-8 e impórtalo de nuevo.")?,
         "docx" => docx_text(&bytes)?,
+        #[cfg(target_os = "android")]
+        "pdf" => {
+            // Prefer the PDF's own text layer. Only scanned or image-only
+            // documents go through OCR, which is slower and can misread.
+            let pages = pdf_extract::extract_text_from_mem_by_pages(&bytes).unwrap_or_default();
+            // Mixed searchable/scanned PDFs must not silently omit pages.
+            if !pages.is_empty() && pages.iter().all(|page| page.trim().chars().count() >= 40) {
+                pages.join("\n\n")
+            } else {
+                crate::android::ocr_text(path)?
+            }
+        }
+        #[cfg(not(target_os = "android"))]
         "pdf" if ocr_executable.is_some() => ocr_text(path, ocr_executable)?,
+        #[cfg(not(target_os = "android"))]
         "pdf" => {
             let text = pdf_extract::extract_text_from_mem(&bytes)
                 .map_err(|_| "No se pudo extraer texto del PDF.")?;
@@ -144,6 +192,9 @@ fn extract(path: &Path, ocr_executable: Option<&Path>) -> Result<String, String>
             }
             text
         }
+        #[cfg(target_os = "android")]
+        "png" | "jpg" | "jpeg" | "tif" | "tiff" | "heic" => crate::android::ocr_text(path)?,
+        #[cfg(not(target_os = "android"))]
         "png" | "jpg" | "jpeg" | "tif" | "tiff" | "heic" => ocr_text(path, ocr_executable)?,
         _ => return Err("Formatos admitidos: TXT, MD, DOCX, PDF, PNG, JPG, TIFF y HEIC.".into()),
     };
@@ -165,26 +216,57 @@ pub(crate) async fn import_private_document(
         None => None,
     };
     tauri::async_runtime::spawn_blocking(move || {
-        let path = if let Some(path) = authorized {
-            path
-        } else {
-            let selected = app
-                .dialog()
-                .file()
-                .add_filter(
-                    "Documentos locales",
-                    &[
-                        "txt", "md", "docx", "pdf", "png", "jpg", "jpeg", "tif", "tiff", "heic",
-                    ],
-                )
-                .blocking_pick_file();
-            let Some(selected) = selected else {
-                return Ok(None);
+        // Serialize OCR and inference. Release model weights before decoding images.
+        #[cfg(target_os = "android")]
+        let llm = app.state::<crate::llm::LlmState>();
+        #[cfg(target_os = "android")]
+        let mut model_guard = llm
+            .0
+            .try_lock()
+            .map_err(|_| "Cancela el análisis antes de importar otro documento.")?;
+        #[cfg(target_os = "android")]
+        {
+            *model_guard = None;
+        }
+        #[cfg(target_os = "android")]
+        let mut source_uri = None;
+        let (path, materialized): (std::path::PathBuf, Option<std::path::PathBuf>) =
+            if let Some(path) = authorized {
+                (path, None)
+            } else {
+                let selected = app
+                    .dialog()
+                    .file()
+                    .add_filter(
+                        "Documentos locales",
+                        &[
+                            "txt", "md", "docx", "pdf", "png", "jpg", "jpeg", "tif", "tiff", "heic",
+                        ],
+                    )
+                    .blocking_pick_file();
+                let Some(selected) = selected else {
+                    return Ok(None);
+                };
+                #[cfg(target_os = "android")]
+                {
+                    match selected {
+                        tauri_plugin_dialog::FilePath::Path(path) => (path, None),
+                        tauri_plugin_dialog::FilePath::Url(url) => {
+                            // Android hands the picker result as a content:// URI.
+                            let path = crate::android::materialize_uri(url.as_str())?;
+                            source_uri = Some(url.to_string());
+                            (path.clone(), Some(path))
+                        }
+                    }
+                }
+                #[cfg(not(target_os = "android"))]
+                {
+                    let path = selected
+                        .into_path()
+                        .map_err(|_| "Selecciona un documento local.")?;
+                    (path, None)
+                }
             };
-            selected
-                .into_path()
-                .map_err(|_| "Selecciona un documento local.")?
-        };
         #[cfg(target_os = "macos")]
         let ocr = ocr_executable(&app);
         #[cfg(not(target_os = "macos"))]
@@ -215,11 +297,24 @@ pub(crate) async fn import_private_document(
         };
         #[cfg(not(target_os = "macos"))]
         let layout: Option<std::sync::Arc<crate::layout::DocumentLayout>> = None;
-        let text = if let Some(layout) = &layout {
-            layout.text.clone()
+        let extraction_timer = crate::performance::Timer::new("extraction_ocr");
+        let text_result = if let Some(layout) = &layout {
+            Ok(layout.text.clone())
         } else {
-            extract(&path, ocr.as_deref())?
+            extract(&path, ocr.as_deref())
         };
+        drop(extraction_timer);
+        #[cfg(target_os = "android")]
+        if let Some(copy) = &materialized {
+            // The picker copy held the original document in the private cache;
+            // extraction is done, so it is removed immediately.
+            let _ = std::fs::remove_file(copy);
+        }
+        #[cfg(not(target_os = "android"))]
+        let _ = &materialized;
+        let text = text_result?;
+        #[cfg(target_os = "android")]
+        crate::android::remember_source(source_uri.as_deref().unwrap_or(""))?;
         let name = path
             .file_name()
             .and_then(|s| s.to_str())
@@ -228,6 +323,7 @@ pub(crate) async fn import_private_document(
         let mut session = Session::new(name, text)?;
         session.layout_available = layout.is_some();
         session.layout = layout;
+        crate::session_status::mark(&app)?;
         *app.state::<PrivacyState>()
             .0
             .lock()
@@ -237,6 +333,37 @@ pub(crate) async fn import_private_document(
     .await
     .map_err(|_| "La importación local se interrumpió.")?
 }
+
+/// Imports text typed or pasted by the user. It follows the same native
+/// session path as a file: the renderer never becomes the owner of the text.
+#[tauri::command]
+pub(crate) fn import_private_text(
+    text: String,
+    name: Option<String>,
+    app: tauri::AppHandle,
+) -> Result<Session, String> {
+    let name = name
+        .map(|value| {
+            value
+                .chars()
+                .filter(|c| !c.is_control() && *c != '/' && *c != '\\')
+                .take(80)
+                .collect::<String>()
+        })
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "Texto pegado.txt".to_string());
+    #[cfg(target_os = "android")]
+    crate::android::remember_source("")?;
+    let session = Session::new(name, text)?;
+    crate::session_status::mark(&app)?;
+    *app.state::<PrivacyState>()
+        .0
+        .lock()
+        .map_err(|_| "Sesión privada no disponible")? = Some(session.clone());
+    Ok(session)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -253,6 +380,33 @@ mod tests {
         writer.write_all(br#"<w:document xmlns:w="urn:w"><w:body><w:p><w:r><w:t>Ana &amp; </w:t></w:r><w:r><w:t>&#39;Pedro&#39;</w:t></w:r></w:p><w:p><w:r><w:t>0912345678</w:t></w:r></w:p></w:body></w:document>"#).unwrap();
         let bytes = writer.finish().unwrap().into_inner();
         assert_eq!(docx_text(&bytes).unwrap(), "Ana & 'Pedro'\n0912345678\n");
+    }
+    #[test]
+    fn docx_extracts_header_footer_and_notes_without_omissions() {
+        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(vec![]));
+        for (part, value) in [
+            ("document", "Contrato"),
+            ("header1", "Ana Pérez"),
+            ("footer1", "ana@example.com"),
+            ("footnotes", "0912345678"),
+        ] {
+            writer
+                .start_file(
+                    format!("word/{part}.xml"),
+                    zip::write::SimpleFileOptions::default(),
+                )
+                .unwrap();
+            write!(
+                writer,
+                "<w:p xmlns:w=\"urn:w\"><w:r><w:t>{value}</w:t></w:r></w:p>"
+            )
+            .unwrap();
+        }
+        let bytes = writer.finish().unwrap().into_inner();
+        let extracted = docx_text(&bytes).unwrap();
+        for value in ["Contrato", "Ana Pérez", "ana@example.com", "0912345678"] {
+            assert!(extracted.contains(value));
+        }
     }
     #[test]
     fn utf8_import_is_exact_and_invalid_or_large_files_fail() {

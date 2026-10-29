@@ -50,7 +50,11 @@ experiments/transcribe-cpp/local/
 
 # Generated test reports and Tauri schemas
 artifacts/
-src-tauri/gen/
+src-tauri/gen/android/build/
+src-tauri/gen/android/app/build/
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/local.properties
+src-tauri/gen/android/app/src/main/assets/
 coverage/
 *.log
 
@@ -60,3 +64,12 @@ tmp/
 installers/
 *.dmg
 *.dmg.sha256
+src-tauri/gen/schemas/
+src-tauri/gen/android/buildSrc/build/
+src-tauri/gen/android/buildSrc/.gradle/
+src-tauri/gen/android/app/src/main/java/com/bluedoor/desktop/generated/
+src-tauri/gen/android/app/src/main/jniLibs/
+src-tauri/gen/android/app/tauri.build.gradle.kts
+src-tauri/gen/android/app/tauri.properties
+*.apk
+*.aab

@@ -1041,7 +1041,7 @@ pub(crate) fn leak_warnings(sanitized: &str, entities: &[Entity]) -> Vec<String>
 /// exhausted 2048 answer tokens for a 4000-character block despite its prompt
 /// fitting comfortably in the context. Smaller tasks avoid repeated full-budget
 /// generations; the original source is still covered without truncation.
-const CHUNK_CHARS: usize = 2000;
+pub(crate) const CHUNK_CHARS: usize = 2000;
 /// Characters repeated between neighbouring fragments so an entity split by a
 /// fragment boundary is still seen whole.
 const CHUNK_OVERLAP: usize = 300;
@@ -1060,16 +1060,17 @@ pub(crate) fn chunk_chars_for_test() -> usize {
 }
 
 fn chunks(text: &str) -> Vec<String> {
+    let chunk_chars = crate::llm::CHUNK_SIZE.load(std::sync::atomic::Ordering::Relaxed);
     let chars: Vec<char> = text.chars().collect();
     let mut result = vec![];
     let mut start = 0;
     while start < chars.len() {
-        let end = (start + CHUNK_CHARS).min(chars.len());
+        let end = (start + chunk_chars).min(chars.len());
         result.push(chars[start..end].iter().collect());
         if end == chars.len() {
             break;
         }
-        start = end - CHUNK_OVERLAP.min(CHUNK_CHARS - 1);
+        start = end - CHUNK_OVERLAP.min(chunk_chars - 1);
     }
     result
 }
@@ -1116,6 +1117,7 @@ fn analyze_with_progress(
     let mut pending: Vec<String> = all;
     let mut read = 0usize;
     while let Some(chunk) = pending.pop() {
+        crate::llm::check_cancelled()?;
         // Completed blocks plus queued work. A split increases the total; do
         // not show "1 of 1", "2 of 2" throughout a multi-block document.
         let position = read + 1;
@@ -1189,17 +1191,24 @@ pub(crate) fn get_privacy_session(app: tauri::AppHandle) -> Result<Option<Sessio
 #[tauri::command]
 pub(crate) fn clear_privacy_session(app: tauri::AppHandle) -> Result<(), String> {
     let llm = app.state::<crate::llm::LlmState>();
-    let cache = llm
+    #[allow(unused_mut)]
+    let mut cache = llm
         .0
         .try_lock()
         .map_err(|_| "Espera a que termine el análisis antes de cerrar el documento.")?;
     if let Some((_, engine)) = cache.as_ref() {
         engine.clear_extractions();
     }
+    #[cfg(target_os = "android")]
+    {
+        *cache = None;
+        crate::android::remember_source("")?;
+    }
     *app.state::<PrivacyState>()
         .0
         .lock()
         .map_err(|_| "Sesión privada no disponible")? = None;
+    crate::session_status::clear(&app)?;
     Ok(())
 }
 
@@ -1209,6 +1218,7 @@ fn reset_analysis(session: &mut Session) {
     session.warnings.clear();
     session.advisories.clear();
     session.analyzed = false;
+    session.analysis_complete = false;
     session.reviewed = false;
     session.edited = false;
     session.revision += 1;
@@ -1259,6 +1269,7 @@ pub(crate) async fn analyze_private_document(
     model_id: String,
     app: tauri::AppHandle,
 ) -> Result<Session, String> {
+    let analysis_lease = crate::llm::begin_analysis()?;
     let session = {
         let privacy = app.state::<PrivacyState>();
         let mut guard = privacy
@@ -1271,12 +1282,14 @@ pub(crate) async fn analyze_private_document(
             .ok_or("El documento ha cambiado. Recarga la sesión.")?;
         current.reviewed = false;
         current.analyzed = false;
+        current.analysis_complete = false;
         current.revision += 1;
         current.clone()
     };
     let requested_revision = revision;
     let revision = session.revision;
     tauri::async_runtime::spawn_blocking(move || {
+        let _analysis_lease = analysis_lease;
         let state = app.state::<crate::llm::LlmState>();
         let mut cache = state
             .0
@@ -1284,13 +1297,17 @@ pub(crate) async fn analyze_private_document(
             .map_err(|_| "Ya hay un análisis local en curso.")?;
         if cache.as_ref().is_none_or(|(loaded, _)| loaded != &model_id) {
             let path = crate::paths::models_dir(&app).join(crate::models::qwen_file(&model_id)?);
+            let verify_timer = crate::performance::Timer::new("model_verify");
             crate::models::verify_model_file(&path)
                 .map_err(|_| "Qwen no está instalado o está dañado. Descárgalo desde Modelos.")?;
+            drop(verify_timer);
+            let _load_timer = crate::performance::Timer::new("model_load");
             *cache = Some((
                 model_id.clone(),
                 crate::llm::LlmEngine::load(path.to_str().ok_or("Ruta del modelo no válida")?)?,
             ));
         }
+        let _analysis_timer = crate::performance::Timer::new("analysis");
         let engine = &cache.as_ref().unwrap().1;
         let mut original = session.original.clone();
         // OCR cleanup is part of the local pipeline; keep the extraction intact.
@@ -1310,6 +1327,7 @@ pub(crate) async fn analyze_private_document(
                 );
                 // A fragment Qwen cannot finish must not discard the OCR fixes
                 // it did produce for the rest of the document.
+                crate::llm::check_cancelled()?;
                 let Ok(suggestions) = engine.suggest_ocr_prefixes(&chunk) else {
                     continue;
                 };
@@ -1334,6 +1352,7 @@ pub(crate) async fn analyze_private_document(
             );
         };
         let mut analysis = analyze_with_progress(engine, &original, &mut report)?;
+        crate::llm::check_cancelled()?;
         // A specialized on-device name detector complements the generative
         // model; names must not depend exclusively on its response budget.
         #[cfg(target_os = "macos")]
@@ -1667,3 +1686,37 @@ mod tests;
 
 #[cfg(test)]
 mod benchmark;
+
+/// Human correction of extracted text. Original extraction stays in memory for
+/// comparison; every correction discards analysis and its export approval.
+#[tauri::command]
+pub(crate) fn update_private_source(
+    id: String,
+    revision: u64,
+    text: String,
+    app: tauri::AppHandle,
+) -> Result<Session, String> {
+    let llm = app.state::<crate::llm::LlmState>();
+    let _inference = llm
+        .0
+        .try_lock()
+        .map_err(|_| "Cancela el análisis antes de corregir la extracción.")?;
+    let privacy = app.state::<PrivacyState>();
+    let mut guard = privacy
+        .0
+        .lock()
+        .map_err(|_| "Sesión privada no disponible")?;
+    let current = guard
+        .as_ref()
+        .filter(|s| s.id == id && s.revision == revision)
+        .ok_or("El documento ha cambiado. Recarga la sesión.")?;
+    if current.layout_available {
+        return Err("Corrige este documento en el editor de formato original.".into());
+    }
+    let mut next = Session::new(current.file_name.clone(), text)?;
+    next.id = current.id.clone();
+    next.revision = current.revision + 1;
+    next.extracted_original = current.extracted_original.clone();
+    *guard = Some(next.clone());
+    Ok(next)
+}

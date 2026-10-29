@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_os = "android"))]
 use transcribe_cpp::{
     Model as SttModelHandle, Session as SttSession, SessionOptions as SttSessionOptions,
 };
@@ -104,6 +105,7 @@ pub struct AppState {
     /// (transcribe.cpp) sirve tanto los Whisper `ggml-*.bin` como los Parakeet
     /// `.gguf`, así que solo hay una entrada. `Session::run` pide `&mut self`,
     /// de ahí el `Mutex` interior.
+    #[cfg(not(target_os = "android"))]
     pub stt: Mutex<Option<SttCacheEntry>>,
     pub authorized_audio_paths: Mutex<HashSet<PathBuf>>,
     pub authorized_pdf_paths: Mutex<HashSet<PathBuf>>,
@@ -134,12 +136,14 @@ fn canonical_destination_path(path: &Path) -> Result<PathBuf, String> {
 
 /// Sesión de transcripción cacheada. Los hilos forman parte de la clave
 /// porque viven en la sesión, no en cada ejecución.
+#[cfg(not(target_os = "android"))]
 pub struct SttCacheEntry {
     pub model_path: String,
     pub n_threads: i32,
     pub session: Arc<Mutex<SttSession>>,
 }
 
+#[cfg(not(target_os = "android"))]
 impl SttCacheEntry {
     fn matches(&self, model_path: &str, n_threads: i32) -> bool {
         self.model_path == model_path && self.n_threads == n_threads
@@ -269,7 +273,13 @@ impl AppState {
         // Nemotron decide los turnos por tiempo y cada intervalo se transcribe
         // por separado, asi que da igual que modelo de ASR sea: Parakeet
         // tambien admite diarizacion.
+        #[cfg(not(target_os = "android"))]
         let diarize = config.diarize && crate::diarization::diarization_available(app_handle);
+        #[cfg(target_os = "android")]
+        let diarize = {
+            let _ = app_handle;
+            false
+        };
         WhisperConfig {
             model_path,
             language: config.language.clone(),
@@ -280,6 +290,7 @@ impl AppState {
 
     /// Devuelve (o carga y cachea) la sesión de transcripción del modelo
     /// indicado. Verifica el fichero contra el manifest antes de cargarlo.
+    #[cfg(not(target_os = "android"))]
     pub fn stt_session(
         &self,
         model_path: &str,

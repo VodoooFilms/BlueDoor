@@ -54,7 +54,10 @@ const ENTRIES_DIR: &str = "entries";
 const AUTO_LOCK: Duration = Duration::from_secs(300);
 /// Tope por entrada. Un archivo mayor se rechaza antes de leerlo para no
 /// agotar la memoria; el Vault guarda originales, no bibliotecas de vídeo.
+#[cfg(not(target_os = "android"))]
 const MAX_ENTRY_BYTES: u64 = 1024 * 1024 * 1024;
+#[cfg(target_os = "android")]
+const MAX_ENTRY_BYTES: u64 = 32 * 1024 * 1024;
 
 /// Techos de los parámetros que llegan desde `vault.key`: un fichero alterado
 /// no debe poder pedir una derivación de varios GB al desbloquear.
@@ -562,12 +565,18 @@ impl VaultState {
             .inner
             .lock()
             .map_err(|_| "El Vault no está disponible.".to_string())?;
+        #[cfg(target_os = "android")]
+        if !crate::android::is_foreground() {
+            return Err(
+                "El Vault se ha bloqueado al salir de la aplicación. Desbloquéalo de nuevo.".into(),
+            );
+        }
         inner.master = Some(master);
         inner.last_activity = Instant::now();
         Ok(())
     }
 
-    fn lock(&self) {
+    pub(crate) fn lock(&self) {
         if let Ok(mut inner) = self.inner.lock() {
             inner.master = None;
         }
@@ -775,9 +784,7 @@ pub(crate) async fn vault_import(
     let Some(picked) = picked else {
         return Ok(None);
     };
-    let path = picked
-        .into_path()
-        .map_err(|_| "El archivo elegido no es una ruta local.".to_string())?;
+    let path = crate::platform::picked_input(picked)?;
     let dir = dir_for(&handle);
     let writer = state.writer();
     let entry = tauri::async_runtime::spawn_blocking(move || {
@@ -809,8 +816,8 @@ fn store_entry_from_path(
     }
     if metadata.len() > MAX_ENTRY_BYTES {
         return Err(format!(
-            "El archivo supera el máximo por entrada ({} GB).",
-            MAX_ENTRY_BYTES / (1024 * 1024 * 1024)
+            "El archivo supera el máximo por entrada ({} MB).",
+            MAX_ENTRY_BYTES / (1024 * 1024)
         ));
     }
     let bytes = std::fs::read(path).map_err(|e| format!("No se pudo leer el archivo: {e}"))?;
@@ -914,6 +921,7 @@ pub(crate) async fn vault_export_entry(
     default_name: String,
 ) -> Result<Option<String>, String> {
     let master = state.require()?;
+    let output_app = app.clone();
     let dir = dir_for(&app);
     let bytes = read_entry_file(&dir, &master, &id)?;
     let picked = tauri::async_runtime::spawn_blocking(move || {
@@ -928,14 +936,12 @@ pub(crate) async fn vault_export_entry(
     let Some(picked) = picked else {
         return Ok(None);
     };
-    let destination = picked
-        .into_path()
-        .map_err(|_| "El destino no es una ruta local válida.".to_string())?;
+    let destination = crate::platform::PickedOutput::new(&output_app, picked)?;
     atomic_write(&destination, |file| {
         file.write_all(&bytes)
             .map_err(|e| format!("No se pudo escribir el destino: {e}"))
     })?;
-    Ok(Some(destination.to_string_lossy().to_string()))
+    Ok(Some(destination.finish()?))
 }
 
 fn sanitize_file_name(name: &str) -> String {
@@ -1212,6 +1218,7 @@ pub(crate) async fn vault_backup(
     state: State<'_, VaultState>,
 ) -> Result<Option<String>, String> {
     state.require()?;
+    let output_app = app.clone();
     let dir = dir_for(&app);
     let picked = tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
@@ -1226,12 +1233,10 @@ pub(crate) async fn vault_backup(
     let Some(picked) = picked else {
         return Ok(None);
     };
-    let destination = picked
-        .into_path()
-        .map_err(|_| "El destino no es una ruta local válida.".to_string())?;
-    let saved = destination.to_string_lossy().to_string();
-    tauri::async_runtime::spawn_blocking(move || {
-        atomic_write(&destination, |file| write_backup(&dir, file))
+    let destination = crate::platform::PickedOutput::new(&output_app, picked)?;
+    let saved = tauri::async_runtime::spawn_blocking(move || {
+        atomic_write(&destination, |file| write_backup(&dir, file))?;
+        destination.finish()
     })
     .await
     .map_err(|e| format!("No se pudo guardar la copia: {e}"))??;
@@ -1262,9 +1267,7 @@ pub(crate) async fn vault_restore(
     let Some(picked) = picked else {
         return Err("No se eligió ninguna copia.".to_string());
     };
-    let path = picked
-        .into_path()
-        .map_err(|_| "La copia elegida no es una ruta local.".to_string())?;
+    let path = crate::platform::picked_input(picked)?;
     let writer = state.writer();
     let master = tauri::async_runtime::spawn_blocking(move || {
         let _guard = writer
