@@ -23,9 +23,9 @@ Se usa ONNX Runtime Android 1.23.2 en CPU, cuatro hilos y tokenización BPE loca
 
 La [ficha del modelo](https://huggingface.co/knowledgator/gliner-pii-small-v1.0) declara inglés. El recibo sintético español pasó, pero eso no demuestra cobertura general del español jurídico. Se marca **experimental**, mantiene revisión humana y puede omitir o clasificar mal una entidad. Qwen sigue siendo la selección inicial.
 
-La corrección generativa previa de OCR se omite en Android para que Qwen empiece directamente a detectar entidades. El OCR queda intacto y puede corregirse manualmente. El original PDF permanece visible tras analizar; **Revisar y editar** abre el mapa y la copia protegida. La exportación móvil sigue siendo PDF de texto nuevo, sin conservar la maquetación del original.
+La corrección generativa previa de OCR se omite en Android para que Qwen empiece directamente a detectar entidades. El OCR queda intacto y puede corregirse manualmente. Tras analizar se muestra la copia con aliases y el número de entidades, o un aviso explícito si no hubo sustituciones. **Ver original** permite contrastarla con el PDF y **Revisar y editar** abre el mapa y el editor. La exportación móvil sigue siendo PDF de texto nuevo, sin conservar la maquetación del original.
 
-Para actualizar de 0.4.0 a 0.4.1, instala el APK encima del anterior: utiliza la misma clave local y conserva los modelos instalados. No desinstales la app para actualizar.
+Para actualizar a 0.4.2, instala el APK encima del anterior: utiliza la misma clave local y conserva los modelos instalados. No desinstales la app para actualizar.
 
 ## Arquitectura y garantías
 
@@ -80,3 +80,5 @@ No se han medido tiempos ni temperatura del Redmi hasta conectar ese dispositivo
 5. Considerar GPU únicamente después de demostrar compatibilidad y una mejora medida sobre CPU. No se cambió Qwen por un modelo menor.
 
 Resultados reales de esta entrega: [ANDROID-VALIDATION.md](ANDROID-VALIDATION.md).
+
+En 0.4.2 Qwen utiliza la plantilla ChatML verificada del propio GGUF, sin pensamiento, con prefill visible y respuesta de extracción acotada. GLiNER muestra detección de entidades, no generación de tokens. El intento Qwen tiene un límite cooperativo de tres minutos; un error no aprueba ni exporta una salida parcial. No es necesario descargar de nuevo los modelos al actualizar: los archivos y hashes son los mismos.

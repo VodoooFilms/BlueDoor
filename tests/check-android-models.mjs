@@ -35,6 +35,15 @@ try {
   await page.getByRole('button', { name: 'Descargar', exact: true }).click();
   await page.getByRole('button', { name: 'Cancelar descarga', exact: true }).waitFor();
   assert(await page.getByRole('button', { name: 'Modelos', exact: true }).isDisabled());
+  const geometry = await page.evaluate(() => {
+    const box = selector => { const { x, y, width, height } = document.querySelector(selector).getBoundingClientRect(); return { x, y, width, height }; };
+    return { title:box('.models h1'), cancel:box('.cancel-download-btn'), name:box('.privacy-model-row .row-copy strong'), edit:box('.privacy-model-row .model-picker-trigger'), trash:box('.privacy-model-delete'), progress:box('.privacy-model-status .download-progress') };
+  });
+  const middle = box => box.y + box.height / 2;
+  assert(Math.abs(middle(geometry.title) - middle(geometry.cancel)) < 5, 'Title and cancel share one row');
+  assert(Math.abs(middle(geometry.name) - middle(geometry.edit)) < 5 && Math.abs(middle(geometry.edit) - middle(geometry.trash)) < 5, 'Name, edit and delete share one row');
+  assert(geometry.progress.y >= geometry.edit.y + geometry.edit.height, 'Loader sits on its own next row');
+  await page.screenshot({ path:'artifacts/android-models-downloading-v3.png', fullPage:true });
   await page.evaluate(() => window.__finishDownload());
   await page.getByText('Instalado', { exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Descargar', exact: true }).count(), 0);

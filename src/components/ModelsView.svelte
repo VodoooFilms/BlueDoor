@@ -339,16 +339,20 @@
         <ModelIcon kind="privacy" />
         <div class="card-copy"><strong>{t.langLabel === "ES" ? "Privacidad de documentos" : "Document privacy"}</strong><span>{p("Extracción local de entidades privadas en documentos")}</span></div>
       </div>
-      <div class="row">
+      <div class="row privacy-model-row">
         <div class="row-copy">
-          <strong>{privacyOptions.find(m => m.id === privacySelected)?.name ?? "Qwen3-1.7B Q4_K_M"}</strong>
+          <strong title={privacyOptions.find(m => m.id === privacySelected)?.name}>{privacyOptions.find(m => m.id === privacySelected)?.name ?? "Qwen3-1.7B Q4_K_M"}</strong>
           <span class="row-size">{privacyOptions.find(m => m.id === privacySelected)?.size ?? "1.36 GB"}</span>
         </div>
         <button class="change-btn model-picker-trigger" aria-label={t.changeModel} title={t.changeModel} onclick={(event) => openPicker("privacy", event.currentTarget)} disabled={busy}>
           <Icon name="edit" size={16} /><span>{t.changeModel}</span>
         </button>
+          <button class="icon-btn privacy-model-delete" title={t.delete} aria-label={t.delete} disabled={!installed[privacySelected] || busy} onclick={() => remove("privacy") }>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11"></path><path d="M6.5 6v10a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V6"></path><path d="M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6"></path><path d="M10 9v5"></path></svg>
+          </button>
         <div class="spacer"></div>
-        <div class="right-actions">
+        <div class="right-actions privacy-model-status">
+          {#if mobile && installingId !== privacySelected}<span class="mobile-model-size">{privacySelected === "gliner-pii-small-int8" ? "86,3 MB total" : privacyOptions.find(m => m.id === privacySelected)?.size}</span>{/if}
           {#if installingId === privacySelected}
             <div class="download-progress"><div class="progress-track"><div class="progress-fill" style={`width: ${progress[privacySelected] ?? 0}%`}></div></div><span>{progress[privacySelected] ?? 0}%</span></div>
           {:else if installed[privacySelected]}
@@ -358,9 +362,7 @@
           {:else}
             <button class="download-btn" disabled={busy} onclick={() => install("privacy")}><Icon name="download" size={20} /><span>{t.download}</span></button>
           {/if}
-          <button class="icon-btn" title={t.delete} aria-label={t.delete} disabled={!installed[privacySelected] || busy} onclick={() => remove("privacy") }>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11"></path><path d="M6.5 6v10a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V6"></path><path d="M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6"></path><path d="M10 9v5"></path></svg>
-          </button>
+
         </div>
       </div>
     </div>

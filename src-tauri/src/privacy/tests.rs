@@ -2107,3 +2107,21 @@ fn android_exported_pdf_contains_no_synthetic_residuals() {
         "protected alias must survive Android PDF export"
     );
 }
+
+#[test]
+fn receipt_named_fields_cover_spanish_uppercase_without_guessing_unlabeled_lines() {
+    let original = "ORDENANTE\nCARLOS ANDRES MUNOZ\nBENEFICIARIO: ANA LUCIA VERA\nTOTAL USD 1500\nTitular: CUENTA DE AHORROS\nTRANSFERENCIA EXITOSA";
+    let entities = merge_detection_sources(original, vec![], vec![]).unwrap();
+    for name in ["CARLOS ANDRES MUNOZ", "ANA LUCIA VERA"] {
+        assert!(entities
+            .iter()
+            .any(|entity| entity.kind == Kind::Person && entity.original == name));
+    }
+    assert!(!entities
+        .iter()
+        .any(|entity| entity.original == "CUENTA DE AHORROS"
+            || entity.original == "TRANSFERENCIA EXITOSA"));
+    let protected = sanitize_for_file(original, &entities, "recibo.txt").unwrap();
+    assert!(!protected.contains("CARLOS ANDRES MUNOZ"));
+    assert!(protected.contains("TOTAL USD 1500"));
+}

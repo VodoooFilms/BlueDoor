@@ -366,6 +366,9 @@ fn patterns() -> &'static Vec<(Kind, Regex)> {
     RULES.get_or_init(|| vec![
         // Bank names are organizations even when Qwen calls them addresses.
         (Kind::Company, Regex::new(r"(?m)^[ \t]*((?:BANCO|BANK|COOPERATIVA)[ \t]+[\p{Lu}][\p{L}]*(?:[ \t]+[\p{Lu}][\p{L}]*){0,3})[ \t]*$").unwrap()),
+        // Explicit receipt fields carry names even when English NER misses
+        // uppercase Spanish names. Values remain exact source spans.
+        (Kind::Person, Regex::new(r"(?im)^[ \t]*(?:titular|beneficiario|ordenante|remitente|destinatario|nombre(?:s)?(?:[ \t]+y[ \t]+apellidos|[ \t]+del[ \t]+(?:titular|beneficiario|ordenante)))(?:[ \t]*:[ \t]*(?:\r?\n[ \t]*)?|[ \t]*\r?\n[ \t]*)([\p{L}][\p{L}\p{M}.'’\-]*(?:[ \t]+[\p{L}][\p{L}\p{M}.'’\-]*){1,5})[ \t]*\r?$").unwrap()),
         // Masked receipt accounts still identify a customer; retain no visible digits.
         (Kind::Other, Regex::new(r"(?i)\b[0-9]{2,}[X*•]{2,}[0-9]{2,}\b").unwrap()),
         // OCR legal headers often put a proper name before the seat of the court.
@@ -406,6 +409,28 @@ pub(crate) fn deterministic_detections(text: &str) -> Vec<Detection> {
                 let prefix = if hit.starts_with("Av. ") { 4 } else { 0 };
                 if let Some(end) = hit[prefix..].find(". ") {
                     hit = &hit[..prefix + end];
+                }
+            }
+            if *kind == Kind::Person {
+                let value = normalized(hit);
+                if [
+                    "cuenta",
+                    "ahorros",
+                    "monto",
+                    "transferencia",
+                    "comprobante",
+                    "saldo",
+                    "identificacion",
+                    "cedula",
+                ]
+                .iter()
+                .any(|word| value.split_whitespace().any(|part| part == *word))
+                    || matches!(
+                        value.as_str(),
+                        "no disponible" | "sin datos" | "consumidor final"
+                    )
+                {
+                    continue;
                 }
             }
             if hit.len() < 2 || !boundary(text, matched.start(), matched.end()) {
@@ -1359,7 +1384,7 @@ pub(crate) async fn analyze_private_document(
                 (
                     id.as_str(),
                     requested_revision,
-                    format!("reading:{done}/{total}:{tokens}"),
+                    if model_id == crate::models::GLINER_ID { format!("ner:{done}/{total}") } else if tokens >= 1_000_000 { format!("prefill:{done}/{total}:{}", tokens - 1_000_000) } else { format!("reading:{done}/{total}:{tokens}") },
                 ),
             );
         };

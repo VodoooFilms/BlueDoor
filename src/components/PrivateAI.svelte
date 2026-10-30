@@ -57,9 +57,12 @@
   const stepLabel = $derived.by(() => {
     if (analysisStep === "model_verify") return "Comprobando integridad del modelo local…";
     if (analysisStep === "model_load") return "Cargando modelo en memoria…";
-    const match = /^(reading|ocr):(\d+)\/(\d+)(?::(\d+))?$/.exec(analysisStep);
+    const match = /^(reading|ocr|prefill|ner):(\d+)\/(\d+)(?::(\d+))?$/.exec(analysisStep);
     if (!match) return "";
     const [, kind, done, total, tokens] = match;
+    if (kind === "ner") return `Detectando entidades · fragmento ${done} de ${total}`;
+    if (kind === "reading" && (!tokens || tokens === "0")) return `Preparando entrada · fragmento ${done} de ${total}`;
+    if (kind === "prefill") return `Preparando fragmento ${done} de ${total} · ${tokens} tokens de entrada`;
     // The dictionary key is the template itself, so translate first and fill
     // the counts afterwards; interpolating before p() would never match.
     const template = kind === "ocr"
@@ -81,6 +84,7 @@
   let sourceEditing = $state(false);
   let sourceDraft = $state("");
   let showExtracted = $state(false);
+  let showOriginal = $state(false);
   const hasMobileSource = $derived(mobile && !!session && /\.(pdf|png|jpe?g|tiff?|heic)$/i.test(session.fileName));
   async function importPasted() {
     await run("Importando texto local…", async () => { adopt(await invoke<PrivacySession>("import_private_text", { text: pasted, name: "Texto pegado.txt" })); pasted = ""; });
@@ -112,7 +116,7 @@
     if (next?.id !== session?.id) { zoom = 100; fitWidth = true; exported = ""; exportReady = false; }
     if (!next?.analyzed || next.id !== session?.id) mapOpen = false;
     if (next) localStorage.setItem("bluedoor-session-in-memory", "true"); else localStorage.removeItem("bluedoor-session-in-memory");
-    sourceDraft = next?.original ?? ""; sourceEditing = false; showExtracted = false;
+    sourceDraft = next?.original ?? ""; sourceEditing = false; showExtracted = false; showOriginal = false;
     session = next;
     onSessionChange(next);
     entities = next?.entities.map(e => ({ ...e })) ?? [];
@@ -258,7 +262,13 @@
 <section class="privacy-workflow" aria-label="Private Legal" use:enterView={`${session?.id ?? "welcome"}:${editing}:${mapOpen}`}>
   <SaveNotice sequence={saveSequence} />
   {#if session}
-    {#if hasMobileSource && !editing}<div class="mobile-source"><button disabled={!!busy} class="secondary" onclick={async () => { try { await invoke("preview_import_source"); } catch (e) { error = String(e); } }}>Ampliar original</button><button class="secondary" disabled={!!busy} onclick={() => showExtracted = !showExtracted}>{showExtracted ? "Ver PDF / imagen" : "Ver texto extraído"}</button></div>{/if}
+    {#if mobile && session.analyzed && !editing}
+      <div class="analysis-result" role="status">
+        <strong>{session.entities.length ? `${session.entities.length} entidades detectadas · pendiente de revisión` : "No se detectaron entidades: el documento sigue sin proteger"}</strong>
+        <button class="secondary" onclick={() => showOriginal = !showOriginal}>{showOriginal ? "Ver copia protegida" : "Ver original"}</button>
+      </div>
+    {/if}
+    {#if hasMobileSource && !editing && (!session.analyzed || showOriginal)}<div class="mobile-source"><button disabled={!!busy} class="secondary" onclick={async () => { try { await invoke("preview_import_source"); } catch (e) { error = String(e); } }}>Ampliar original</button><button class="secondary" disabled={!!busy} onclick={() => showExtracted = !showExtracted}>{showExtracted ? "Ver PDF / imagen" : "Ver texto extraído"}</button></div>{/if}
     <div class="workspace-header">
       <div class="workspace-title"><strong>{session.fileName}</strong><span>{p(session.analyzed ? (session.reviewed ? "Revisión confirmada" : "Pendiente de revisión") : "Documento original")}{#if pageCount} · {pageCount} {p("páginas")}{/if}</span></div>
       {#if editing && session.analyzed}
@@ -311,7 +321,9 @@
     <div class="document-surface" class:hidden={mapOpen}>
       {#if compareOriginal && editing && !session.layoutAvailable}<div class="original-page"><pre>{session.original}</pre></div>
       {:else}
-      {#if hasMobileSource && !editing && !showExtracted}
+      {#if mobile && session.analyzed && !editing && !showOriginal}
+        <div class="original-page protected-preview" aria-label="Copia protegida pendiente de revisión"><strong>{!session.analysisComplete || session.warnings.length ? "Análisis incompleto o con advertencias · revisión bloqueada" : session.entities.length ? "Copia protegida · revisa el mapa antes de aprobar" : "Sin sustituciones · documento no protegido"}</strong><pre>{session.entities.length && session.analysisComplete && !session.warnings.length ? session.sanitized : session.original}</pre></div>
+      {:else if hasMobileSource && !editing && !showExtracted}
         {#key session.id}<SourceDocument documentId={session.id}/>{/key}
       {:else if session.layoutAvailable}
         <DocumentLayout toolbarLeading={editing ? editorZoom : undefined} bind:zoom {fitWidth} onExportReady={(ready, count) => { exportReady = ready; pageCount = count; }} onSessionChange={adopt} onTextDirty={layoutEdited} {session} {entities} editable={editing} dirty={draftDirty} busy={!!busy} onAliasFocus={beginAliasEdit} onAliasChange={renameAlias} onApply={() => applyMap()} />

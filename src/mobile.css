@@ -123,3 +123,37 @@
   :root .shell .processing-slot .processing-copy { white-space:normal; overflow-wrap:anywhere; }
   :root .shell .processing-slot button { justify-self:start; }
 }
+
+@media(max-width:600px) {
+  :root .shell .models .head-top { flex-wrap:nowrap; gap:12px; min-height:44px; }
+  :root .shell .models .models-head { min-height:44px; }
+  :root .shell .models .head-copy { flex:1; gap:8px; }
+  :root .shell .models .head-copy svg { width:20px; height:20px; flex:none; }
+  :root .shell .models h1 { font-size:14px; white-space:nowrap; }
+  :root .shell .models .head-actions { min-height:44px; margin-left:0; }
+  :root .shell .models .cancel-download-btn { height:44px; min-height:44px; font-size:12px; padding:8px 10px; }
+  :root .shell .models .privacy-model-row { display:grid; grid-template-columns:minmax(0,1fr) 44px 44px; gap:12px; }
+  :root .shell .models .privacy-model-row .row-copy { grid-column:1; width:auto; min-width:0; }
+  :root .shell .models .privacy-model-row .row-copy strong { white-space:normal; font-size:13px; overflow-wrap:anywhere; }
+  :root .shell .models .privacy-model-row .row-size { font-size:11px; }
+  :root .shell .models .privacy-model-delete { width:44px; height:44px; }
+  :root .shell .models .privacy-model-status { grid-column:1 / -1; width:100%; margin:0; }
+  :root .shell .models .privacy-model-status .download-progress { width:100%; gap:12px; }
+  :root .shell .analysis-result { display:grid; gap:12px; padding:16px; border:1px solid var(--line); border-radius:10px; }
+}
+
+.mobile-model-size { display:none; }
+@media(max-width:600px) {
+  :root .shell .models .card-head { display:none; }
+  :root .shell .models .privacy-model-row { border:0; padding:0; background:transparent; }
+  :root .shell .models .privacy-model-row .row-copy strong { white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+  :root .shell .models .privacy-model-row .row-size { display:none; }
+  :root .shell .models .mobile-model-size { display:block; font-size:12px; color:var(--muted); margin-right:auto; }
+  :root .shell .models .privacy-model-status > .ok { width:auto; min-height:44px; }
+  :root .shell .models .privacy-model-status > .download-btn { width:auto; }
+  :root .shell .models .privacy-model-status .download-progress { display:flex; width:100%; min-height:44px; }
+  :root .shell .models .privacy-model-status .download-progress > span { flex:0 0 44px; text-align:right; }
+}
+@media(max-width:600px) {
+  :root .shell .models .privacy-model-row { align-items:center; }
+}

@@ -106,6 +106,48 @@ fn decode(text: &str, words: &[(usize, usize)], output: Output) -> Result<Vec<De
             }
         }
     }
+    // A short first-name span can score above the full name. Preserve a
+    // complete, already-above-threshold name instead of discarding its surname
+    // during greedy overlap removal. Never extend beyond a model-proposed span.
+    let complete_people: Vec<(usize, usize)> = candidates
+        .iter()
+        .filter_map(|&(_, start, end, label)| {
+            if LABELS[label].1 != Kind::Person || end - start + 1 > 8 {
+                return None;
+            }
+            let span = &text[words[start].0..words[end].1];
+            let is_name = span.split_whitespace().all(|word| {
+                let lowered = word.to_lowercase();
+                ![
+                    "banco",
+                    "bank",
+                    "cooperativa",
+                    "total",
+                    "usd",
+                    "cedula",
+                    "cédula",
+                    "proceso",
+                    "email",
+                    "ordenante",
+                    "beneficiario",
+                    "titular",
+                    "comprobante",
+                    "transferencia",
+                ]
+                .contains(&lowered.as_str())
+                    && word
+                        .chars()
+                        .all(|c| c.is_alphabetic() || matches!(c, '-' | '\'' | '’' | '.' | ','))
+            });
+            is_name.then_some((start, end))
+        })
+        .collect();
+    candidates.retain(|&(_, start, end, label)| {
+        LABELS[label].1 != Kind::Person
+            || !complete_people
+                .iter()
+                .any(|&(a, b)| a <= start && b >= end && (a < start || b > end))
+    });
     candidates.sort_by(|a, b| b.0.total_cmp(&a.0));
     let mut selected: Vec<(usize, usize)> = vec![];
     let mut detections = vec![];
@@ -173,6 +215,28 @@ impl Drop for GlinerEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn full_model_proposed_name_wins_over_higher_scoring_first_name() {
+        let text = "Maria Perez";
+        let words = vec![(0, 5), (6, text.len())];
+        let mut logits = vec![-10.; 2 * 8 * 3];
+        logits[0] = 5.;
+        logits[1] = 5.;
+        logits[2] = 5.;
+        logits[8 * 3 + 1] = 0.5;
+        logits[8 * 3 + 2] = 0.5;
+        let hits = decode(
+            text,
+            &words,
+            Output {
+                shape: vec![1, 2, 8, 3],
+                logits,
+            },
+        )
+        .unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].text, text);
+    }
     #[test]
     fn decoder_keeps_unicode_source_and_rejects_incomplete_tensor() {
         let text = "María Pérez";

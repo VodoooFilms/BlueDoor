@@ -162,7 +162,14 @@ try {
   await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'sanitizing']),[id,revision]);
   await page.getByRole('status').filter({hasText:ui('Protegiendo el documento')}).waitFor();
   await page.evaluate(()=>window.__finishAnalysis());
-  if (mobile) await page.getByRole("button", { name: ui("Revisar y editar"), exact: true }).click();
+  if (mobile) {
+    await page.locator('.protected-preview').waitFor();
+    const protectedView = await page.locator('.protected-preview pre').innerText();
+    assert(protectedView.includes('PERSON_01') && !protectedView.includes('María Pérez'), 'Result must show aliases instead of leaving the original visible');
+    await page.getByRole('button', { name:'Ver original', exact:true }).click();
+    await page.getByRole('button', { name:'Ver copia protegida', exact:true }).click();
+    await page.getByRole("button", { name: ui("Revisar y editar"), exact: true }).click();
+  }
   const map=page.getByRole('button',{name:ui('Mapa privado'),exact:true});
   await map.waitFor();
   await page.waitForFunction(()=>!document.querySelector('.workspace-views button:last-child').disabled);
