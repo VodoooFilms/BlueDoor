@@ -1,5 +1,6 @@
 <script lang="ts">
   import Feedback from "./Feedback.svelte";
+  import { pinchDocument } from "../lib/document-pinch";
   import { tick, untrack, onDestroy, type Snippet } from "svelte";
   import { DEFAULT_FORMAT } from "../lib/types";
   import TranscriptView from "./TranscriptView.svelte";
@@ -10,10 +11,44 @@
   import { invoke } from "@tauri-apps/api/core";
   import { privateCopy as p } from "../lib/private-i18n";
   import type { LayoutPreview, LayoutRedaction, PrivateEntity, PrivacySession } from "../lib/privacy";
-  let { toolbarLeading, session, entities, dirty, busy, onAliasFocus, onAliasChange, onApply, onSessionChange, onTextDirty, onExportReady, zoom = $bindable(100), fitWidth = true, editable = true }: {
-    toolbarLeading?: Snippet; session: PrivacySession; entities: PrivateEntity[]; dirty: boolean; busy: boolean;
+  let { manualCover = false, toolbarLeading, session, entities, dirty, busy, onAliasFocus, onAliasChange, onApply, onSessionChange, onTextDirty, onExportReady, zoom = $bindable(100), fitWidth = $bindable(true), editable = true }: {
+    manualCover?: boolean; toolbarLeading?: Snippet; session: PrivacySession; entities: PrivateEntity[]; dirty: boolean; busy: boolean;
     onAliasFocus: (index: number) => void; onAliasChange: (index: number, value: string) => void; onApply: () => void; onSessionChange: (session: PrivacySession) => void; onTextDirty: (dirty: boolean, save: () => void | Promise<void>) => void; onExportReady: (ready: boolean, count: number) => void; zoom?: number; fitWidth?: boolean; editable?: boolean;
   } = $props();
+  let coverMode = $state(false);
+  let coverSaving = $state(false);
+  let cover = $state<{page:number; rect:[number,number,number,number]} | null>(null);
+  function cancelCover() { cover = null; coverMode = false; onTextDirty(false, saveManualCover); }
+  function chooseCover(page: number, rect:[number,number,number,number]) {
+    cover = {page,rect}; onTextDirty(true,saveManualCover);
+  }
+  function drawCover(event: PointerEvent, page: number) {
+    if (!event.isPrimary || busy || coverSaving) return;
+    event.preventDefault(); event.stopPropagation();
+    const target=event.currentTarget as HTMLButtonElement;
+    const bounds=target.getBoundingClientRect(); const scale=zoom/100;
+    const size=preview!.pages[page];
+    const point=(x:number,y:number)=>[Math.max(0,Math.min(size.width,(x-bounds.left)/scale)),Math.max(0,Math.min(size.height,(y-bounds.top)/scale))];
+    const start=point(event.clientX,event.clientY);
+    target.setPointerCapture(event.pointerId);
+    const move=(e:PointerEvent)=>{
+      const end=point(e.clientX,e.clientY);
+      chooseCover(page,[Math.min(start[0],end[0]),Math.min(start[1],end[1]),Math.abs(end[0]-start[0]),Math.abs(end[1]-start[1])]);
+    };
+    const finish=()=>{ target.removeEventListener('pointermove',move); target.removeEventListener('pointerup',finish); target.removeEventListener('pointercancel',abort); };
+    const abort=()=>{ finish(); cancelCover(); };
+    target.addEventListener('pointermove',move);
+    target.addEventListener('pointerup',finish,{once:true});
+    target.addEventListener('pointercancel',abort,{once:true});
+  }
+  async function saveManualCover(undoPage?: number) {
+    if ((!cover && undoPage === undefined) || coverSaving) return;
+    coverSaving=true; error='';
+    try {
+      const next=await invoke<PrivacySession>('save_private_manual_cover',{id:session.id,revision:session.revision,page:undoPage ?? cover!.page,rect:undoPage === undefined ? cover!.rect : null});
+      cancelCover(); onSessionChange(next);
+    } catch(e) { error=String(e); } finally { coverSaving=false; }
+  }
   let preview = $state<LayoutPreview | null>(null);
   let loading = $state(false);
   let error = $state("");
@@ -120,7 +155,8 @@
     if (event.key !== "Escape" || selectedBlock === null || leaveTarget !== undefined) return;
     event.preventDefault(); requestFinish();
   }
-  function outsideParagraph(event: PointerEvent) {
+  function outsideParagraph(event: PointerEvent | MouseEvent) {
+    if ("pointerType" in event && event.pointerType === "touch") return;
     const target = event.target as HTMLElement;
     if (selectedBlock === null || leaveTarget !== undefined || !target.closest(".page-editor .viewer-body")) return;
     if (target.closest(".rich-editor, .text-resize, .alias-zone, dialog")) return;
@@ -215,7 +251,7 @@
       .finally(() => { if (!cancelled) loading = false; });
     return () => { cancelled = true; };
   });
-  $effect(() => { onExportReady(!loading && !error && !!preview && !textDirty && !dirty, preview?.pages.length ?? 0); });
+  $effect(() => { onExportReady(!loading && !error && !!preview && !textDirty && !dirty && !cover && !coverSaving, preview?.pages.length ?? 0); });
 </script>
 
 {#snippet aliasActions()}
@@ -237,7 +273,7 @@
               {#if item.page === number}
                 <button class="alias-zone text-zone" class:selected={selectedBlock === item.id}
                   aria-label={`${p("Editar texto")} ${item.id + 1}, ${p("Página")} ${number + 1}`}
-                  title={htmlToPlain(item.html)} disabled={busy || loading || dirty || leaving}
+                  title={htmlToPlain(item.html)} disabled={busy || loading || dirty || leaving || coverMode}
                   style:left={`${item.rect[0]}px`} style:top={`${item.rect[1]}px`}
                   style:width={`${item.rect[2]}px`} style:height={`${item.rect[3]}px`}
                   onclick={() => requestFinish(item.id)}></button>
@@ -263,23 +299,39 @@
               aria-label={`${p("Editar alias")} ${entities[area.entityIndex]?.alias ?? area.alias}, ${p("Página")} ${number + 1}`}
               title={entities[area.entityIndex]?.alias ?? area.alias}
               style:left={`${area.rect[0]}px`} style:top={`${area.rect[1]}px`} style:width={`${area.rect[2]}px`} style:height={`${area.rect[3]}px`}
-              disabled={busy || loading || textDirty || boundsDirty} onclick={() => selectAlias(area)}></button>
+              disabled={busy || loading || textDirty || boundsDirty || coverMode} onclick={() => selectAlias(area)}></button>
           {/each}
+          {#if manualCover && editable && coverMode}
+            <button class="cover-surface" aria-label={`Seleccionar cobertura, página ${number+1}`} onpointerdown={event=>drawCover(event,number)} onclick={event=>{ if(event.detail===0) chooseCover(number,[page.width/4,page.height/4,page.width/2,40]); }}></button>
+            {#if cover?.page === number}<div class="cover-draft" style:left={`${cover.rect[0]}px`} style:top={`${cover.rect[1]}px`} style:width={`${cover.rect[2]}px`} style:height={`${cover.rect[3]}px`}></div>{/if}
+          {/if}
         </div>
       </div>
+      {#if manualCover && editable && !coverMode && page.manualRegions?.length}<button class="secondary" disabled={busy || dirty || textDirty || coverSaving} onclick={()=>saveManualCover(number)}>Deshacer última cobertura · página {number+1}</button>{/if}
       <p class="page-number">{p("Página")} {number + 1} / {preview.pages.length}</p>
     {/each}
   {/if}
 {/snippet}
 
-<svelte:window onkeydown={exitKey} onpointerdown={outsideParagraph} />
+<svelte:window onkeydown={exitKey} onpointerdown={outsideParagraph} onclick={outsideParagraph} />
 
-<section bind:this={layoutRoot} class="layout-view" aria-label={p("Documento con formato original")}>
+<section bind:this={layoutRoot} use:pinchDocument={{ getZoom: () => zoom, setZoom: value => { if (coverMode) return; fitWidth = false; zoom = value; } }} class="layout-view" aria-label={p("Documento con formato original")}>
   <SaveNotice sequence={saveSequence} />
 
+  {#if manualCover && editable && session.analyzed}
+    <div class="manual-tools" class:cover-active={coverMode}>
+      {#if coverMode}
+        <span>Arrastra sobre el dato que quieres cubrir.</span>
+        {#if cover}
+          {#each ['X','Y','Ancho','Alto'] as name,index}<label>{name}<input type="number" aria-label={`Cobertura ${name}`} min="0" bind:value={cover.rect[index]} /></label>{/each}
+        {/if}
+        <button class="primary" disabled={!cover || cover.rect[2]<1 || cover.rect[3]<1 || coverSaving} onclick={()=>saveManualCover()}>Guardar cobertura</button>
+        <button class="secondary" disabled={coverSaving} onclick={cancelCover}>Cancelar</button>
+      {:else}<button class="secondary" disabled={busy || loading || dirty || textDirty || coverSaving} onclick={()=>{selectedBlock=null; selected=null; coverMode=true;}}>Cubrir zona manualmente</button>{/if}
+    </div>
+  {/if}
   <Feedback kind="status" message={[
     preview?.pages.some(page => page.qrRegions?.length) ? p("QR detectados: cubiertos en blanco al proteger y exportar. Revisa si hay otros códigos sin detectar.") : "",
-    preview?.estimated ? p("Las zonas OCR son estimaciones. Comprueba que cada dato queda cubierto por completo.") : "",
     preview?.unlabeledAliases?.length ? `${p("Las zonas muy pequeñas están protegidas sin texto de alias. Consulta sus referencias en el mapa privado.")} ${preview.unlabeledAliases.join(", ")}` : "",
     dirty ? p("Hay cambios sin aplicar. La página muestra la última versión aplicada.") : "",
     overflowing ? p("El texto supera el espacio libre. Amplía el área o ajusta el tamaño y los márgenes antes de guardar.") : "",
@@ -318,6 +370,13 @@
 </section>
 
 <style>
+  .manual-tools { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:12px; }
+  .manual-tools.cover-active { position:fixed; bottom:16px; left:16px; right:16px; z-index:1002; border:1px solid var(--line); border-radius:10px; background:var(--background); box-shadow:0 4px 20px #0005; }
+  .manual-tools.cover-active > span { flex-basis:100%; }
+  .manual-tools label { display:grid; font-size:12px; gap:4px; }
+  .manual-tools input { width:60px; min-height:44px; box-sizing:border-box; }
+  .cover-surface { position:absolute; inset:0; width:100%; height:100%; z-index:20; touch-action:none; background:transparent; border:2px dashed #1248bc; cursor:crosshair; padding:0; }
+  .cover-draft { position:absolute; z-index:21; pointer-events:none; box-sizing:border-box; background:white; border:2px solid #1248bc; }
   dialog { border:1px solid var(--line); border-radius:6px; padding:22px; background:var(--surface); color:var(--text); max-width:480px; }
   dialog::backdrop { background:#0004; }
   .exit-feedback { height:120px; overflow:auto; }

@@ -37,6 +37,7 @@ try {
     }};
   });
   await page.goto('http://localhost:1420');
+  await page.locator('.welcome[role="dialog"] .close').click();
   await page.locator('.blue-import-screen').waitFor();
   await page.waitForFunction(()=>Array.from(document.images).every(img=>img.complete));
   const checkChrome=async()=>{

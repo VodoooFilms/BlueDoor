@@ -443,7 +443,7 @@ dependencies = [
 
 [[package]]
 name = "bluedoor"
-version = "0.4.0"
+version = "0.5.5"
 dependencies = [
  "argon2",
  "base64 0.22.1",

@@ -63,6 +63,7 @@ async function scenario(options = {}) {
     } });
   }, options);
   await page.goto('http://localhost:1420');
+  await page.locator('.welcome[role="dialog"] .close').click();
   await page.locator('.settings-menu summary').click();
   await page.locator('#modelsToggle').click();
   return page;

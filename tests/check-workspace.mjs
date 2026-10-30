@@ -45,6 +45,7 @@ try {
    }};
   },{layout,language});
   await page.goto('http://localhost:1420');
+  await page.locator('.welcome[role="dialog"] .close').click();
   await page.getByRole('button',{name:label('Importar documento','Import document'),exact:true}).click();
   assert.equal(await page.getByRole('heading',{name:label('Lo privado permanece aquí.','Your private information stays here.'),exact:true}).count(),0,'welcome copy leaves the functional workspace');
   assert.equal(await page.getByRole('button',{name:label('Ver texto','View text'),exact:true}).count(),0,'no route to legacy comparison');

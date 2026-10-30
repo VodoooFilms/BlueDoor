@@ -27,9 +27,9 @@ async function runCommand(command, args, env = process.env) {
     });
   });
 }
-async function run(file, language = "es") {
+async function run(file, language = "es", extraEnv = {}) {
   console.log(`\nRunning ${file} (${language})`);
-  await runCommand(process.execPath, [`tests/${file}`], { ...process.env, BLUEDOOR_TEST_LANG: language });
+  await runCommand(process.execPath, [`tests/${file}`], { ...process.env, BLUEDOOR_TEST_LANG: language, ...extraEnv });
 }
 
 try {
@@ -46,7 +46,9 @@ try {
     servers.push(server);
     await server.listen();
   }
-  if (process.argv.includes("--android-models")) {
+  if (process.argv.includes("--mobile-ux")) {
+    await run("check-mobile-ux.mjs");
+  } else if (process.argv.includes("--android-models")) {
     await run("check-android-models.mjs");
   } else if (process.argv.includes("--vault")) {
     await run("check-vault.mjs");
@@ -62,6 +64,7 @@ try {
     for (const test of ["check-alias-groups.mjs", "check-editor.mjs"]) await run(test);
   } else if (process.argv.includes("--layout")) {
     for (const test of ["check-layout.mjs", "check-layout-rich.mjs", "check-layout-paragraph.mjs", "check-alias-groups.mjs"]) await run(test);
+    await run("check-layout.mjs", "es", { BLUEDOOR_TEST_PLATFORM: "android" });
   } else {
     for (const language of ["es", "en"]) await run("check-private-ai.mjs", language);
     for (const test of [

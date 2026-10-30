@@ -38,6 +38,7 @@ try {
   }};
  },{pages,editedPages,blocks});
  await page.goto('http://localhost:1420');
+ await page.locator('.welcome[role="dialog"] .close').click();
  await page.getByRole('button',{name:'Mapa privado',exact:true}).waitFor();
  assert(await page.locator('#editToggle').evaluate(el=>el.classList.contains('nav-active')));
  await page.getByRole('combobox',{name:'Zoom',exact:true}).selectOption('100');

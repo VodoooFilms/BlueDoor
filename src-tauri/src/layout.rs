@@ -5,6 +5,7 @@ use crate::privacy::{Entity, PrivacyState, Session};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+#[cfg(not(target_os = "android"))]
 use std::process::{Command, Stdio};
 use tauri::Manager;
 
@@ -30,6 +31,8 @@ pub(crate) struct Page {
     pub source: String,
     #[serde(default)]
     pub qr_regions: Vec<[f64; 4]>,
+    #[serde(default)]
+    pub manual_regions: Vec<[f64; 4]>,
 }
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct DocumentLayout {
@@ -68,24 +71,33 @@ struct RenderPlan<'a> {
 }
 
 pub(crate) fn executable(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let bundled = app
-        .path()
-        .resource_dir()
-        .map_err(|_| "Componente de formato no disponible.")?
-        .join("runtime/bluedoor-layout");
-    #[cfg(debug_assertions)]
-    if !bundled.is_file() {
-        let development =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/bluedoor-layout");
-        if development.is_file() {
-            return Ok(development);
+    #[cfg(target_os = "android")]
+    {
+        let _ = app;
+        return Ok(PathBuf::from("android-layout"));
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let bundled = app
+            .path()
+            .resource_dir()
+            .map_err(|_| "Componente de formato no disponible.")?
+            .join("runtime/bluedoor-layout");
+        #[cfg(debug_assertions)]
+        if !bundled.is_file() {
+            let development =
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/runtime/bluedoor-layout");
+            if development.is_file() {
+                return Ok(development);
+            }
         }
+        if !bundled.is_file() {
+            return Err("Conservar el formato está disponible en macOS. Reinstala la app si falta el componente.".into());
+        }
+        Ok(bundled)
     }
-    if !bundled.is_file() {
-        return Err("Conservar el formato está disponible en macOS. Reinstala la app si falta el componente.".into());
-    }
-    Ok(bundled)
 }
+#[cfg(not(target_os = "android"))]
 pub(crate) fn extract(path: &Path, helper: &Path) -> Result<DocumentLayout, String> {
     // El helper lee la ruta como argumento posicional tras `--layout`: se
     // exige absoluta para que `-algo` nunca se lea como opción.
@@ -106,6 +118,15 @@ pub(crate) fn extract(path: &Path, helper: &Path) -> Result<DocumentLayout, Stri
     }
     let document: DocumentLayout = serde_json::from_slice(&output.stdout)
         .map_err(|_| "Coordenadas del documento no válidas.")?;
+    validate_layout(&document)?;
+    Ok(document)
+}
+#[cfg(target_os = "android")]
+pub(crate) fn extract_android(path: &Path) -> Result<DocumentLayout, String> {
+    let json =
+        crate::android::layout_call("extractLayout", path.to_str().ok_or("Ruta no válida")?)?;
+    let document: DocumentLayout =
+        serde_json::from_str(&json).map_err(|_| "Formato Android no válido")?;
     validate_layout(&document)?;
     Ok(document)
 }
@@ -135,7 +156,7 @@ pub(crate) fn named_entities(
     }
     serde_json::from_slice(&output.stdout).map_err(|_| "Detecciones locales no válidas.".into())
 }
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "android"))]
 pub(crate) fn fit_generated_aliases(
     document: &DocumentLayout,
     entities: &mut [Entity],
@@ -166,28 +187,41 @@ pub(crate) fn fit_generated_aliases(
     Ok(())
 }
 fn alias_overflows(areas: &[Redaction], helper: &Path) -> Result<Vec<usize>, String> {
-    let mut child = Command::new(helper)
-        .arg("--check-aliases")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|_| "No se pudo comprobar el tamaño de los alias.")?;
-    let bytes = serde_json::to_vec(areas).map_err(|_| "Zonas de alias no válidas")?;
-    child
-        .stdin
-        .take()
-        .ok_or("Comprobación de alias no disponible")?
-        .write_all(&bytes)
-        .map_err(|_| "No se pudo comprobar el tamaño de los alias.")?;
-    let output = child
-        .wait_with_output()
-        .map_err(|_| "La comprobación de alias no terminó.")?;
-    if !output.status.success() {
-        return Err("No se pudo comprobar el tamaño de los alias.".into());
+    #[cfg(target_os = "android")]
+    {
+        let _ = helper;
+        let result = crate::android::layout_call(
+            "checkLayoutAliases",
+            &serde_json::to_string(areas).map_err(|_| "Alias no válidos")?,
+        )?;
+        return serde_json::from_str(&result).map_err(|_| "Comprobación de alias no válida".into());
     }
-    serde_json::from_slice(&output.stdout).map_err(|_| "Comprobación de alias no válida".into())
+    #[cfg(not(target_os = "android"))]
+    {
+        let mut child = Command::new(helper)
+            .arg("--check-aliases")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|_| "No se pudo comprobar el tamaño de los alias.")?;
+        let bytes = serde_json::to_vec(areas).map_err(|_| "Zonas de alias no válidas")?;
+        child
+            .stdin
+            .take()
+            .ok_or("Comprobación de alias no disponible")?
+            .write_all(&bytes)
+            .map_err(|_| "No se pudo comprobar el tamaño de los alias.")?;
+        let output = child
+            .wait_with_output()
+            .map_err(|_| "La comprobación de alias no terminó.")?;
+        if !output.status.success() {
+            return Err("No se pudo comprobar el tamaño de los alias.".into());
+        }
+        serde_json::from_slice(&output.stdout).map_err(|_| "Comprobación de alias no válida".into())
+    }
 }
+
 fn validate_layout(document: &DocumentLayout) -> Result<(), String> {
     if document.text.is_empty()
         || document.text.len() > crate::privacy::MAX_DOCUMENT_BYTES
@@ -359,7 +393,10 @@ fn plan(session: &Session) -> Result<(DocumentLayout, Vec<Redaction>), String> {
                 .into(),
         );
     }
-    if session.edited && document.edits.is_empty() {
+    if session.edited
+        && document.edits.is_empty()
+        && document.pages.iter().all(|p| p.manual_regions.is_empty())
+    {
         return Err("Esta vista utiliza el mapa de alias. Aplica de nuevo el mapa para conservar el formato original.".into());
     }
     let mut active = document.clone();
@@ -396,43 +433,61 @@ fn render_overlays(
     overlays: &[editor::RichOverlay],
     mode: &str,
 ) -> Result<Vec<u8>, String> {
-    let mut child = Command::new(helper)
-        .arg(mode)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|_| "No se pudo preparar el documento protegido.")?;
-    let payload = serde_json::to_vec(&RenderPlan {
-        pages: &document.pages,
-        redactions,
-        overlays,
-    })
-    .map_err(|_| "No se pudo preparar el documento.")?;
-    let mut stdin = child
-        .stdin
-        .take()
-        .ok_or("No se pudo preparar el documento.")?;
-    // Concurrent write avoids pipe deadlock when a large preview is returned.
-    let writer = std::thread::spawn(move || stdin.write_all(&payload));
-    let output = child
-        .wait_with_output()
-        .map_err(|_| "La exportación se interrumpió.")?;
-    writer
-        .join()
-        .map_err(|_| "La exportación se interrumpió.")?
-        .map_err(|_| "No se pudo preparar el documento.")?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr)
-            .lines()
-            .last()
-            .unwrap_or("No se pudo conservar el formato.")
-            .chars()
-            .take(500)
-            .collect());
+    #[cfg(target_os = "android")]
+    {
+        use base64::Engine;
+        let _ = helper;
+        let payload = serde_json::json!({"mode": mode, "pages": document.pages, "redactions": redactions, "overlays": overlays}).to_string();
+        let result = crate::android::layout_call("renderLayout", &payload)?;
+        return if mode == "--export" {
+            base64::engine::general_purpose::STANDARD
+                .decode(result)
+                .map_err(|_| "PDF Android no válido".into())
+        } else {
+            Ok(result.into_bytes())
+        };
     }
-    Ok(output.stdout)
+    #[cfg(not(target_os = "android"))]
+    {
+        let mut child = Command::new(helper)
+            .arg(mode)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|_| "No se pudo preparar el documento protegido.")?;
+        let payload = serde_json::to_vec(&RenderPlan {
+            pages: &document.pages,
+            redactions,
+            overlays,
+        })
+        .map_err(|_| "No se pudo preparar el documento.")?;
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or("No se pudo preparar el documento.")?;
+        // Concurrent write avoids pipe deadlock when a large preview is returned.
+        let writer = std::thread::spawn(move || stdin.write_all(&payload));
+        let output = child
+            .wait_with_output()
+            .map_err(|_| "La exportación se interrumpió.")?;
+        writer
+            .join()
+            .map_err(|_| "La exportación se interrumpió.")?
+            .map_err(|_| "No se pudo preparar el documento.")?;
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr)
+                .lines()
+                .last()
+                .unwrap_or("No se pudo conservar el formato.")
+                .chars()
+                .take(500)
+                .collect());
+        }
+        Ok(output.stdout)
+    }
 }
+
 #[tauri::command]
 pub(crate) async fn preview_private_layout(
     app: tauri::AppHandle,
@@ -445,7 +500,10 @@ pub(crate) async fn preview_private_layout(
         let (blocks, overlays, _) = editor::compiled(&document, &session.entities)?;
         let pages = if areas.is_empty()
             && overlays.is_empty()
-            && document.pages.iter().all(|p| p.qr_regions.is_empty())
+            && document
+                .pages
+                .iter()
+                .all(|p| p.qr_regions.is_empty() && p.manual_regions.is_empty())
         {
             document
                 .pages
@@ -1210,7 +1268,7 @@ pub(crate) async fn review_private_layout(
             confirm,
             app.clone(),
         )?;
-        if document.edits.is_empty() {
+        if document.edits.is_empty() && document.pages.iter().all(|p| p.manual_regions.is_empty()) {
             return Ok(next);
         }
         let state = app.state::<PrivacyState>();
@@ -1231,4 +1289,144 @@ pub(crate) async fn review_private_layout(
     })
     .await
     .map_err(|_| "La revisión se interrumpió.")?
+}
+
+fn add_manual_region(
+    document: &mut DocumentLayout,
+    page: usize,
+    rect: [f64; 4],
+) -> Result<(), String> {
+    let p = document.pages.get_mut(page).ok_or("Página no válida.")?;
+    let [x, y, w, h] = rect;
+    if rect.iter().any(|v| !v.is_finite())
+        || x < 0.0
+        || y < 0.0
+        || w < 1.0
+        || h < 1.0
+        || x + w > p.width
+        || y + h > p.height
+        || p.manual_regions.len() >= 200
+    {
+        return Err(
+            "La cobertura debe quedar dentro de la página y tener un tamaño válido.".into(),
+        );
+    }
+    let mut bounds = rect;
+    // Cover entire intersecting OCR words, never leave a clipped word visible.
+    for g in &p.glyphs {
+        if intersects(rect, g.rect) {
+            let right = (bounds[0] + bounds[2]).max(g.rect[0] + g.rect[2]);
+            let bottom = (bounds[1] + bounds[3]).max(g.rect[1] + g.rect[3]);
+            bounds[0] = bounds[0].min(g.rect[0]);
+            bounds[1] = bounds[1].min(g.rect[1]);
+            bounds[2] = right - bounds[0];
+            bounds[3] = bottom - bounds[1];
+        }
+    }
+    p.manual_regions.push(bounds);
+    Ok(())
+}
+fn intersects(a: [f64; 4], b: [f64; 4]) -> bool {
+    a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1]
+}
+#[tauri::command]
+pub(crate) async fn save_private_manual_cover(
+    app: tauri::AppHandle,
+    id: String,
+    revision: u64,
+    page: usize,
+    rect: Option<[f64; 4]>,
+) -> Result<Session, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if !cfg!(target_os = "android") {
+            return Err("La cobertura manual está disponible en Android.".into());
+        }
+        let session = snapshot(&app, &id, revision)?;
+        if !session.analyzed {
+            return Err("Analiza el documento antes de cubrirlo.".into());
+        }
+        let (source, areas) = plan(&session)?;
+        let mut document = source.clone();
+        if let Some(rect) = rect {
+            add_manual_region(&mut document, page, rect)?;
+        } else {
+            document
+                .pages
+                .get_mut(page)
+                .ok_or("Página no válida.")?
+                .manual_regions
+                .pop()
+                .ok_or("No hay cobertura que deshacer en esta página.")?;
+        }
+        let (_, overlays, text) = editor::compiled(&document, &session.entities)?;
+        render_overlays(
+            &executable(&app)?,
+            &document,
+            &areas,
+            &overlays,
+            "--preview",
+        )?;
+        let state = app.state::<PrivacyState>();
+        let mut guard = state.0.lock().map_err(|_| "Sesión privada no disponible")?;
+        let current = guard
+            .as_mut()
+            .filter(|s| s.id == id && s.revision == revision)
+            .ok_or("La cobertura está desactualizada.")?;
+        let edited = !document.edits.is_empty()
+            || document.pages.iter().any(|p| !p.manual_regions.is_empty());
+        current.layout = Some(std::sync::Arc::new(document));
+        current.sanitized = text;
+        current.reviewed = false;
+        current.edited = edited;
+        current.warnings = crate::privacy::leak_warnings(&current.sanitized, &current.entities);
+        current.revision += 1;
+        Ok(current.clone())
+    })
+    .await
+    .map_err(|_| "La cobertura se interrumpió.")?
+}
+
+#[cfg(test)]
+mod manual_cover_tests {
+    use super::*;
+    fn document() -> DocumentLayout {
+        serde_json::from_value(serde_json::json!({"text":"Ana Perez\nSEGUNDO", "pages":[{"width":200,"height":200,"imageBase64":"", "source":"ocr", "glyphs":[
+            {"start":0,"end":9,"line":0,"rect":[10,10,70,12],"fontSize":10,"fontName":"sans-serif","color":[0,0,0],"confidence":1},
+            {"start":10,"end":17,"line":1,"rect":[10,30,60,12],"fontSize":10,"fontName":"sans-serif","color":[0,0,0],"confidence":1}
+        ]}]})).unwrap()
+    }
+    #[test]
+    fn covers_omitted_ocr_words_in_text_and_preserves_layout_plan() {
+        let mut document = document();
+        add_manual_region(&mut document, 0, [20., 32., 20., 4.]).unwrap();
+        assert_eq!(document.pages[0].manual_regions[0], [10., 30., 60., 12.]);
+        let (_, _, text) = editor::compiled(&document, &[]).unwrap();
+        assert!(text.contains("Ana Perez"));
+        assert!(!text.contains("SEGUNDO"));
+        let mut session = Session::new("scan.pdf".into(), document.text.clone()).unwrap();
+        session.layout = Some(std::sync::Arc::new(document));
+        session.edited = true;
+        session.analyzed = true;
+        assert!(
+            plan(&session).is_ok(),
+            "manual-only edits must remain previewable/exportable"
+        );
+    }
+    #[test]
+    fn invalid_rectangles_never_commit_and_non_ocr_areas_work() {
+        let mut document = document();
+        for (page, rect) in [
+            (1, [1., 1., 10., 10.]),
+            (0, [-1., 1., 10., 10.]),
+            (0, [1., 1., 0., 10.]),
+            (0, [190., 1., 20., 10.]),
+            (0, [1., f64::NAN, 10., 10.]),
+        ] {
+            assert!(add_manual_region(&mut document, page, rect).is_err());
+            assert!(document.pages[0].manual_regions.is_empty());
+        }
+        add_manual_region(&mut document, 0, [100., 100., 20., 20.]).unwrap();
+        assert_eq!(document.pages[0].manual_regions.len(), 1);
+        assert_eq!(editor::compiled(&document, &[]).unwrap().2, document.text);
+    }
 }

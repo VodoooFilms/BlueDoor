@@ -2125,3 +2125,250 @@ fn receipt_named_fields_cover_spanish_uppercase_without_guessing_unlabeled_lines
     assert!(!protected.contains("CARLOS ANDRES MUNOZ"));
     assert!(protected.contains("TOTAL USD 1500"));
 }
+
+#[test]
+fn compound_names_cover_middle_words_and_ocr_surnames_from_partial_detections() {
+    for (text, partials, full) in [
+        (
+            "Diego Alfonso Herreera Lozano comparece ante la autoridad.",
+            vec!["Diego", "Herreera"],
+            "Diego Alfonso Herreera Lozano",
+        ),
+        (
+            "DIEGO ALFONSO HERREERA LOZANO",
+            vec!["DIEGO", "LOZANO"],
+            "DIEGO ALFONSO HERREERA LOZANO",
+        ),
+        (
+            "Nombre: diego alfonso herreera lozano",
+            vec!["diego"],
+            "diego alfonso herreera lozano",
+        ),
+        (
+            "Diego Alfonso de la Torre Lozano presenta la solicitud.",
+            vec!["Diego Alfonso"],
+            "Diego Alfonso de la Torre Lozano",
+        ),
+    ] {
+        let detections = partials
+            .into_iter()
+            .map(|name| Detection {
+                kind: Kind::Person,
+                text: name.into(),
+            })
+            .collect();
+        let entities = merge_detection_sources(text, detections, vec![]).unwrap();
+        assert!(
+            entities.iter().any(|e| e.original == full),
+            "missing complete source name: {text}"
+        );
+        let protected = sanitize(text, &entities).unwrap();
+        for word in full.split_whitespace().filter(|word| word.len() > 3) {
+            assert!(!protected.contains(word), "residual name word: {word}");
+        }
+        if let Some((_, ending)) = text.split_once(full) {
+            assert!(protected.ends_with(ending));
+        }
+        assert!(privacy_advisories(&entities)
+            .iter()
+            .any(|a| a.contains("nombres parciales")));
+    }
+}
+
+#[test]
+fn name_completion_preserves_prose_parties_table_cells_and_companies() {
+    for text in [
+        "Diego disfruta vacaciones",
+        "Diego comparece ante la autoridad.",
+        "Diego\tAlfonso Herrera",
+        "Diego\nAlfonso Herrera",
+        "Diego y Ana Vera",
+    ] {
+        let entities = merge_detection_sources(
+            text,
+            vec![Detection {
+                kind: Kind::Person,
+                text: "Diego".into(),
+            }],
+            vec![],
+        )
+        .unwrap();
+        assert!(
+            !entities.iter().any(|e| e.source == "name-coverage"),
+            "unsafe expansion: {text}"
+        );
+        assert_eq!(
+            sanitize(text, &entities).unwrap(),
+            text.replacen("Diego", "PERSON_01", 1)
+        );
+    }
+    let text = "BANCO ANDINO Diego Alfonso Herrera Lozano";
+    let entities = merge_detection_sources(
+        text,
+        vec![
+            Detection {
+                kind: Kind::Person,
+                text: "Diego".into(),
+            },
+            Detection {
+                kind: Kind::Company,
+                text: "BANCO ANDINO".into(),
+            },
+        ],
+        vec![],
+    )
+    .unwrap();
+    assert!(entities
+        .iter()
+        .any(|e| e.original == "Diego Alfonso Herrera Lozano"));
+    assert!(!entities
+        .iter()
+        .any(|e| e.kind == Kind::Person && e.original.contains("ANDINO")));
+}
+
+#[test]
+fn explicit_surname_fields_are_private_without_model_anchors() {
+    for (label, value) in [
+        ("Segundo apellido", "VALDEZ"),
+        ("Apellido materno", "Quiñónez"),
+        ("Apellido paterno", "Vargas-Morales"),
+        ("Apellidos", "de la Cruz Paredes"),
+        ("Nombre completo", "carlos andrés mendoza valdez"),
+        ("Apellidos y nombres", "Ramírez Cedeño Ana Sofía"),
+        ("Family name", "O’Neill"),
+        ("Last name", "Núñez Salazar"),
+        ("Full name", "Elena Sofía Vargas Ríos"),
+    ] {
+        let text = format!("{label}: {value}\nReferencia pública: Artículo 12\nTotal: USD 1500");
+        let entities = merge_detection_sources(&text, vec![], vec![]).unwrap();
+        assert!(
+            entities
+                .iter()
+                .any(|e| e.kind == Kind::Person && e.original == value),
+            "missing {label}: {value}"
+        );
+        let protected = sanitize(&text, &entities).unwrap();
+        assert!(!protected.contains(value), "surname leaked: {protected}");
+        assert!(
+            protected.contains(&format!("{label}: ")),
+            "field label erased"
+        );
+        assert!(protected.contains("Referencia pública: Artículo 12\nTotal: USD 1500"));
+    }
+}
+
+#[test]
+fn surname_field_rules_do_not_guess_from_prose_or_cross_rows() {
+    for text in [
+        "El segundo apellido consta en el documento.",
+        "Observación: apellido materno desconocido",
+        "Last name of the witness is unknown.",
+    ] {
+        let entities = merge_detection_sources(text, vec![], vec![]).unwrap();
+        assert!(
+            !entities.iter().any(|e| e.kind == Kind::Person),
+            "invented person: {text}"
+        );
+    }
+    let text = "Apellidos: de la Cruz\nNombres: Elena Sofía\nDirección: Calle Norte 12";
+    let entities = merge_detection_sources(text, vec![], vec![]).unwrap();
+    assert!(entities
+        .iter()
+        .any(|e| e.kind == Kind::Person && e.original == "de la Cruz"));
+    assert!(!entities
+        .iter()
+        .any(|e| e.kind == Kind::Person && e.original.contains('\n')));
+}
+
+#[test]
+fn wrapped_names_cover_surname_continuations_without_a_document_template() {
+    for (text, seed, full) in [
+        (
+            "Carlos Andrés Mendoza\nVALDEZ\nTotal: USD 20",
+            "Carlos Andrés Mendoza",
+            "Carlos Andrés Mendoza\nVALDEZ",
+        ),
+        (
+            "Compareciente: Ana Sofía\nRamírez Cedeño\nFirma:",
+            "Ana Sofía",
+            "Ana Sofía\nRamírez Cedeño",
+        ),
+        (
+            "María del Carmen\nde la Cruz\nCédula: 0912345678",
+            "María del Carmen",
+            "María del Carmen\nde la Cruz",
+        ),
+        (
+            "ELENA SOFÍA VARGAS\nRÍOS",
+            "ELENA SOFÍA",
+            "ELENA SOFÍA VARGAS\nRÍOS",
+        ),
+    ] {
+        let entities = merge_detection_sources(
+            text,
+            vec![Detection {
+                kind: Kind::Person,
+                text: seed.into(),
+            }],
+            vec![],
+        )
+        .unwrap();
+        assert!(
+            entities.iter().any(|e| e.original == full),
+            "incomplete wrapped name: {text}; {entities:?}"
+        );
+        let protected = sanitize(text, &entities).unwrap();
+        for word in full
+            .split_whitespace()
+            .filter(|word| word.chars().count() > 3)
+        {
+            assert!(!protected.contains(word), "residual surname: {protected}");
+        }
+    }
+}
+
+#[test]
+fn wrapped_name_completion_respects_blank_lines_fields_and_other_people() {
+    for tail in [
+        "\nVALDEZ",
+        "Firma:",
+        "BANCO ANDINO",
+        "comparece ante la autoridad.",
+        "USD 1500",
+        "Ana\tVera",
+    ] {
+        let text = format!("Carlos Andrés Mendoza\n{tail}");
+        let entities = merge_detection_sources(
+            &text,
+            vec![Detection {
+                kind: Kind::Person,
+                text: "Carlos Andrés Mendoza".into(),
+            }],
+            vec![],
+        )
+        .unwrap();
+        assert!(
+            !entities
+                .iter()
+                .any(|e| e.kind == Kind::Person && e.original.contains('\n')),
+            "unsafe join: {text}"
+        );
+    }
+    let text = "Carlos Andrés Mendoza\nAna Sofía Vera";
+    let entities = merge_detection_sources(
+        text,
+        vec![
+            Detection {
+                kind: Kind::Person,
+                text: "Carlos Andrés Mendoza".into(),
+            },
+            Detection {
+                kind: Kind::Person,
+                text: "Ana Sofía Vera".into(),
+            },
+        ],
+        vec![],
+    )
+    .unwrap();
+    assert!(!entities.iter().any(|e| e.original.contains('\n')));
+}

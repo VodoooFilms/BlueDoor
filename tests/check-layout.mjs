@@ -10,24 +10,29 @@ const originalPages=JSON.parse(execFileSync('src-tauri/resources/runtime/bluedoo
 const editedPlan=structuredClone(plan);
 for(const area of editedPlan.redactions)if(area.entityIndex===0&&area.alias)area.alias='CLIENTE_01';
 const editedPages=JSON.parse(execFileSync('src-tauri/resources/runtime/bluedoor-layout',['--preview'],{input:JSON.stringify(editedPlan),maxBuffer:64*1024*1024}));
+const mobile = process.env.BLUEDOOR_TEST_PLATFORM === "android";
 const browser=await browserType.launch();
 try {
  const page=await browser.newPage({viewport:{width:1440,height:1000}});
  page.setDefaultTimeout(15000);
- await page.addInitScript(({pages,originalPages,editedPages,redactions})=>{
-  localStorage.setItem('bluedoor-language','es');localStorage.setItem('bluedoor-welcome-seen','true');
+ await page.addInitScript(({pages,originalPages,editedPages,redactions,mobile})=>{
+  localStorage.setItem('bluedoor-language','es');localStorage.setItem('bluedoor-privacy-model','qwen3-fast');localStorage.setItem('bluedoor-welcome-seen','true');
   const entities=[{kind:'PERSON',original:'María Pérez',alias:'PERSON_01',source:'review'},{kind:'EMAIL',original:'maria@example.com',alias:'EMAIL_01',source:'review'},{kind:'ID',original:'0912345678',alias:'ID_01',source:'review'}];
   const analyzedSession={id:'layout-1',revision:3,fileName:'layout-document.pdf',original:'María Pérez maria@example.com 0912345678',entities,sanitized:'PERSON_01 EMAIL_01 ID_01',warnings:[],advisories:[],analyzed:true,analysisComplete:true,reviewed:false,edited:false,layoutAvailable:true};
   let session=null;
   window.__layoutCalls=[];
   window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},transformCallback:()=>1,invoke:async(cmd,args)=>{
    window.__layoutCalls.push({cmd,args});
+   if(cmd==='app_platform') return mobile ? 'android' : 'macos';
+   if(cmd==='private_source_page') return {pages:originalPages.length,image:'data:image/png;base64,'+originalPages[args.page].imageBase64};
+   if(cmd==='prepare_share_export')return '/tmp/layout-workflow.pdf';
+   if(cmd==='share_export')return;
    if(cmd==='check_installation')return;
    if(cmd==='load_transcripts')return [];
    if(cmd==='save_transcripts')return;
    if(cmd==='plugin:event|listen')return 1;
    if(cmd==='plugin:event|unlisten')return;
-   if(cmd==='list_models')return {whisper:[{id:'small',path:'/mock/stt',installed:true}],parakeet:[],diarization:[],privacy:[{installed:true}]};
+   if(cmd==='list_models')return {whisper:[{id:'small',path:'/mock/stt',installed:true}],parakeet:[],diarization:[],privacy:[{id:"qwen3-fast",installed:true,name:"Qwen",size:"1 GB"}]};
    if(cmd==='diarization_available')return false;
    if(cmd==='get_privacy_session')return structuredClone(session);
    if(cmd==='import_private_document'){
@@ -54,11 +59,31 @@ try {
    }
    throw new Error('Unexpected command '+cmd);
   }};
- },{pages,originalPages,editedPages,redactions:plan.redactions});
+ },{pages,originalPages,editedPages,redactions:plan.redactions,mobile});
  await page.goto('http://localhost:1420');
+ await page.locator('.welcome[role="dialog"] .close').click();
+ assert(await page.locator('#editToggle').isDisabled());
  await page.getByRole('button',{name:'Importar documento',exact:true}).click();
+ assert(await page.locator('#editToggle').isDisabled());
+ assert.equal(await page.getByRole('combobox',{name:'Zoom',exact:true}).count(),1,'one zoom control on import');
+ assert.equal(await page.getByRole('combobox',{name:'Ampliación del original',exact:true}).count(),0,'no second source zoom selector');
  await page.getByRole('img',{name:'Página 1',exact:true}).waitFor();
  const zoom=page.getByRole('combobox',{name:'Zoom',exact:true});
+ async function realPinch() {
+  if (browser.browserType().name() === 'chromium') {
+   const client=await page.context().newCDPSession(page);
+   await client.send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:2});
+   const center=await page.locator('.page-wrapper').first().evaluate(el=>{const r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+120};});
+   const points=offset=>[{x:center.x-offset,y:center.y,id:1},{x:center.x+offset,y:center.y,id:2}];
+   await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points(40)});
+   await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:points(70)});
+   await page.waitForTimeout(80);
+   await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+   assert.notEqual(await zoom.inputValue(),'fit','real Chromium two-finger input zooms the document');
+   assert.equal(await page.evaluate(()=>visualViewport.scale),1,'real pinch keeps application chrome at its original scale');
+   await client.detach();await zoom.selectOption('fit');
+  }
+ }
  async function checkFit(scrollSelector) {
   assert.equal(await zoom.inputValue(),'fit','fit to width is the default');
   await page.waitForFunction(selector=>{
@@ -71,6 +96,19 @@ try {
   },scrollSelector);
  }
  await checkFit('.page-scroll');
+ if (mobile) {
+  await page.setViewportSize({width:412,height:900});await checkFit('.page-scroll');
+  const width=await page.locator('.page-wrapper').first().evaluate(el=>el.getBoundingClientRect().width);
+  await page.locator('.page-wrapper img').first().evaluate(async el=>{
+   const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+100;
+   const fire=(type,offset)=>{const event=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(event,'touches',{value:offset?[{clientX:x-offset,clientY:y},{clientX:x+offset,clientY:y}]:[]});el.dispatchEvent(event);};
+   fire('touchstart',35);fire('touchmove',70);await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));fire('touchend',0);
+  });
+  assert(Math.abs((await page.locator('.page-wrapper').first().evaluate(el=>el.getBoundingClientRect().width))/width-2)<.02,'pinch zoom works immediately after import');
+  assert.notEqual(await zoom.inputValue(),'fit');
+  await zoom.selectOption('fit');await checkFit('.page-scroll');
+  await realPinch();await checkFit('.page-scroll');
+ }
  await page.setViewportSize({width:1200,height:1000});
  await checkFit('.page-scroll');
  await zoom.selectOption('125');
@@ -112,6 +150,41 @@ try {
  assert.equal(await page.locator('.page-wrapper').first().evaluate(el=>el.getBoundingClientRect().width),Math.floor(pages[0].width*64)/64,'rendered width matches WebKit subpixel quantization');
  await page.getByRole('img',{name:'Página 1',exact:true}).waitFor();
  assert.equal(await page.getByRole('img',{name:'Página 2',exact:true}).count(),1,'all physical pages shown');
+ if (mobile) {
+  await page.setViewportSize({width:412,height:900});
+  await zoom.selectOption('fit');
+  await checkFit('.page-editor .viewer-body');
+  const rows = await page.locator('.editor-toolbar').evaluate(el => {
+   const box = selector => { const r=el.querySelector(selector).getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}; };
+   return {font:box('.tb-font'),size:box('.tb-size'),styles:box('.style-controls'),actions:box('.toolbar-actions'),bar:el.getBoundingClientRect().toJSON()};
+  });
+  await page.screenshot({path:'artifacts/layout-workflow/ui-mobile-toolbar.png',fullPage:true});
+  assert(Math.abs(rows.font.y-rows.size.y)<2,'font and size share the first mobile row');
+  const zoomBox=await zoom.boundingBox();
+  const titleBox=await page.locator('.workspace-title').boundingBox();
+  assert(zoomBox.x>=titleBox.x+titleBox.width && Math.abs(zoomBox.y-titleBox.y)<30,'zoom sits beside the file name');
+  assert(rows.styles.y>=rows.font.y+rows.font.height,'format controls occupy the second row');
+  assert(rows.actions.y>=rows.styles.y+rows.styles.height,'save actions occupy the third row');
+  assert(zoomBox.x+zoomBox.width<=412,'zoom fits the phone');
+  const initial=await page.locator('.page-wrapper').first().evaluate(el=>el.getBoundingClientRect().width);
+  await page.locator('.page-wrapper img').first().evaluate(async el => {
+   const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+Math.min(140,r.height/2);
+   const fire=(type,points)=>{const event=new Event(type,{bubbles:true,cancelable:true});Object.defineProperty(event,'touches',{value:points.map(([clientX,clientY])=>({clientX,clientY}))});el.dispatchEvent(event);return event.defaultPrevented;};
+   if(fire('touchstart',[[x,y]]))throw Error('one-finger scrolling must remain native');
+   if(!fire('touchstart',[[x-40,y],[x+40,y]]))throw Error('pinch must not zoom the WebView');
+   fire('touchmove',[[x-80,y],[x+80,y]]);
+   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+   fire('touchend',[]);
+  });
+  const enlarged=await page.locator('.page-wrapper').first().evaluate(el=>el.getBoundingClientRect().width);
+  assert(Math.abs(enlarged/initial-2)<.02,'pinch doubles document scale');
+  assert.notEqual(await zoom.inputValue(),'fit','pinch exits fit mode and updates the zoom control');
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'pinch does not widen the app shell');
+  await page.screenshot({path:'artifacts/layout-workflow/ui-mobile-toolbar-pinch.png',fullPage:true});
+  await zoom.selectOption('fit');await checkFit('.page-editor .viewer-body');
+  await realPinch();
+  await page.setViewportSize({width:1440,height:1000});await zoom.selectOption('100');
+ }
  await page.getByRole('button',{name:'Editar alias PERSON_01, Página 1',exact:true}).first().click();
  await page.getByRole('textbox',{name:'Alias en el documento'}).fill('CLIENTE_01');
  assert(await page.getByRole('button',{name:'Exportar PDF'}).isDisabled(),'unapplied map cannot export');
@@ -119,6 +192,7 @@ try {
  await page.locator('.alias-actions').getByRole('button',{name:'Guardar cambios',exact:true}).click();
  await page.getByRole('button',{name:'Editar alias CLIENTE_01, Página 1',exact:true}).first().waitFor();
  assert.equal(await page.getByRole('button',{name:'Editar alias CLIENTE_01, Página 2',exact:true}).count(),1,'repeat uses same edited alias');
+ if(mobile) await page.getByRole('button',{name:'Aprobar revisión',exact:true}).click();
  await page.getByRole('button',{name:'Exportar PDF'}).click();
  await page.getByRole('status').filter({hasText:'PDF guardado con el formato original.'}).waitFor();
  const exported=await page.evaluate(()=>window.__exportedLayout);

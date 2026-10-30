@@ -16,6 +16,7 @@ try {
         metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
         transformCallback: () => 1,
         invoke: async cmd => {
+          if (cmd === 'app_platform') { await new Promise(resolve => setTimeout(resolve, 400)); return 'macos'; }
           if (cmd === 'list_models') return {
             whisper: [{ id: 'small', installed: voice }], parakeet: [], diarization: [],
             privacy: [{ id: 'qwen3-fast', installed: privacy, name: 'Qwen', size: '1 GB' }],
@@ -28,6 +29,8 @@ try {
       };
     }, scenario);
     await page.goto('http://localhost:1420');
+    await page.locator('.welcome[role="dialog"]').waitFor();
+    assert(await page.locator('.welcome[role="dialog"]').evaluate(el => { const r = el.getBoundingClientRect(); return r.width === innerWidth && r.height === innerHeight; }), 'welcome covers the first render while native startup is pending');
     const action = page.getByRole('button', { name: scenario.cta, exact: true });
     await action.waitFor();
     assert.equal(await page.locator('html').getAttribute('lang'), scenario.cta === 'Get started' ? 'en' : 'es', 'English is the default even with a Spanish browser; saved preferences remain effective');
@@ -43,7 +46,8 @@ try {
     await page.reload();
     await page.locator('.brand').waitFor();
     await page.waitForTimeout(250);
-    assert.equal(await page.getByRole('dialog').count(), 0, 'welcome must not reopen automatically');
+    assert.equal(await page.getByRole('dialog').count(), 1, 'welcome opens on every launch');
+    await page.locator('.welcome[role="dialog"] .close').click();
     await page.locator('.brand').click();
     await page.getByRole('button', { name: scenario.cta, exact: true }).waitFor();
     if (scenario.voice && scenario.privacy) await page.screenshot({ path: 'artifacts/bluedoor-welcome.png' });

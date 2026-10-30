@@ -108,6 +108,7 @@ try {
     }};
   }, mobile);
   await page.goto('http://localhost:1420');
+  await page.locator('.welcome[role="dialog"] .close').click();
   await page.getByRole('heading',{name:ui('Lo privado permanece aquí.'),exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).count(),0,'no protection without a document');
   assert.equal(await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).count(),0);

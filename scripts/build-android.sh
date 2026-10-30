@@ -20,6 +20,21 @@ fi
 "$sdk_tools/zipalign" -c -P 16 4 installers/BlueDoor-android-arm64-preview.apk
 shasum -a 256 installers/BlueDoor-android-arm64-preview.apk > installers/BlueDoor-android-arm64-preview.apk.sha256
 
+# Reject stale Android overrides instead of distributing a mislabeled APK.
+export BLUEDOOR_ANDROID_AAPT="$sdk_tools/aapt"
+python3 - <<'PY_VERSION'
+import json, os, re, subprocess
+version = json.load(open("package.json"))["version"]
+assert json.load(open("src-tauri/tauri.conf.json"))["version"] == version
+assert json.load(open("src-tauri/tauri.android.conf.json"))["version"] == version
+major, minor, patch = map(int, version.split("."))
+expected_code = major * 1000000 + minor * 1000 + patch
+badging = subprocess.check_output([os.environ["BLUEDOOR_ANDROID_AAPT"], "dump", "badging", "installers/BlueDoor-android-arm64-preview.apk"], text=True)
+assert re.search(r"versionName='" + re.escape(version) + r"'", badging), "APK versionName mismatch"
+assert f"versionCode='{expected_code}'" in badging, "APK versionCode mismatch"
+print(f"APK version verified: {version}/{expected_code}")
+PY_VERSION
+
 # Every native dependency must support Android's 16 KiB page size.
 export BLUEDOOR_ANDROID_READELF="$NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-readelf"
 python3 - <<'PY_NATIVE'

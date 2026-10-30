@@ -35,3 +35,7 @@ Primary sources:
 - Whisper license: https://github.com/openai/whisper/blob/main/LICENSE
 - FFmpeg legal information: https://ffmpeg.org/legal.html
 - Apple notarization workflow: https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution
+
+## GLiNER Multi PII (descarga opcional en Android)
+
+Modelo original: Urchade Zaratiana, `urchade/gliner_multi_pii-v1`, Apache-2.0 (https://huggingface.co/urchade/gliner_multi_pii-v1). Conversión ONNX: ONNX Community, `onnx-community/gliner_multi_pii-v1`, revisión `2e0397a7e8a250d76c37122232b3cbde42c8d629`. Se descargan `onnx/model_fp16.onnx` y `tokenizer.json`, con integridad fijada en `src-tauri/model-manifest.json`.

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { privacyModel } from "../lib/privacy-model";
   import Feedback from "./Feedback.svelte";
   import ChatGPTButton from "./ChatGPTButton.svelte";
   import { importErrorMessage } from "../lib/user-errors";
@@ -146,8 +147,8 @@
   }
   $effect(() => { if (externalSession && (session?.id !== externalSession.id || session.revision !== externalSession.revision)) adopt(externalSession); });
   onMount(async () => {
-    const interruptedNativeSession = await invoke<boolean>("interrupted_private_session").catch(() => false);
-    if (localStorage.getItem("bluedoor-interrupted-operation")) { error = "La operación anterior se interrumpió. Importa el original y vuelve a analizar; no se ha guardado sin cifrar."; localStorage.removeItem("bluedoor-interrupted-operation"); }
+    await invoke<boolean>("interrupted_private_session").catch(() => false);
+    localStorage.removeItem("bluedoor-interrupted-operation");
     const stop = await listen<[string, number, string]>("private-analysis-progress", event => {
       const [id, revision, phase] = event.payload;
       if (busy.startsWith("Analizando") && id === analysisId && revision === analysisRevision) {
@@ -162,10 +163,10 @@
     if (disposed) { stop(); return; }
     unlistenAnalysis = stop;
     try {
-      const hadSession = localStorage.getItem("bluedoor-session-in-memory") === "true";
+
       const restored = await invoke<PrivacySession | null>("get_privacy_session");
       adopt(restored);
-      if (!restored && (hadSession || interruptedNativeSession)) error = "La sesión anterior terminó. Vuelve a importar el documento; el original no se guardó sin cifrar.";
+
       if (restored?.analyzed) onEdit(restored);
     } catch { error = "Abre el demo con Tauri para importar documentos y ejecutar Qwen localmente."; }
   });
@@ -198,10 +199,10 @@
     sanitizing = false;
     analysisStep = "";
     await run("Analizando documento local…", async () => {
-      const modelId = localStorage.getItem("bluedoor-privacy-model") || "qwen3-fast";
+      const modelId = privacyModel(mobile);
       const analyzed = await invoke<PrivacySession>("analyze_private_document", { id: current.id, revision: current.revision, modelId });
       adopt(analyzed);
-      if (analyzed.analyzed && !mobile) onEdit(analyzed);
+      if (analyzed.analyzed) onEdit(analyzed);
     });
   }
   function addEntity() {
@@ -237,15 +238,16 @@
       const reviewed = await invoke<PrivacySession>("review_private_layout", { id: session!.id, revision: session!.revision, entities: $state.snapshot(entities), confirm: true });
       adopt(reviewed);
       if (!reviewed.reviewed) throw new Error(p("Revisa el mapa privado antes de exportar."));
-      const destPath = await invoke<string | null>("choose_pdf_destination", { defaultName: pdfFileName("Protected") });
+      const destPath = await invoke<string | null>(mobile ? "prepare_share_export" : "choose_pdf_destination", { defaultName: pdfFileName("Protected") });
       if (!destPath) return;
       exported = await invoke<string>("export_private_layout", { id: reviewed.id, revision: reviewed.revision, destPath });
+      if (mobile) await invoke("share_export", { path: exported });
     });
   }
 </script>
 
 {#snippet editorZoom()}
-  <label class="workspace-zoom"><span class="sr-only">{p("Zoom")}</span><Icon name="search" size={18} /> <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy || mapOpen}><option value="fit">{p("Ajustar al ancho")}</option>{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>
+  <label class="workspace-zoom"><span class="sr-only">{p("Zoom")}</span><Icon name="search" size={18} /> <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy || mapOpen}><option value="fit">{p("Ajustar al ancho")}</option>{#if !fitWidth && !ZOOM_LEVELS.includes(zoom)}<option value={zoom}>{Math.round(zoom)}%</option>{/if}{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>
 {/snippet}
 
 {#snippet processingIndicator()}
@@ -262,20 +264,16 @@
 <section class="privacy-workflow" aria-label="Private Legal" use:enterView={`${session?.id ?? "welcome"}:${editing}:${mapOpen}`}>
   <SaveNotice sequence={saveSequence} />
   {#if session}
-    {#if mobile && session.analyzed && !editing}
-      <div class="analysis-result" role="status">
-        <strong>{session.entities.length ? `${session.entities.length} entidades detectadas · pendiente de revisión` : "No se detectaron entidades: el documento sigue sin proteger"}</strong>
-        <button class="secondary" onclick={() => showOriginal = !showOriginal}>{showOriginal ? "Ver copia protegida" : "Ver original"}</button>
-      </div>
-    {/if}
-    {#if hasMobileSource && !editing && (!session.analyzed || showOriginal)}<div class="mobile-source"><button disabled={!!busy} class="secondary" onclick={async () => { try { await invoke("preview_import_source"); } catch (e) { error = String(e); } }}>Ampliar original</button><button class="secondary" disabled={!!busy} onclick={() => showExtracted = !showExtracted}>{showExtracted ? "Ver PDF / imagen" : "Ver texto extraído"}</button></div>{/if}
+    {#if hasMobileSource && !session.layoutAvailable && !editing && (!session.analyzed || showOriginal)}<div class="mobile-source"><button disabled={!!busy} class="secondary" onclick={async () => { try { await invoke("preview_import_source"); } catch (e) { error = String(e); } }}>Ampliar original</button><button class="secondary" disabled={!!busy} onclick={() => showExtracted = !showExtracted}>{showExtracted ? "Ver PDF / imagen" : "Ver texto extraído"}</button></div>{/if}
     <div class="workspace-header">
-      <div class="workspace-title"><strong>{session.fileName}</strong><span>{p(session.analyzed ? (session.reviewed ? "Revisión confirmada" : "Pendiente de revisión") : "Documento original")}{#if pageCount} · {pageCount} {p("páginas")}{/if}</span></div>
+      <div class="workspace-title"><strong>{session.fileName}</strong><span>{p(session.analyzed ? (session.reviewed ? "Revisión confirmada" : "Pendiente de revisión") : "Documento original")}{#if pageCount} · {pageCount} {p(pageCount === 1 ? "página" : "páginas")}{/if}</span></div>
+      {#if mobile && (session.layoutAvailable || hasMobileSource)}{@render editorZoom()}{/if}
       {#if editing && session.analyzed}
         <div class="workspace-views" role="group" aria-label={p("Vistas de edición")}>
           <button class="secondary" class:active-page={!mapOpen} aria-pressed={!mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = false} aria-label={p("Documento")} title={p("Documento")}><Icon name="document" /><span>{p("Documento")}</span></button>
           <button class="secondary" class:active-page={mapOpen} aria-pressed={mapOpen} disabled={!!busy || layoutDirty || textEditorDirty || draftDirty} onclick={() => mapOpen = true} aria-label={p("Mapa privado")} title={p("Mapa privado")}><Icon name="map" /><span>{p("Mapa privado")}</span></button>
         </div>
+        <div class="review-actions" role="group" aria-label={p("Revisión y exportación")}>
         {#if mobile}<button class="secondary" disabled={!!busy || draftDirty || layoutDirty || !session.analysisComplete || !!session.warnings.length || session.reviewed} onclick={async () => {
           if (!session) return;
           if (textEditorDirty) { error = "Guarda la edición antes de aprobar."; return; }
@@ -283,15 +281,18 @@
         }}>{session.reviewed ? "Revisión aprobada" : "Aprobar revisión"}</button>{/if}
         <button class="primary" onclick={() => session?.layoutAvailable ? exportOriginalLayout() : textExport?.()} disabled={!!busy || textExportBusy || (mobile && (!session.reviewed || textEditorDirty)) || (session.layoutAvailable && !exportReady) || (!session.layoutAvailable && !textExport) || draftDirty || layoutDirty || !session.analysisComplete || !!session.warnings.length}>{p("Exportar PDF")}</button>
         <ChatGPTButton disabled={!!busy || textExportBusy} />
+        </div>
       {:else}
+        <div class="document-actions">
         <details class="document-menu"><summary aria-label={p("Acciones del documento")}>···</summary><div>
-          {#if session.analyzed}<button class="secondary" onclick={clearResult} disabled={!!busy}>{p("Volver a analizar")}</button>{/if}
-          <button class="secondary" onclick={clear} disabled={!!busy}>{p("Borrar documento y empezar de cero")}</button>
+          {#if session.analyzed}<button class="secondary" onclick={event => { event.currentTarget.closest("details")!.open=false; clearResult(); }} disabled={!!busy}>{p("Volver a analizar")}</button>{/if}
+          <button class="secondary" onclick={event => { event.currentTarget.closest("details")!.open=false; clear(); }} disabled={!!busy}>{p("Borrar documento y empezar de cero")}</button>
         </div></details>
-        <button class="secondary" onclick={() => importDocument()} disabled={!!busy}>{p("Importar otro documento")}</button>
-        {#if session.layoutAvailable}<label class="workspace-zoom"><span class="sr-only">{p("Zoom")}</span><Icon name="search" size={18} /> <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy}><option value="fit">{p("Ajustar al ancho")}</option>{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>{/if}
-        {#if session.analyzed}<button class="primary" onclick={() => { if (session) onEdit(session); }} disabled={!!busy}>{p("Revisar y editar")}</button>
+        <button class="secondary" onclick={() => importDocument()} disabled={!!busy}>{p(mobile ? "Importar otro" : "Importar otro documento")}</button>
+        {#if !mobile && (session.layoutAvailable || (hasMobileSource && !showExtracted))}<label class="workspace-zoom"><span class="sr-only">{p("Zoom")}</span><Icon name="search" size={18} /> <select value={fitWidth ? "fit" : zoom} onchange={chooseZoom} disabled={!!busy}><option value="fit">{p("Ajustar al ancho")}</option>{#if !fitWidth && !ZOOM_LEVELS.includes(zoom)}<option value={zoom}>{Math.round(zoom)}%</option>{/if}{#each ZOOM_LEVELS as level}<option value={level}>{level}%</option>{/each}</select></label>{/if}
+        {#if session.analyzed}<button class="primary" onclick={() => { if (session) onEdit(session); }} disabled={!!busy}>{p(mobile ? "Editar" : "Revisar y editar")}</button>
         {:else}<button class="primary analyze-button" onclick={analyze} disabled={!!busy || sourceEditing}>{p("Proteger documento")}</button>{/if}
+        </div>
       {/if}
     </div>
     {#if mapOpen && editing}
@@ -321,12 +322,12 @@
     <div class="document-surface" class:hidden={mapOpen}>
       {#if compareOriginal && editing && !session.layoutAvailable}<div class="original-page"><pre>{session.original}</pre></div>
       {:else}
-      {#if mobile && session.analyzed && !editing && !showOriginal}
-        <div class="original-page protected-preview" aria-label="Copia protegida pendiente de revisión"><strong>{!session.analysisComplete || session.warnings.length ? "Análisis incompleto o con advertencias · revisión bloqueada" : session.entities.length ? "Copia protegida · revisa el mapa antes de aprobar" : "Sin sustituciones · documento no protegido"}</strong><pre>{session.entities.length && session.analysisComplete && !session.warnings.length ? session.sanitized : session.original}</pre></div>
-      {:else if hasMobileSource && !editing && !showExtracted}
-        {#key session.id}<SourceDocument documentId={session.id}/>{/key}
+      {#if mobile && !session.layoutAvailable && session.analyzed && !editing && !showOriginal}
+        <div class="original-page protected-preview" aria-label="Copia protegida pendiente de revisión">{#if !session.analysisComplete || session.warnings.length || !session.entities.length}<strong>{!session.analysisComplete || session.warnings.length ? "Análisis incompleto o con advertencias · revisión bloqueada" : "Sin sustituciones · documento no protegido"}</strong>{/if}<pre>{session.entities.length && session.analysisComplete && !session.warnings.length ? session.sanitized : session.original}</pre></div>
+      {:else if hasMobileSource && !editing && (!session.layoutAvailable || showOriginal) && (!session.analyzed || showOriginal) && !showExtracted}
+        {#key session.id}<SourceDocument documentId={session.id} bind:zoom bind:fitWidth/>{/key}
       {:else if session.layoutAvailable}
-        <DocumentLayout toolbarLeading={editing ? editorZoom : undefined} bind:zoom {fitWidth} onExportReady={(ready, count) => { exportReady = ready; pageCount = count; }} onSessionChange={adopt} onTextDirty={layoutEdited} {session} {entities} editable={editing} dirty={draftDirty} busy={!!busy} onAliasFocus={beginAliasEdit} onAliasChange={renameAlias} onApply={() => applyMap()} />
+        <DocumentLayout toolbarLeading={editing && !mobile ? editorZoom : undefined} bind:zoom bind:fitWidth onExportReady={(ready, count) => { exportReady = ready; pageCount = count; }} onSessionChange={adopt} onTextDirty={layoutEdited} {session} {entities} manualCover={mobile && editing} editable={editing} dirty={draftDirty} busy={!!busy} onAliasFocus={beginAliasEdit} onAliasChange={renameAlias} onApply={() => applyMap()} />
       {:else if editing && textTranscript}
         <TranscriptView transcript={textTranscript} privateDocument privateReviewed={session.reviewed} privateId={session.id} privateRevision={session.revision} onSave={onSaveText} onExportAction={(action, exporting) => { textExport = action; textExportBusy = exporting; }} onDirtyChange={(dirty, save) => { textEditorDirty = dirty; onTextDirty(dirty, save); }} {onConfirmReview} {onValidateExport} />
       {:else}
@@ -339,6 +340,9 @@
       {/if}
       {/if}
     </div>
+    {#if mobile && session.analyzed && !editing}
+      <button class="secondary original-toggle" disabled={!!busy} onclick={() => showOriginal = !showOriginal}>{p(showOriginal ? "Ver copia protegida" : "Ver original")}</button>
+    {/if}
     <Feedback className="leak-alert" message={session.warnings.length ? [p("Posibles filtraciones · vista previa bloqueada"), ...session.warnings.map(p)].join("\n") : session.analyzed && !session.analysisComplete ? p("Análisis incompleto · revisión bloqueada") : ""} />
     {#if session.advisories?.length}<details class="review-advisories"><summary>{p("Lo que esta revisión no puede comprobar")}</summary>{#each session.advisories as advisory}<p>{p(advisory)}</p>{/each}</details>{/if}
     <Feedback message={exported ? `${p("PDF guardado con el formato original.")} ${exported}` : ""} kind="status" />
@@ -366,6 +370,7 @@
 <style>
   .privacy-workflow { position:relative; display:flex; flex-direction:column; flex:1; min-height:0; min-width:0; border:1px solid var(--line); border-top:0; border-radius:0 0 6px 6px; background:var(--background); padding:16px; gap:12px; }
   .workspace-header { display:flex; flex-wrap:wrap; align-items:center; gap:12px; flex:none; }
+  .document-actions, .review-actions { display:contents; }
   .document-menu { position:relative; }
   .document-menu summary { cursor:pointer; padding:8px; }
   .document-menu > div { position:absolute; top:36px; right:0; z-index:20; background:var(--surface); border:1px solid var(--line); border-radius:5px; padding:10px; display:grid; gap:8px; }

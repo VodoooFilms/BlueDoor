@@ -271,7 +271,7 @@ pub(crate) async fn import_private_document(
         let ocr = ocr_executable(&app);
         #[cfg(not(target_os = "macos"))]
         let ocr: Option<std::path::PathBuf> = None;
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "android"))]
         let extension = path
             .extension()
             .and_then(|s| s.to_str())
@@ -295,11 +295,49 @@ pub(crate) async fn import_private_document(
         } else {
             None
         };
-        #[cfg(not(target_os = "macos"))]
+        // Text obtained when the visual layout cannot be built (long or
+        // unusual PDF); it avoids extracting the same document twice.
+        let mut fallback_text: Option<String> = None;
+        #[cfg(target_os = "android")]
+        let layout = if matches!(
+            extension.as_str(),
+            "pdf" | "png" | "jpg" | "jpeg" | "tif" | "tiff" | "heic"
+        ) {
+            match crate::layout::extract_android(&path) {
+                Ok(document) => Some(std::sync::Arc::new(document)),
+                // A long or unusual PDF must remain usable: fall back to its
+                // own text layer (or the OCR text path) instead of aborting the
+                // import. The session is then clearly a text session, with the
+                // text export and without a page-layout preview.
+                Err(reason) if extension == "pdf" => match extract(&path, None) {
+                    Ok(text) if text.trim().chars().count() >= 40 => {
+                        fallback_text = Some(text);
+                        None
+                    }
+                    _ => {
+                        if let Some(copy) = &materialized {
+                            let _ = std::fs::remove_file(copy);
+                        }
+                        return Err(reason);
+                    }
+                },
+                Err(reason) => {
+                    if let Some(copy) = &materialized {
+                        let _ = std::fs::remove_file(copy);
+                    }
+                    return Err(reason);
+                }
+            }
+        } else {
+            None
+        };
+        #[cfg(not(any(target_os = "macos", target_os = "android")))]
         let layout: Option<std::sync::Arc<crate::layout::DocumentLayout>> = None;
         let extraction_timer = crate::performance::Timer::new("extraction_ocr");
         let text_result = if let Some(layout) = &layout {
             Ok(layout.text.clone())
+        } else if let Some(text) = fallback_text.take() {
+            Ok(text)
         } else {
             extract(&path, ocr.as_deref())
         };

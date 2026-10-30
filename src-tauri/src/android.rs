@@ -208,3 +208,12 @@ pub(crate) fn run_gliner(payload: &str) -> Result<String, String> {
 pub(crate) fn unload_gliner() -> Result<(), String> {
     call_string("unloadGliner", "(Ljava/lang/String;)V", "").map(|_| ())
 }
+
+/// Layout payloads stay in the native pipeline, sharing desktop validation.
+pub(crate) fn layout_call(mode: &str, payload: &str) -> Result<String, String> {
+    let result = call_string(mode, "(Ljava/lang/String;)Ljava/lang/String;", payload)?;
+    if let Some(message) = result.strip_prefix("ERROR:") {
+        return Err(message.to_string());
+    }
+    Ok(result)
+}

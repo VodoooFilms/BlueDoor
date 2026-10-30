@@ -16,6 +16,21 @@ pub(crate) const GLINER_ID: &str = "gliner-pii-small-int8";
 pub(crate) const GLINER_FILE: &str = "gliner-pii-small-int8.onnx";
 pub(crate) const GLINER_TOKENIZER_ID: &str = "gliner-pii-tokenizer";
 pub(crate) const GLINER_TOKENIZER_FILE: &str = "gliner-pii-tokenizer.json";
+pub(crate) const GLINER_MULTI_ID: &str = "gliner-multi-pii-fp16";
+pub(crate) const GLINER_MULTI_FILE: &str = "gliner-multi-pii-fp16.onnx";
+pub(crate) const GLINER_MULTI_TOKENIZER_ID: &str = "gliner-multi-pii-tokenizer";
+pub(crate) const GLINER_MULTI_TOKENIZER_FILE: &str = "gliner-multi-pii-tokenizer.json";
+pub(crate) fn gliner_files(id: &str) -> Option<(&'static str, &'static str, &'static str)> {
+    match id {
+        GLINER_ID => Some((GLINER_FILE, GLINER_TOKENIZER_FILE, GLINER_TOKENIZER_ID)),
+        GLINER_MULTI_ID => Some((
+            GLINER_MULTI_FILE,
+            GLINER_MULTI_TOKENIZER_FILE,
+            GLINER_MULTI_TOKENIZER_ID,
+        )),
+        _ => None,
+    }
+}
 pub(crate) const QWEN_ID: &str = "qwen3-fast";
 pub(crate) const QWEN_FILE: &str = "ggml-qwen3-1.7b-instruct-q4.gguf";
 pub(crate) const QWEN_Q8_ID: &str = "qwen3-q8";
@@ -191,6 +206,17 @@ pub(crate) fn list_models(app_handle: tauri::AppHandle) -> ModelsList {
                 && model_appears_installed(&models_dir(&app_handle).join(GLINER_TOKENIZER_FILE)),
             path: path.to_string_lossy().into(),
         });
+        let path = models_dir(&app_handle).join(GLINER_MULTI_FILE);
+        privacy.push(ModelEntry {
+            id: GLINER_MULTI_ID.into(),
+            name: "GLiNER Multi PII · español · FP16".into(),
+            size: "579,7 MB + tokenizador 16,3 MB".into(),
+            installed: model_appears_installed(&path)
+                && model_appears_installed(
+                    &models_dir(&app_handle).join(GLINER_MULTI_TOKENIZER_FILE),
+                ),
+            path: path.to_string_lossy().into(),
+        });
     }
     ModelsList {
         whisper,
@@ -339,6 +365,8 @@ fn asset_for_path(path: &std::path::Path) -> Option<&'static ModelAsset> {
         .or_else(|| (file == NEMOTRON_FILE).then_some(NEMOTRON_ID))
         .or_else(|| (file == GLINER_FILE).then_some(GLINER_ID))
         .or_else(|| (file == GLINER_TOKENIZER_FILE).then_some(GLINER_TOKENIZER_ID))
+        .or_else(|| (file == GLINER_MULTI_FILE).then_some(GLINER_MULTI_ID))
+        .or_else(|| (file == GLINER_MULTI_TOKENIZER_FILE).then_some(GLINER_MULTI_TOKENIZER_ID))
         .or_else(|| (file == QWEN_FILE).then_some(QWEN_ID))
         .or_else(|| (file == QWEN_Q8_FILE).then_some(QWEN_Q8_ID))
         .or_else(|| (file == QWEN_PII_FILE).then_some(QWEN_PII_ID))
@@ -540,7 +568,9 @@ mod portability_tests {
                 || id == QWEN_Q8_ID
                 || id == QWEN_PII_ID
                 || id == GLINER_ID
-                || id == GLINER_TOKENIZER_ID;
+                || id == GLINER_TOKENIZER_ID
+                || id == GLINER_MULTI_ID
+                || id == GLINER_MULTI_TOKENIZER_ID;
             assert!(
                 known,
                 "asset en el manifest que no esta en el catalogo: {}",
@@ -617,15 +647,15 @@ pub(crate) async fn download_privacy_model(
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
     #[cfg(target_os = "android")]
-    if id == GLINER_ID {
+    if let Some((model_file, tokenizer_file, tokenizer_id)) = gliner_files(&id) {
         return tauri::async_runtime::spawn_blocking(move || {
-            let model = models_dir(&app_handle).join(GLINER_FILE);
-            download_file(&app_handle, &model, GLINER_ID)?;
+            let model = models_dir(&app_handle).join(model_file);
+            download_file(&app_handle, &model, &id)?;
             check_cancelled()?;
             download_file(
                 &app_handle,
-                &models_dir(&app_handle).join(GLINER_TOKENIZER_FILE),
-                GLINER_TOKENIZER_ID,
+                &models_dir(&app_handle).join(tokenizer_file),
+                tokenizer_id,
             )?;
             Ok(model.to_string_lossy().into_owned())
         })
@@ -657,9 +687,9 @@ pub(crate) fn delete_privacy_model(id: String, app_handle: tauri::AppHandle) -> 
         .map_err(|_| "Termina el análisis local antes de borrar Qwen3")?;
     *cache = None;
     #[cfg(target_os = "android")]
-    if id == GLINER_ID {
+    if let Some((model_file, tokenizer_file, _)) = gliner_files(&id) {
         crate::android::unload_gliner()?;
-        for file in [GLINER_FILE, GLINER_TOKENIZER_FILE] {
+        for file in [model_file, tokenizer_file] {
             let path = models_dir(&app_handle).join(file);
             if path.exists() {
                 std::fs::remove_file(path).map_err(|_| "No se pudo eliminar GLiNER.")?;

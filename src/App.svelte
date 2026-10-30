@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { privacyModel, MOBILE_PRIVACY_MODEL } from "./lib/privacy-model";
   import Feedback from "./components/Feedback.svelte";
   import FeedbackHost from "./components/FeedbackHost.svelte";
   import { importErrorMessage } from "./lib/user-errors";
@@ -52,14 +53,18 @@
     await window.setFullscreen(fullScreen);
   }
   const welcomeSeenKey = "bluedoor-welcome-seen";
-  let welcomeVisible = $state(false);
+  let welcomeVisible = $state(true);
   let welcomeReady = $state(false);
   let welcomeLoading = $state(true);
   async function checkWelcomeModels() {
     welcomeLoading = true;
     try {
       const all = await invoke<{ whisper: { installed: boolean }[]; parakeet: { installed: boolean }[]; privacy: { id: string; installed: boolean }[] }>("list_models");
-      const selected = localStorage.getItem("bluedoor-privacy-model") || "qwen3-fast";
+      let selected = privacyModel(mobile);
+      if (!all.privacy.some(m => m.id === selected && m.installed) && (selected !== MOBILE_PRIVACY_MODEL || !all.privacy.some(m => m.id === selected))) {
+        const available = all.privacy.find(m => m.installed);
+        if (available) { selected = available.id; localStorage.setItem("bluedoor-privacy-model", selected); }
+      }
       welcomeReady = (mobile || all.whisper.some(m => m.installed) || all.parakeet.some(m => m.installed))
         && all.privacy.some(m => m.id === selected && m.installed);
     } catch { welcomeReady = false; }
@@ -224,7 +229,7 @@
       await checkWelcomeModels();
       if (!welcomeReady) { workflow = "audio"; showModels = true; firstRun = false; }
     } else await hydrate();
-    if (localStorage.getItem(welcomeSeenKey) !== "true") openAbout();
+    if (!mobile) await checkWelcomeModels();
     editId = localStorage.getItem("bluedoor-edit-id");
   });
 
@@ -311,7 +316,7 @@
 
   // "Editar" vuelve a la última transcripción abierta desde cualquier pestaña.
   function goEdit() {
-    if (recorderBusy || importing || privacyBusy || modelsBusy || (!privateTranscript && !editTranscript)) return;
+    if (recorderBusy || importing || privacyBusy || modelsBusy || (workflow === "private" ? !privateTranscript : !privateTranscript && !editTranscript)) return;
     requestNavigation(() => {
       showModels = false;
       if (privateTranscript) { workflow = "private"; privateEditVisible = true; }
@@ -408,7 +413,7 @@
 
   async function confirmPrivateReview() {
     if (!privateSession) throw new Error(p("La sesión privada ya no está disponible."));
-    const next = await invoke<PrivacySession>("review_private_document", {
+    const next = await invoke<PrivacySession>(privateSession.layoutAvailable ? "review_private_layout" : "review_private_document", {
       id: privateSession.id, revision: privateSession.revision,
       entities: $state.snapshot(privateSession.entities), confirm: true,
     });
@@ -495,16 +500,16 @@
       <div class="nav-row">
         <button class="nav-models" class:nav-active={workflow === "private" && !privateEditVisible} onclick={goPrivate} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="document" /><span>{p("Documentos")}</span></button>
         {#if !mobile}<button class="nav-models" class:nav-active={workflow === "audio" && !showModels && !activeTranscript} id="recordToggle" onclick={goHome} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title={recorderBusy || importing ? t.navigationBlocked : t.recordNav}><Icon name="audio" /><span>{p("Audio")}</span></button>{/if}
-        <button class="nav-models" class:nav-active={(workflow === "private" && privateEditVisible) || (!showModels && workflow === "audio" && !!activeTranscript)} id="editToggle" onclick={goEdit} disabled={recorderBusy || importing || privacyBusy || modelsBusy || (!privateTranscript && !editTranscript)} title={recorderBusy || importing ? t.navigationBlocked : t.editNav}><Icon name="edit" /><span>{t.editNav}</span></button>
+        <button class="nav-models" class:nav-active={(workflow === "private" && privateEditVisible) || (!showModels && workflow === "audio" && !!activeTranscript)} id="editToggle" onclick={goEdit} disabled={recorderBusy || importing || privacyBusy || modelsBusy || (workflow === "private" ? !privateTranscript : !privateTranscript && !editTranscript)} title={recorderBusy || importing ? t.navigationBlocked : t.editNav}><Icon name="edit" /><span>{t.editNav}</span></button>
         {#if mobile}<button class="nav-models" class:nav-active={showModels} onclick={openModels} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="download" /><span>{t.langLabel === "ES" ? "Modelos" : "Models"}</span></button>{:else}<button class="nav-models" class:nav-active={workflow === "vault"} onclick={goVault} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title="Vault · Cifrado local"><Icon name="vault" /><span>Vault</span></button>{/if}
         <details class="settings-menu" bind:this={settingsEl}>
           <summary><Icon name="settings" /><span>{p("Ajustes")}</span></summary>
           <div class="settings-popover">
             {#if mobile}<button onclick={() => { settingsEl.open = false; goVault(); }} disabled={privacyBusy || modelsBusy}><Icon name="vault" /><span>Vault</span></button>{/if}
             <button id="modelsToggle" class:nav-active={showModels && workflow !== "private"} onclick={() => { settingsEl.open = false; openModels(); }} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="download" /><span class="settings-label">{t.modelsTitle}</span></button>
-            <button id="languageToggle" aria-label={t.switchLanguage} onclick={toggle}><Icon name="globe" /><span class="settings-label">{p("Idioma")}</span><span class="settings-value">{t.langLabel === "ES" ? "Español" : "English"}</span></button>
+            <button id="languageToggle" aria-label={t.switchLanguage} onclick={() => { settingsEl.open=false; toggle(); }}><Icon name="globe" /><span class="settings-label">{p("Idioma")}</span><span class="settings-value">{t.langLabel === "ES" ? "Español" : "English"}</span></button>
             <hr />
-            {#if !mobile}<button id="fullscreenToggle" onclick={toggleFullScreen}><Icon name="expand" /><span class="settings-label">{p(fullScreen ? "Salir de pantalla completa" : "Pantalla completa")}</span></button>{/if}
+            {#if !mobile}<button id="fullscreenToggle" onclick={() => { settingsEl.open=false; toggleFullScreen(); }}><Icon name="expand" /><span class="settings-label">{p(fullScreen ? "Salir de pantalla completa" : "Pantalla completa")}</span></button>{/if}
             <button onclick={() => { settingsEl.open = false; openAbout(); }}><Icon name="info" /><span class="settings-label">{p("Acerca de BlueDoor")}</span></button>
           </div>
         </details>

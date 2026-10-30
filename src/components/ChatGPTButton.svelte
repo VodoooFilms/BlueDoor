@@ -20,7 +20,7 @@
   }
 </script>
 <button class="secondary gpt-button" onclick={openChatGPT} disabled={disabled || opening} aria-label={p("Enviar a GPT")} title={p("Abrir ChatGPT en el navegador; el PDF se adjunta manualmente.")}>
-  <img src={logo} alt="" /><span class="compact-action-label">{p("Enviar a GPT")}</span>
+  <img src={logo} alt="" /><span>GPT</span>
 </button>
 <Feedback message={error} onDismiss={() => error = ""} />
 <Feedback {message} kind="status" onDismiss={() => message = ""} />

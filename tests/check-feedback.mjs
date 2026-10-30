@@ -32,6 +32,7 @@ try {
       }}});
     },lang);
     await page.goto('http://localhost:1420');
+    await page.locator('.welcome[role="dialog"] .close').click();
     await page.locator('#recordToggle').click();
     const geometry=()=>page.locator('.orb-window,.state-title,.import-inline,.mic-panel .model-card,.masthead').evaluateAll(els=>els.map(el=>{
       const r=el.getBoundingClientRect();return [r.x,r.y,r.width,r.height];

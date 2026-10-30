@@ -137,6 +137,7 @@ try {
   });
 
   await page.goto('http://localhost:1420');
+  await page.locator('.welcome[role="dialog"] .close').click();
   await page.locator('.blue-import-screen').waitFor();
   const storage = await page.evaluate(() => JSON.stringify(localStorage));
   await page.getByRole('button', { name: 'Vault', exact: true }).click();

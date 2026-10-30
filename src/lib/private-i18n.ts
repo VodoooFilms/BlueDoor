@@ -1,6 +1,9 @@
 import { getLang } from "./i18n-store.svelte";
 
 const ENGLISH: Record<string, string> = {
+  "Revisión y exportación": "Review and export",
+  "Importar otro": "Import another",
+  "Editar": "Edit",
   "Enviar a GPT": "Send to GPT",
   "Abrir ChatGPT en el navegador; el PDF se adjunta manualmente.": "Open ChatGPT in your browser; attach the PDF manually.",
   "ChatGPT abierto. Exporta el PDF protegido y adjúntalo en el chat.": "ChatGPT opened. Export the protected PDF and attach it in the chat.",
@@ -64,6 +67,7 @@ const ENGLISH: Record<string, string> = {
   "Ver texto": "View text",
   "Ver formato original": "View original layout",
   "páginas": "pages",
+  "página": "page",
   "Zoom": "Zoom",
   "Página": "Page",
   "Revisar y exportar PDF": "Confirm review and export PDF",

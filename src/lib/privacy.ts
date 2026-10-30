@@ -5,7 +5,7 @@ export interface PrivacySession {
   warnings: string[]; advisories: string[]; analyzed: boolean; analysisComplete: boolean; reviewed: boolean; edited: boolean; revision: number;
   layoutAvailable?: boolean;
 }
-export interface LayoutPage { width: number; height: number; imageBase64: string; source: "embedded" | "ocr"; qrRegions?: number[][]; }
+export interface LayoutPage { width: number; height: number; imageBase64: string; source: "embedded" | "ocr"; qrRegions?: number[][]; manualRegions?: number[][]; }
 export interface LayoutRedaction { page: number; entityIndex: number; rect: [number, number, number, number]; alias: string; }
 export interface LayoutTextBlock { id: number; page: number; rect: number[]; bounds: number[]; limits?: number[]; minHeight?: number; html: string; font: string; size: number; align: "left" | "center" | "right"; }
 export interface LayoutPreview { id: string; revision: number; pages: LayoutPage[]; redactions: LayoutRedaction[]; estimated: boolean; blocks?: LayoutTextBlock[]; unlabeledAliases?: string[]; }

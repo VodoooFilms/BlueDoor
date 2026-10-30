@@ -32,11 +32,17 @@ import kotlin.math.min
 object BlueDoorAndroid {
   private const val MAX_FILE_BYTES = 10L * 1024 * 1024
   private const val MAX_TEXT_BYTES = 60 * 1024
-  private const val MAX_PAGES = 30
+  private const val MAX_PAGES = 60
   private const val MAX_PIXELS = 2000
 
   @Volatile var activity: java.lang.ref.WeakReference<MainActivity>? = null
   @Volatile private var analysisActive = false
+  @JvmStatic fun extractLayout(path: String): String {
+    importCancelled.set(false)
+    return DocumentLayout.extract(path)
+  }
+  @JvmStatic fun renderLayout(payload: String): String = DocumentLayout.render(payload)
+  @JvmStatic fun checkLayoutAliases(payload: String): String = DocumentLayout.checkAliases(payload)
   @JvmStatic fun runGliner(payload: String): String = GlinerRuntime.run(payload)
   @JvmStatic fun unloadGliner(ignored: String) = GlinerRuntime.unload()
   @JvmStatic fun setAnalysisActive(value: String) {
@@ -121,7 +127,7 @@ object BlueDoorAndroid {
     }
   }
 
-  private fun checkImport() { if (importCancelled.get()) throw IOException("Extracción cancelada; no se ha completado la protección.") }
+  internal fun checkImport() { if (importCancelled.get()) throw IOException("Extracción cancelada; no se ha completado la protección.") }
   @JvmStatic
   fun cancelImport(ignored: String) { importCancelled.set(true) }
 
@@ -212,7 +218,7 @@ object BlueDoorAndroid {
     descriptor.use { fd ->
       PdfRenderer(fd).use { renderer ->
         val builder = StringBuilder()
-        if (renderer.pageCount > MAX_PAGES) throw IOException("El PDF supera 30 páginas; divídelo. No se analizará parcialmente.")
+        if (renderer.pageCount > MAX_PAGES) throw IOException("El PDF supera $MAX_PAGES páginas; divídelo. No se analizará parcialmente.")
         val pages = renderer.pageCount
         for (index in 0 until pages) {
           checkImport()
@@ -236,7 +242,7 @@ object BlueDoorAndroid {
     }
   }
 
-  private fun decodeImage(file: File): Bitmap {
+  internal fun decodeImage(file: File): Bitmap {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeFile(file.absolutePath, bounds)
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {

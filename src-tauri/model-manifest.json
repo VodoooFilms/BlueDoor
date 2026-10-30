@@ -80,5 +80,17 @@
     "url": "https://huggingface.co/knowledgator/gliner-pii-small-v1.0/resolve/d21aad5b4a7ec82b3d0970fd1ac74a12c087d85e/tokenizer.json",
     "size": 3583593,
     "sha256": "84b3a9b18f04a0ccd03b72d9f871b7e0bec40fd7021ef50bc30a7c3693c11205"
+  },
+  "gliner-multi-pii-tokenizer": {
+    "url": "https://huggingface.co/onnx-community/gliner_multi_pii-v1/resolve/2e0397a7e8a250d76c37122232b3cbde42c8d629/tokenizer.json",
+    "size": 16331948,
+    "sha256": "914bd3c8fb7b525af9e23b60d0ec7b1248ddb2b99014efd9c02ebeb022f8cab7",
+    "license_source": "https://huggingface.co/urchade/gliner_multi_pii-v1/blob/main/README.md"
+  },
+  "gliner-multi-pii-fp16": {
+    "url": "https://huggingface.co/onnx-community/gliner_multi_pii-v1/resolve/2e0397a7e8a250d76c37122232b3cbde42c8d629/onnx/model_fp16.onnx",
+    "size": 579717643,
+    "sha256": "e756837e13d16ef832f6cd9fca473c2c3dd1eb232cab13e6443d958d608e797b",
+    "license_source": "https://huggingface.co/urchade/gliner_multi_pii-v1/blob/main/README.md"
   }
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { privacyModel, MOBILE_PRIVACY_MODEL } from "../lib/privacy-model";
   import Feedback from "./Feedback.svelte";
   import { microphoneError } from "../lib/user-errors";
   import Icon from "./Icon.svelte";
@@ -6,7 +7,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { getCopy } from "../lib/i18n-store.svelte";
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, onDestroy, untrack } from "svelte";
   import { DEFAULT_STT, STT_OPTIONS } from "../lib/types";
   import type { SttModel } from "../lib/types";
   import ModelIcon from "./ModelIcon.svelte";
@@ -51,15 +52,12 @@
   });
   let pendingDelete = $state<SttModel | "diarization" | "privacy" | null>(null);
   let privacyOptions = $state<{ id: string; name: string; size: string; installed: boolean }[]>([]);
-  let privacySelected = $state("qwen3-fast");
+  let privacySelected = $state(untrack(() => privacyModel(mobile)));
   let nemotronAvailable = $state(false);
   let loaded = $state(false);
   let setupRunning = $state(false);
   let setupCancelled = false;
   let setupStatus = $state("");
-  let contextTokens = $state(4096);
-  let chunkChars = $state(1200);
-  let performance = $state<{ stage: string; elapsedMs: number; peakRssKb: number | null }[]>([]);
   const setupKey = "bluedoor-setup-pending";
   let setupPending = $state(localStorage.getItem(setupKey) === "true");
   const busy = $derived(setupRunning || installingId !== null);
@@ -74,13 +72,13 @@
   const ready = $derived(STT_OPTIONS.some((o) => installed[o.id]));
 
   onMount(async () => {
-    privacySelected = localStorage.getItem("bluedoor-privacy-model") || "qwen3-fast";
+    privacySelected = privacyModel(mobile);
     // Si venía guardado un modelo que ya no ofrecemos (tiny/base), volver al recomendado.
     if (!STT_OPTIONS.some((o) => o.id === getSttModel())) setSttModel(sttCurrent.id);
     unlistenProgress = await listen<[string, number]>("model-download-progress", (event) => {
       const [label, pct] = event.payload;
-      const id = label === "gliner-pii-tokenizer" ? "gliner-pii-small-int8" : label;
-      const total = label === "gliner-pii-tokenizer" ? 96 + Math.round(pct * .04) : label === "gliner-pii-small-int8" ? Math.round(pct * .96) : pct;
+      const id = label === "gliner-multi-pii-tokenizer" ? MOBILE_PRIVACY_MODEL : label === "gliner-pii-tokenizer" ? "gliner-pii-small-int8" : label;
+      const total = label === "gliner-multi-pii-tokenizer" ? 95 + Math.round(pct * .05) : label === MOBILE_PRIVACY_MODEL ? Math.round(pct * .95) : label === "gliner-pii-tokenizer" ? 96 + Math.round(pct * .04) : label === "gliner-pii-small-int8" ? Math.round(pct * .96) : pct;
       progress = { ...progress, [id]: total };
     });
     try { await refresh(); } catch (e) { messageKind = "error"; message = String(e); }
@@ -102,7 +100,7 @@
     }
   }
 
-  async function refresh() {
+  async function refresh(allowFallback = false) {
     const all = await invoke<{
       whisper: { id: string; installed: boolean }[];
       parakeet: { id: string; installed: boolean }[];
@@ -115,8 +113,8 @@
     for (const m of all.diarization) map[m.id] = m.installed;
     for (const m of all.privacy) map[m.id] = m.installed;
     privacyOptions = all.privacy;
-    if (!all.privacy.some(m => m.id === privacySelected)) {
-      privacySelected = all.privacy[0]?.id || "qwen3-fast";
+    if (!all.privacy.some(m => m.id === privacySelected && m.installed) && all.privacy.some(m => m.installed) && (allowFallback || privacySelected !== MOBILE_PRIVACY_MODEL || !all.privacy.some(m => m.id === privacySelected))) {
+      privacySelected = all.privacy.find(m => m.installed)!.id;
       localStorage.setItem("bluedoor-privacy-model", privacySelected);
     }
     installed = map;
@@ -228,7 +226,7 @@
       } else {
         await invoke("delete_model", { size: family });
       }
-      await refresh();
+      await refresh(true);
       messageKind = "status"; message = t.deleted;
     } catch (e: any) {
       messageKind = "error"; message = String(e);
@@ -352,7 +350,7 @@
           </button>
         <div class="spacer"></div>
         <div class="right-actions privacy-model-status">
-          {#if mobile && installingId !== privacySelected}<span class="mobile-model-size">{privacySelected === "gliner-pii-small-int8" ? "86,3 MB total" : privacyOptions.find(m => m.id === privacySelected)?.size}</span>{/if}
+          {#if mobile && installingId !== privacySelected}<span class="mobile-model-size">{privacySelected === MOBILE_PRIVACY_MODEL ? "596,0 MB total" : privacySelected === "gliner-pii-small-int8" ? "86,3 MB total" : privacyOptions.find(m => m.id === privacySelected)?.size}</span>{/if}
           {#if installingId === privacySelected}
             <div class="download-progress"><div class="progress-track"><div class="progress-fill" style={`width: ${progress[privacySelected] ?? 0}%`}></div></div><span>{progress[privacySelected] ?? 0}%</span></div>
           {:else if installed[privacySelected]}
@@ -416,24 +414,6 @@
     </div>
     {/if}
   </div>
-
-  {#if mobile}
-    <section class="mobile-model-settings">
-      {#if privacySelected === "gliner-pii-small-int8"}<p>Experimental · INT8 ONNX en CPU. La ficha del modelo declara inglés; revisa con especial cuidado documentos en español. Conserva la revisión humana y las comprobaciones de exportación.</p>{/if}
-      <p>Elige y descarga un modelo antes de importar. Después del primer uso, el análisis funciona sin conexión.</p>
-      <button class="change-btn" disabled={busy} onclick={async () => { try { await invoke("unload_privacy_model"); messageKind = "status"; message = "Modelo liberado de la memoria."; } catch (e) { messageKind = "error"; message = String(e); } }}>Liberar modelo</button>
-      <details><summary>Rendimiento de Qwen</summary>
-        <label>Contexto (tokens)<input type="number" min="4096" max="8192" step="1024" bind:value={contextTokens}/></label>
-        <label>Fragmento (caracteres)<input type="number" min="900" max="2400" step="100" bind:value={chunkChars}/></label>
-        <button class="change-btn" disabled={busy} onclick={async () => { try { await invoke("configure_mobile_analysis", { contextTokens, chunkChars }); messageKind = "status"; message = "Perfil aplicado para el próximo análisis."; } catch (e) { messageKind = "error"; message = String(e); } }}>Aplicar perfil</button>
-      </details>
-      <details><summary>Mediciones locales</summary>
-        <button class="change-btn" onclick={async () => { performance = await invoke("get_local_performance"); }}>Actualizar mediciones</button>
-        <p>El máximo residente pertenece al proceso completo.</p>
-        {#each performance as sample}<p>{sample.stage}: {(sample.elapsedMs / 1000).toFixed(2)} s · {sample.peakRssKb === null ? "memoria no disponible" : `${Math.round(sample.peakRssKb / 1024)} MB`}</p>{/each}
-      </details>
-    </section>
-  {/if}
 
   <dialog class="model-picker" bind:this={modelPicker} aria-labelledby="model-picker-title" oncancel={(event) => { event.preventDefault(); menu = null; }}>
     <div class="picker-heading">

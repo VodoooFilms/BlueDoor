@@ -4,7 +4,7 @@
 .mobile-source, .entity-context, .mobile-tools, .local-performance { display:none; }
 .mobile-app .mobile-source, .mobile-app .mobile-tools, .mobile-app .local-performance { display:block; }
 
-@media(max-width:600px) {
+@media(max-width:600px), (max-height:600px) and (pointer:coarse) {
   :root { font-size:14px; }
   html, body, #app { min-width:0 !important; width:100%; height:100%; overflow:auto !important; }
   :root body .shell {
@@ -89,7 +89,7 @@
 .mobile-app .paste-document[open] { display:grid; gap:12px; }
 .mobile-app .paste-document textarea { width:100%; box-sizing:border-box; font:inherit; }
 .mobile-app .mobile-source { display:flex; flex-wrap:wrap; gap:12px; }
-@media(max-width:600px) {
+@media(max-width:600px), (max-height:600px) and (pointer:coarse) {
   :root .shell .models { padding:16px 0; min-width:0; overflow:visible; }
   :root .shell .models .head-top, :root .shell .models .row { flex-wrap:wrap; gap:16px; }
   :root .shell .models .head-copy { min-width:0; gap:12px; }
@@ -101,7 +101,7 @@
   :root .shell .models .right-actions { flex-wrap:wrap; gap:12px; }
   :root .shell .models .model-picker { width:calc(100vw - 32px); max-width:480px; box-sizing:border-box; padding:16px; }
 }
-@media(max-width:600px) {
+@media(max-width:600px), (max-height:600px) and (pointer:coarse) {
   :root .shell .audio-container { flex:1 0 auto; }
   :root .shell .models { flex:none; }
   :root .shell .models .list { flex:none; overflow:visible; }
@@ -110,10 +110,10 @@
   :root .shell .models .model-picker-trigger span { display:none; }
 }
 
-@media(max-width:600px) {
+@media(max-width:600px), (max-height:600px) and (pointer:coarse) {
   :root .shell .models .right-actions { flex:1; width:auto; margin-left:0; }
 }
-@media(max-width:600px) {
+@media(max-width:600px), (max-height:600px) and (pointer:coarse) {
   :root .shell .privacy-workflow .processing-slot {
     position:fixed; top:max(16px,env(safe-area-inset-top)); bottom:auto; left:16px; right:16px;
     z-index:1100; height:auto; box-sizing:border-box; padding:16px; display:grid; gap:12px;
@@ -124,7 +124,7 @@
   :root .shell .processing-slot button { justify-self:start; }
 }
 
-@media(max-width:600px) {
+@media(max-width:600px), (max-height:600px) and (pointer:coarse) {
   :root .shell .models .head-top { flex-wrap:nowrap; gap:12px; min-height:44px; }
   :root .shell .models .models-head { min-height:44px; }
   :root .shell .models .head-copy { flex:1; gap:8px; }
@@ -143,7 +143,7 @@
 }
 
 .mobile-model-size { display:none; }
-@media(max-width:600px) {
+@media(max-width:600px), (max-height:600px) and (pointer:coarse) {
   :root .shell .models .card-head { display:none; }
   :root .shell .models .privacy-model-row { border:0; padding:0; background:transparent; }
   :root .shell .models .privacy-model-row .row-copy strong { white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
@@ -154,6 +154,63 @@
   :root .shell .models .privacy-model-status .download-progress { display:flex; width:100%; min-height:44px; }
   :root .shell .models .privacy-model-status .download-progress > span { flex:0 0 44px; text-align:right; }
 }
-@media(max-width:600px) {
+@media(max-width:600px), (max-height:600px) and (pointer:coarse) {
   :root .shell .models .privacy-model-row { align-items:center; }
 }
+
+@media(max-width:600px), (max-height:600px) and (pointer:coarse) {
+  :root .shell .page-editor .editor-toolbar { display:flex; flex-direction:column; align-items:stretch; padding:12px 8px; gap:12px; }
+  :root .shell .page-editor .font-zoom-controls { display:flex; width:100%; justify-content:space-between; gap:8px; }
+  :root .shell .page-editor .font-controls { display:contents; }
+  :root .shell .page-editor .font-controls .tb-field:first-child { flex:1; min-width:0; }
+  :root .shell .page-editor .tb-font, :root .shell .page-editor .tb-size, :root .shell .page-editor .workspace-zoom select { height:44px; min-height:44px; }
+  :root .shell .page-editor .tb-font { width:100%; min-width:0; max-width:none; }
+  :root .shell .page-editor .tb-size { width:52px; padding-inline:4px; }
+  :root .shell .page-editor .workspace-zoom { min-width:0; gap:4px; }
+  :root .shell .page-editor .workspace-zoom select { width:128px; min-width:0; padding-inline:4px; font-size:12px; }
+  :root .shell .page-editor .workspace-zoom svg { display:none; }
+  :root .shell .page-editor .style-controls { width:100%; max-width:none; justify-content:space-evenly; flex-wrap:nowrap; }
+  :root .shell .page-editor .style-controls > .tb-sep { display:none; }
+  :root .shell .page-editor .tb-styles, :root .shell .page-editor .tb-align { flex:1; justify-content:space-evenly; }
+  :root .shell .page-editor .toolbar-actions { width:100%; margin:0; justify-content:center; }
+  :root .shell .page-editor .editor-actions, :root .shell .page-editor .alias-actions { width:100%; margin:0; justify-content:space-evenly; gap:8px; }
+  :root .shell .page-editor .editor-actions .head-btn { flex:1; justify-content:center; padding:8px; }
+  :root .shell .page-editor .alias-actions button { flex:1; }
+}
+
+/* Android: apply in both orientations, including wide landscape WebViews. */
+:root.mobile-app body .shell { padding:28px 24px 32px; min-width:0; }
+/* Scale the complete desktop lockup: 42/36 icon-to-type ratio. */
+.mobile-app .shell .masthead .brand { font-size:18px; gap:7.5px; letter-spacing:-0.65px; }
+.mobile-app .shell .masthead .brand > svg { height:1.1666667em; width:0.6461067em; flex:none; }
+.mobile-app .welcome[role=dialog] { box-sizing:border-box; padding:72px 24px 48px; }
+.mobile-app .welcome[role=dialog] .close { top:20px; right:24px; min-width:44px; min-height:44px; }
+.mobile-app .shell .workspace-title { flex:1; flex-basis:auto; max-width:none; }
+.mobile-app .shell .workspace-header > .workspace-zoom { flex:none; margin-left:auto; }
+.mobile-app .shell .workspace-header > .workspace-zoom select { width:112px; }
+.mobile-app .shell .workspace-header > .workspace-zoom svg { display:none; }
+.mobile-app .shell .workspace-header { gap:8px; }
+.mobile-app .shell .workspace-header > .workspace-title { flex-basis:calc(100% - 128px); }
+.mobile-app .shell .document-menu > div { left:0; right:auto; width:min(260px, calc(100vw - 72px)); box-sizing:border-box; }
+.mobile-app .shell .document-menu > div button { white-space:normal; text-align:left; }
+.mobile-app .shell .original-toggle { width:100%; min-height:44px; }
+.mobile-app .shell .gpt-button { width:auto; min-width:72px; gap:6px; padding:8px; }
+
+.mobile-app .shell .document-actions { display:flex; align-items:center; gap:8px; width:100%; min-width:0; }
+.mobile-app .shell .document-actions > button { flex:1; min-width:0; padding-inline:8px; }
+.mobile-app .shell .document-menu summary { list-style:none; width:28px; text-align:center; }
+.mobile-app .shell .document-menu summary::-webkit-details-marker { display:none; }
+@media (orientation:landscape) and (max-height:600px) {
+  :root.mobile-app .shell .masthead { flex-wrap:nowrap; align-items:center; }
+  :root.mobile-app .shell .nav-right { width:auto; margin-left:auto; }
+  :root.mobile-app .shell .nav-row { width:auto; grid-template-columns:repeat(4,80px); }
+  :root.mobile-app .shell .nav-models, :root.mobile-app .shell .settings-menu summary { min-height:48px; padding:4px; }
+}
+.mobile-app .shell .models { min-height:calc(100dvh - 230px); }
+.mobile-app .shell .models > .footer { margin-top:auto; align-self:stretch; justify-content:flex-end; padding-top:24px; }
+.mobile-app .shell .models > .footer .back-btn { margin-left:auto; }
+
+/* Let review/export/GPT share the entire row, with room around every label. */
+.mobile-app .shell .review-actions { display:flex; width:100%; gap:8px; align-items:stretch; }
+.mobile-app .shell .review-actions > button { flex:1 1 0; min-width:0; min-height:44px; padding:10px 12px; white-space:normal; justify-content:center; }
+.mobile-app .shell .review-actions > .gpt-button { gap:8px; padding-inline:16px; white-space:nowrap; }

@@ -66,8 +66,11 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-process:2.10.0")
     // Bundled Latin model: Spanish/English OCR works offline right after
     // installation, with no Play Services download at runtime.
+    // Keep CCTDestination, required during ML Kit initialization. The manifest
+    // removes backend discovery so DataTransport cannot instantiate an uploader.
     implementation("com.google.mlkit:text-recognition:16.0.1")
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.23.2")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.24.3")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.4")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")

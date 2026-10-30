@@ -10,6 +10,7 @@ try {
       localStorage.setItem("bluedoor-language", "es");
       window.__saveCalls = 0;
       window.__TAURI_INTERNALS__ = {
+        metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
         invoke: async (cmd) => {
           if (cmd === "check_installation") return;
           if (cmd === "load_transcripts") {
@@ -33,6 +34,7 @@ try {
       };
     }, { failedLoad });
     await page.goto("http://localhost:5198/history.html");
+    await page.locator('.welcome[role="dialog"] .close').click();
     await page.locator("#recordToggle").click();
     const alert = page.locator(failedLoad ? ".boot-detail" : ".storage-error").first();
     await alert.waitFor();

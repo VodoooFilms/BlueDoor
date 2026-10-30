@@ -62,6 +62,17 @@ fn matches(
             }
         }
     }
+    for page in &document.pages {
+        for glyph in &page.glyphs {
+            if page
+                .manual_regions
+                .iter()
+                .any(|&r| super::intersects(r, glyph.rect))
+            {
+                matches.push((glyph.start, glyph.end, "[CUBIERTO]".into()));
+            }
+        }
+    }
     matches.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
     let mut end = 0;
     matches.retain(|m| {
@@ -352,7 +363,11 @@ pub(crate) fn compiled(
             .map(|p| p.runs.iter().map(|r| r.text.as_str()).collect::<String>())
             .collect::<Vec<_>>()
             .join("\n");
-        replacements.insert(block.id, text);
+        let covered = document.pages[block.page]
+            .manual_regions
+            .iter()
+            .any(|&r| super::intersects(r, block.bounds));
+        replacements.insert(block.id, if covered { "[CUBIERTO]".into() } else { text });
         block.html = edit.html.clone();
         block.font = edit.font.clone();
         block.size = edit.size;

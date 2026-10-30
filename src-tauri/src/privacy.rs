@@ -369,6 +369,10 @@ fn patterns() -> &'static Vec<(Kind, Regex)> {
         // Explicit receipt fields carry names even when English NER misses
         // uppercase Spanish names. Values remain exact source spans.
         (Kind::Person, Regex::new(r"(?im)^[ \t]*(?:titular|beneficiario|ordenante|remitente|destinatario|nombre(?:s)?(?:[ \t]+y[ \t]+apellidos|[ \t]+del[ \t]+(?:titular|beneficiario|ordenante)))(?:[ \t]*:[ \t]*(?:\r?\n[ \t]*)?|[ \t]*\r?\n[ \t]*)([\p{L}][\p{L}\p{M}.'’\-]*(?:[ \t]+[\p{L}][\p{L}\p{M}.'’\-]*){1,5})[ \t]*\r?$").unwrap()),
+        // Explicit name/surname fields are private even when the English NER
+        // emits no PERSON anchor. Keep the exact value (including a single
+        // surname); never join a following form row or erase its field label.
+        (Kind::Person, Regex::new(r"(?im)^[ \t]*(?:apellidos?(?:[ \t]+(?:paterno|materno))?|(?:primer|segundo)[ \t]+apellido|apellidos[ \t]+y[ \t]+nombres|nombre[ \t]+completo|full[ \t]+name|(?:first|middle|last|family|given)[ \t]+names?|surnames?)[ \t]*:[ \t]*([\p{L}\p{M}][\p{L}\p{M}.'’\-]*(?:[ \t]+[\p{L}\p{M}][\p{L}\p{M}.'’\-]*){0,7})[ \t]*\r?$").unwrap()),
         // Masked receipt accounts still identify a customer; retain no visible digits.
         (Kind::Other, Regex::new(r"(?i)\b[0-9]{2,}[X*•]{2,}[0-9]{2,}\b").unwrap()),
         // OCR legal headers often put a proper name before the seat of the court.
@@ -560,6 +564,21 @@ fn is_non_identifying(text: &str) -> bool {
             other => other,
         })
         .collect();
+    if matches!(
+        lowered.as_str(),
+        "autoridad"
+            | "autoridad competente"
+            | "juez"
+            | "jueza"
+            | "notario"
+            | "notaria"
+            | "abogado"
+            | "abogada"
+            | "compareciente"
+            | "solicitante"
+    ) {
+        return true;
+    }
     // Article and code citations, with or without the surrounding law name.
     if ARTICLE_WORDS.iter().any(|w| lowered.contains(w)) {
         return true;
@@ -767,6 +786,7 @@ pub(crate) fn merge_detection_sources(
             });
         }
     }
+    complete_detected_names(original, &mut entities);
     add_ocr_name_variants(original, &mut entities);
     if entities.len() > MAX_ENTITIES {
         return Err("El documento tiene demasiadas entidades para este demo.".into());
@@ -786,6 +806,319 @@ fn name_token(text: &str) -> String {
             _ => c,
         })
         .collect()
+}
+
+/// Extend only grounded person detections inside a bounded source name run.
+/// This covers omitted middle names and OCR-spelled surnames without inventing
+/// words, crossing table cells, joining parties, or consuming legal prose.
+/// A bounded adjacent OCR line can complete a standalone anchored name.
+fn complete_detected_names(original: &str, entities: &mut Vec<Entity>) {
+    let people: Vec<Entity> = entities
+        .iter()
+        .filter(|e| e.kind == Kind::Person)
+        .cloned()
+        .collect();
+    if people.is_empty() {
+        return;
+    }
+    let words_re = Regex::new(r"\p{L}+(?:[-'’]\p{L}+)*").expect("name words");
+    let connector = |word: &str| matches!(word, "de" | "del" | "la" | "las" | "los" | "da" | "dos");
+    let reserved = |word: &str| {
+        matches!(
+            word,
+            "nombre"
+                | "nombres"
+                | "apellido"
+                | "apellidos"
+                | "firma"
+                | "firmado"
+                | "titular"
+                | "ordenante"
+                | "beneficiario"
+                | "compareciente"
+                | "senor"
+                | "señor"
+                | "señora"
+                | "dr"
+                | "dra"
+                | "sr"
+                | "sra"
+                | "senora"
+                | "abogado"
+                | "abogada"
+                | "doctor"
+                | "doctora"
+                | "notario"
+                | "notaria"
+                | "juez"
+                | "jueza"
+                | "comparece"
+                | "comparecen"
+                | "presenta"
+                | "presentan"
+                | "solicita"
+                | "solicitan"
+                | "declara"
+                | "declaran"
+                | "manifiesta"
+                | "recibe"
+                | "paga"
+                | "transfiere"
+                | "suscribe"
+                | "ante"
+                | "con"
+                | "para"
+                | "por"
+                | "en"
+                | "y"
+                | "e"
+                | "o"
+                | "el"
+                | "un"
+                | "una"
+                | "como"
+                | "quien"
+                | "que"
+                | "a"
+                | "al"
+                | "es"
+                | "son"
+                | "se"
+                | "su"
+                | "sus"
+                | "banco"
+                | "bank"
+                | "cooperativa"
+                | "sociedad"
+                | "compania"
+                | "empresa"
+                | "total"
+                | "usd"
+                | "cedula"
+                | "identificacion"
+                | "proceso"
+                | "email"
+                | "correo"
+                | "telefono"
+                | "direccion"
+                | "fecha"
+                | "comprobante"
+                | "transferencia"
+                | "contrato"
+                | "documento"
+                | "republica"
+                | "ecuador"
+                | "provincia"
+                | "canton"
+                | "ciudad"
+                | "domicilio"
+        )
+    };
+    let other_values: Vec<String> = entities
+        .iter()
+        .filter(|e| {
+            e.kind == Kind::Company
+                && (e.source == "pattern"
+                    || e.original.split_whitespace().any(|word| {
+                        matches!(
+                            name_token(word).as_str(),
+                            "banco" | "bank" | "cooperativa" | "sociedad" | "compania" | "empresa"
+                        )
+                    }))
+        })
+        .map(|e| e.original.clone())
+        .collect();
+    let other_words: HashSet<String> = other_values
+        .iter()
+        .flat_map(|value| {
+            words_re
+                .find_iter(value)
+                .map(|word| name_token(word.as_str()))
+        })
+        .collect();
+    let other_word = |word: &str| other_words.contains(&name_token(word));
+    let person_patterns: Vec<_> = people
+        .iter()
+        .filter(|person| person.original.chars().count() >= 3)
+        .filter_map(|person| {
+            matching_pattern(&person.original)
+                .ok()
+                .map(|pattern| (person, pattern))
+        })
+        .collect();
+    let mut seen: HashSet<String> = entities.iter().map(|e| normalized(&e.original)).collect();
+    let mut next = entities.iter().filter(|e| e.kind == Kind::Person).count() + 1;
+    let mut name_lines: Vec<(&str, bool)> = original.lines().map(|line| (line, false)).collect();
+    // OCR and narrow pages can place the final surname on the next line.
+    // Only join an already anchored, standalone multiword name with a short
+    // adjacent name-like continuation. Blank lines, tabs, field labels, prose,
+    // organizations and separately detected people remain boundaries.
+    for (split, _) in original.match_indices('\n') {
+        let begin = original[..split].rfind('\n').map_or(0, |i| i + 1);
+        let end = original[split + 1..]
+            .find('\n')
+            .map_or(original.len(), |i| split + 1 + i);
+        let first = original[begin..split].trim();
+        let value = first
+            .split_once(':')
+            .map_or(first, |(_, value)| value.trim());
+        let next_line = original[split + 1..end].trim();
+        let name_like = |text: &str| {
+            !text.is_empty()
+                && text
+                    .chars()
+                    .all(|c| c.is_alphabetic() || matches!(c, ' ' | '\u{a0}' | '-' | '\'' | '’'))
+                && text.split_whitespace().all(|word| {
+                    !reserved(&name_token(word))
+                        && !other_word(word)
+                        && (word.chars().next().is_some_and(char::is_uppercase)
+                            || connector(&name_token(word)))
+                })
+        };
+        if !(2..=7).contains(&value.split_whitespace().count())
+            || !(1..=3).contains(&next_line.split_whitespace().count())
+            || !name_like(value)
+            || !name_like(next_line)
+            || connector(&name_token(
+                next_line.split_whitespace().last().unwrap_or(""),
+            ))
+            || !person_patterns.iter().any(|(_, pattern)| {
+                pattern
+                    .find_iter(value)
+                    .any(|hit| boundary(value, hit.start(), hit.end()))
+            })
+            || entities.iter().any(|e| {
+                matching_pattern(&e.original).ok().is_some_and(|pattern| {
+                    pattern
+                        .find_iter(next_line)
+                        .any(|hit| boundary(next_line, hit.start(), hit.end()))
+                })
+            })
+        {
+            continue;
+        }
+        let offset = original[begin..split].find(value).unwrap();
+        name_lines.push((original[begin + offset..end].trim(), true));
+    }
+    for (line, wrapped) in name_lines {
+        let line = line.trim();
+        let field = line.split_once(':').filter(|(label, _)| {
+            matches!(
+                name_token(label.trim()).as_str(),
+                "nombre"
+                    | "nombres"
+                    | "nombre completo"
+                    | "nombres y apellidos"
+                    | "apellidos y nombres"
+                    | "firma"
+                    | "titular"
+                    | "ordenante"
+                    | "beneficiario"
+                    | "compareciente"
+            )
+        });
+        let source = field.map_or(line, |(_, value)| value.trim());
+        let words: Vec<_> = words_re.find_iter(source).collect();
+        // Lowercase completion requires an explicit name field; ordinary prose
+        // cannot be distinguished safely from an unlabeled lowercase name.
+        let standalone = (2..=8).contains(&words.len())
+            && source.len() <= 160
+            && source.chars().all(|c| {
+                c.is_alphabetic()
+                    || matches!(c, ' ' | '\u{a0}' | '-' | '\'' | '’')
+                    || (wrapped && matches!(c, '\n' | '\r'))
+            })
+            && words
+                .iter()
+                .all(|w| !reserved(&name_token(w.as_str())) && !other_word(w.as_str()))
+            && (field.is_some()
+                || words.iter().all(|w| {
+                    w.as_str().chars().next().is_some_and(char::is_uppercase)
+                        || connector(&name_token(w.as_str()))
+                }))
+            && !connector(&name_token(words[0].as_str()))
+            && !connector(&name_token(words.last().unwrap().as_str()));
+        let mut runs = vec![];
+        if standalone {
+            runs.push((0, source.len()));
+        } else {
+            let mut start: Option<usize> = None;
+            let mut end = 0;
+            let mut count = 0;
+            for word in &words {
+                let token = name_token(word.as_str());
+                let capital = word.as_str().chars().next().is_some_and(char::is_uppercase);
+                let gap = &source[end..word.start()];
+                let contiguous =
+                    gap.chars().all(|c| matches!(c, ' ' | '\u{a0}')) && gap.chars().count() <= 2;
+                if !contiguous
+                    || reserved(&token)
+                    || other_word(word.as_str())
+                    || (!capital && !connector(&token))
+                {
+                    if let Some(a) = start.take() {
+                        if (2..=8).contains(&count) {
+                            runs.push((a, end));
+                        }
+                    }
+                    count = 0;
+                }
+                if !reserved(&token)
+                    && !other_word(word.as_str())
+                    && (capital || (start.is_some() && connector(&token)))
+                {
+                    if start.is_none() {
+                        start = Some(word.start());
+                    }
+                    count += 1;
+                    end = word.end();
+                } else {
+                    end = word.end();
+                }
+            }
+            if let Some(a) = start {
+                if (2..=8).contains(&count) {
+                    runs.push((a, end));
+                }
+            }
+        }
+        for (start, end) in runs {
+            let span = source[start..end].trim();
+            let span_words: Vec<_> = span.split_whitespace().collect();
+            if span_words.len() < 2
+                || span.len() > 160
+                || span_words.last().is_some_and(|w| connector(&name_token(w)))
+            {
+                continue;
+            }
+            let anchors: Vec<_> = person_patterns
+                .iter()
+                .filter(|(_, pattern)| {
+                    pattern
+                        .find_iter(span)
+                        .any(|hit| boundary(span, hit.start(), hit.end()))
+                })
+                .map(|(person, _)| *person)
+                .collect();
+            if anchors.is_empty() || !seen.insert(normalized(span)) {
+                continue;
+            }
+            let aliases: HashSet<_> = anchors.iter().map(|e| e.alias.as_str()).collect();
+            let alias = if aliases.len() == 1 {
+                anchors[0].alias.clone()
+            } else {
+                let alias = format!("PERSON_{next:02}");
+                next += 1;
+                alias
+            };
+            entities.push(Entity {
+                kind: Kind::Person,
+                original: span.into(),
+                alias,
+                source: "name-coverage".into(),
+            });
+        }
+    }
 }
 
 /// Receipt OCR often truncates surnames and loses accents. Only standalone
@@ -1010,6 +1343,9 @@ pub(crate) fn privacy_advisories(entities: &[Entity]) -> Vec<String> {
         advisories.push(
             "El mapa no contiene ninguna persona. Los nombres no tienen un detector determinista: Qwen puede omitirlos y las reglas no los comprueban. Revísalos tú.".into(),
         );
+    }
+    if entities.iter().any(|e| e.source == "name-coverage") {
+        advisories.push("Se completaron nombres parciales con palabras contiguas del original. Revisa los nombres compuestos y las zonas OCR antes de aprobar.".into());
     }
     advisories
 }
@@ -1322,11 +1658,11 @@ pub(crate) async fn analyze_private_document(
             .map_err(|_| "Ya hay un análisis local en curso.")?;
         let _ = app.emit("private-analysis-progress", (id.as_str(), requested_revision, "model_verify"));
         #[cfg(target_os = "android")]
-        let gliner = if model_id == crate::models::GLINER_ID {
+        let gliner = if crate::models::gliner_files(&model_id).is_some() {
             *cache = None;
-            Some(crate::gliner::GlinerEngine::load(&app)?)
+            Some(crate::gliner::GlinerEngine::load(&app, &model_id)?)
         } else { None };
-        if model_id != crate::models::GLINER_ID && cache.as_ref().is_none_or(|(loaded, _)| loaded != &model_id) {
+        if crate::models::gliner_files(&model_id).is_none() && cache.as_ref().is_none_or(|(loaded, _)| loaded != &model_id) {
             let path = crate::paths::models_dir(&app).join(crate::models::qwen_file(&model_id)?);
             let verify_timer = crate::performance::Timer::new("model_verify");
             crate::models::verify_model_file(&path)
@@ -1384,7 +1720,7 @@ pub(crate) async fn analyze_private_document(
                 (
                     id.as_str(),
                     requested_revision,
-                    if model_id == crate::models::GLINER_ID { format!("ner:{done}/{total}") } else if tokens >= 1_000_000 { format!("prefill:{done}/{total}:{}", tokens - 1_000_000) } else { format!("reading:{done}/{total}:{tokens}") },
+                    if crate::models::gliner_files(&model_id).is_some() { format!("ner:{done}/{total}") } else if tokens >= 1_000_000 { format!("prefill:{done}/{total}:{}", tokens - 1_000_000) } else { format!("reading:{done}/{total}:{tokens}") },
                 ),
             );
         };
@@ -1401,7 +1737,7 @@ pub(crate) async fn analyze_private_document(
         analysis.entities = merge_detection_sources(&original,
             analysis.entities.iter().map(|e| Detection { kind: e.kind, text: e.original.clone() }).collect(),
             local_names.unwrap_or_default())?;
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "android"))]
         if let Some(document) = session.layout.as_ref() {
             crate::layout::fit_generated_aliases(document, &mut analysis.entities, &crate::layout::executable(&app)?)?;
         }

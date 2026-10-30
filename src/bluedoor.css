@@ -8,6 +8,7 @@
 :root .masthead .nav-models,:root .masthead .settings-menu summary { display:flex; align-items:center; justify-content:center; gap:11px; min-height:54px; height:auto; padding:10px 8px; color:white; font-weight:500; font-size:16px; border-radius:0; background:transparent; border-bottom:2px solid transparent; }
 :root .masthead .nav-models.nav-active { border-bottom-color:white; }
 :root .masthead .nav-models:disabled { color:white; opacity:1; cursor:default; }
+:root .masthead #editToggle:disabled { opacity:.45; }
 :root .masthead .settings-menu summary:hover,:root .masthead .nav-models:hover:not(:disabled) { background:rgb(255 255 255 / 7%); }
 :root .masthead .settings-popover { top:65px; width:290px; border-radius:12px; background:#1745a5; padding:12px; box-shadow:0 16px 50px #05277044; }
 :root .settings-popover button { justify-content:flex-start; min-height:48px; gap:12px; }

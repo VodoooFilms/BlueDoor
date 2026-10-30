@@ -1,6 +1,6 @@
 [package]
 name = "bluedoor"
-version = "0.4.0"
+version = "0.5.5"
 description = "Local & Private BlueDoor Transcription"
 authors = ["BlueDoor"]
 edition = "2021"
@@ -67,3 +67,7 @@ opt-level = 3
 
 [dev-dependencies]
 tokenizers = { version = "=0.23.2", default-features = false, features = ["fancy-regex"] }
+
+# Release binaries ship without a symbol table (3.4 MB in the Android .so).
+[profile.release]
+strip = "symbols"

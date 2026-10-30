@@ -131,6 +131,7 @@ pub fn run() {
             documents::import_private_text,
             layout::preview_private_layout,
             layout::save_private_layout_text,
+            layout::save_private_manual_cover,
             layout::review_private_layout,
             layout::export_private_layout,
             privacy::get_privacy_session,

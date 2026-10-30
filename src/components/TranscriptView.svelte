@@ -703,7 +703,8 @@
 
   <div class="editor-tools">
   <div class="editor-toolbar" aria-label={t.alignLabel}>
-    <fieldset class="format-controls" disabled={!surfaceActive}>
+    <div class="font-zoom-controls">
+    <fieldset class="format-controls font-controls" disabled={!surfaceActive}>
       <label class="tb-field" title={t.fontLabel}>
         <select
           class="tb-font"
@@ -738,6 +739,10 @@
           {/each}
         </select>
       </label>
+    </fieldset>
+    {#if toolbarLeading}{@render toolbarLeading()}{/if}
+    </div>
+    <fieldset class="format-controls style-controls" disabled={!surfaceActive}>
       <span class="tb-sep"></span>
       <div class="tb-styles" role="group" aria-label={t.boldLabel}>
         <button class="tb-btn" class:active={selBold} title={t.boldLabel} aria-label={t.boldLabel} onmousedown={(e) => e.preventDefault()} onclick={() => applyFormat("bold")}>
@@ -774,7 +779,6 @@
       </div>
     </fieldset>
     <div class="toolbar-actions">
-    {#if toolbarLeading}{@render toolbarLeading()}{/if}
     {#if actions}{@render actions()}{:else}
       <div class="head-actions editor-actions">
       <button class="head-btn" onclick={resetToOriginal} disabled={!surfaceActive || !canReset} title={t.reset} aria-label={t.reset}>
@@ -892,6 +896,7 @@
     border-bottom: 1px solid var(--line);
     background: var(--surface);
   }
+  .font-zoom-controls { display:flex; align-items:center; gap:7px; min-width:0; }
   .tb-field { display: inline-flex; }
   .tb-font,
   .tb-size {
