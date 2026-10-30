@@ -46,7 +46,9 @@ try {
     servers.push(server);
     await server.listen();
   }
-  if (process.argv.includes("--vault")) {
+  if (process.argv.includes("--android-models")) {
+    await run("check-android-models.mjs");
+  } else if (process.argv.includes("--vault")) {
     await run("check-vault.mjs");
     await run("check-bluedoor.mjs");
   } else if (process.argv.includes("--brand")) {

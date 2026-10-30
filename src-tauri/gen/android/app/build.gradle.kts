@@ -67,6 +67,7 @@ dependencies {
     // Bundled Latin model: Spanish/English OCR works offline right after
     // installation, with no Play Services download at runtime.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.23.2")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.4")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")

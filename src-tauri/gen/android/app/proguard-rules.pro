@@ -21,3 +21,6 @@
 #-renamesourcefileattribute SourceFile
 -keep class com.bluedoor.desktop.BlueDoorAndroid { *; }
 -keepclassmembers class com.bluedoor.desktop.MainActivity { native <methods>; }
+# ONNX's JNI resolves tensor/value classes and enum members by their original
+# names. Keeping only native methods still lets R8 rename those support types.
+-keep class ai.onnxruntime.** { *; }

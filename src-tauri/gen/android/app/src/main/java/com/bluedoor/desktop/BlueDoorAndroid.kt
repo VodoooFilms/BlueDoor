@@ -35,6 +35,21 @@ object BlueDoorAndroid {
   private const val MAX_PAGES = 30
   private const val MAX_PIXELS = 2000
 
+  @Volatile var activity: java.lang.ref.WeakReference<MainActivity>? = null
+  @Volatile private var analysisActive = false
+  @JvmStatic fun runGliner(payload: String): String = GlinerRuntime.run(payload)
+  @JvmStatic fun unloadGliner(ignored: String) = GlinerRuntime.unload()
+  @JvmStatic fun setAnalysisActive(value: String) {
+    analysisActive = value == "true"
+    applyScreenAwake()
+  }
+  fun applyScreenAwake() {
+    activity?.get()?.let { current -> current.runOnUiThread {
+      if (analysisActive) current.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      else current.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    } }
+  }
+
   private val importCancelled = java.util.concurrent.atomic.AtomicBoolean(false)
   @Volatile var sourceUri: Uri? = null
   @Volatile private var appContext: Context? = null
@@ -126,6 +141,43 @@ object BlueDoorAndroid {
   fun previewSource(ignored: String) {
     if (sourceUri == null) throw IOException("Vuelve a seleccionar el documento para ver la fuente.")
     context().startActivity(Intent(context(), SourcePreviewActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+  }
+
+  /** Bounded raster for the document surface inside the WebView. Never opens another app. */
+  @JvmStatic fun sourcePage(payload: String): String {
+    val data = org.json.JSONObject(payload)
+    val page = data.optInt("page", 0)
+    val uri = sourceUri ?: throw IOException("Vuelve a importar el documento para ver el original.")
+    var count = 1
+    val bitmap: Bitmap
+    if (context().contentResolver.getType(uri) == "application/pdf") {
+      val descriptor = context().contentResolver.openFileDescriptor(uri, "r") ?: throw IOException("Fuente no disponible.")
+      descriptor.use { PdfRenderer(it).use { renderer ->
+        count = renderer.pageCount
+        if (page !in 0 until count) throw IOException("Página no válida.")
+        renderer.openPage(page).use { source ->
+          val scale = min(2.5, 1600.0 / max(source.width, source.height))
+          bitmap = Bitmap.createBitmap(max(1, (source.width * scale).toInt()), max(1, (source.height * scale).toInt()), Bitmap.Config.ARGB_8888)
+          bitmap.eraseColor(Color.WHITE)
+          source.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+        }
+      } }
+    } else {
+      if (page != 0) throw IOException("Página no válida.")
+      val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+      context().contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it, null, bounds) }
+      var sample = 1
+      while (max(bounds.outWidth, bounds.outHeight) / sample > 1600) sample *= 2
+      val options = BitmapFactory.Options().apply { inSampleSize = sample }
+      val decoded = context().contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it, null, options) } ?: throw IOException("No se pudo mostrar la fuente.")
+      val orientation = runCatching { context().contentResolver.openInputStream(uri).use { ExifInterface(it!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) } }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+      bitmap = orientBitmap(decoded, orientation)
+    }
+    try {
+      val output = java.io.ByteArrayOutputStream()
+      bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+      return org.json.JSONObject().put("pages", count).put("image", "data:image/png;base64," + android.util.Base64.encodeToString(output.toByteArray(), android.util.Base64.NO_WRAP)).toString()
+    } finally { bitmap.recycle() }
   }
 
   /** Opens the system share sheet with the reviewed PDF. */

@@ -70,5 +70,15 @@
     "size": 2220088992,
     "sha256": "48bffa1478e612465567147cae67bf5e1539ed3080ec5415a35789d6fd4c851d",
     "license_source": "https://huggingface.co/Qwen/Qwen3-1.7B/blob/70d244cc86ccca08cf5af4e1e306ecf908b1ad5e/LICENSE"
+  },
+  "gliner-pii-small-int8": {
+    "url": "https://huggingface.co/knowledgator/gliner-pii-small-v1.0/resolve/d21aad5b4a7ec82b3d0970fd1ac74a12c087d85e/onnx/model_quint8.onnx",
+    "size": 82680500,
+    "sha256": "891589426ee96f2748b16439f44fad8c3f97e198e002a6637e58dee989500216"
+  },
+  "gliner-pii-tokenizer": {
+    "url": "https://huggingface.co/knowledgator/gliner-pii-small-v1.0/resolve/d21aad5b4a7ec82b3d0970fd1ac74a12c087d85e/tokenizer.json",
+    "size": 3583593,
+    "sha256": "84b3a9b18f04a0ccd03b72d9f871b7e0bec40fd7021ef50bc30a7c3693c11205"
   }
 }

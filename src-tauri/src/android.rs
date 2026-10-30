@@ -122,7 +122,6 @@ pub extern "system" fn Java_com_bluedoor_desktop_MainActivity_nativeBackground(
 ) {
     use tauri::{Emitter, Manager};
     FOREGROUND.store(false, std::sync::atomic::Ordering::SeqCst);
-    crate::llm::cancel_private_analysis();
     if let Some(app) = APP.get() {
         app.state::<crate::vault::VaultState>().lock();
         let _ = app.emit("mobile-background", ());
@@ -167,4 +166,45 @@ pub extern "system" fn Java_com_bluedoor_desktop_MainActivity_nativeForeground(
     _class: JObject,
 ) {
     FOREGROUND.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub(crate) fn analysis_active(active: bool) -> Result<(), String> {
+    call_string(
+        "setAnalysisActive",
+        "(Ljava/lang/String;)V",
+        if active { "true" } else { "false" },
+    )
+    .map(|_| ())
+}
+#[no_mangle]
+pub extern "system" fn Java_com_bluedoor_desktop_MainActivity_nativeStopped(
+    _env: jni::JNIEnv,
+    _class: JObject,
+) {
+    crate::llm::interrupt_background_analysis();
+}
+
+#[tauri::command]
+pub(crate) async fn private_source_page(page: u32) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = call_string(
+            "sourcePage",
+            "(Ljava/lang/String;)Ljava/lang/String;",
+            &serde_json::json!({ "page": page }).to_string(),
+        )?;
+        serde_json::from_str(&result).map_err(|_| "No se pudo mostrar la página original.".into())
+    })
+    .await
+    .map_err(|_| "La vista original se interrumpió.")?
+}
+
+pub(crate) fn run_gliner(payload: &str) -> Result<String, String> {
+    call_string(
+        "runGliner",
+        "(Ljava/lang/String;)Ljava/lang/String;",
+        payload,
+    )
+}
+pub(crate) fn unload_gliner() -> Result<(), String> {
+    call_string("unloadGliner", "(Ljava/lang/String;)V", "").map(|_| ())
 }

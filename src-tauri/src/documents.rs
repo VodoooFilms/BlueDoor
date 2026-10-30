@@ -320,6 +320,15 @@ pub(crate) async fn import_private_document(
             .and_then(|s| s.to_str())
             .unwrap_or("Documento local")
             .to_string();
+        #[cfg(target_os = "android")]
+        let name = if materialized.is_some()
+            && name.len() > 37
+            && uuid::Uuid::parse_str(&name[..36]).is_ok()
+        {
+            name.get(37..).unwrap_or(&name).to_string()
+        } else {
+            name
+        };
         let mut session = Session::new(name, text)?;
         session.layout_available = layout.is_some();
         session.layout = layout;

@@ -1103,7 +1103,7 @@ impl Analysis {
 /// takes several model round trips; without this the UI shows one frozen label
 /// for minutes and the app looks like it never started.
 fn analyze_with_progress(
-    extractor: &impl EntityExtractor,
+    extractor: &(impl EntityExtractor + ?Sized),
     original: &str,
     on_fragment: &mut dyn FnMut(usize, usize, usize),
 ) -> Result<Analysis, String> {
@@ -1295,12 +1295,19 @@ pub(crate) async fn analyze_private_document(
             .0
             .try_lock()
             .map_err(|_| "Ya hay un análisis local en curso.")?;
-        if cache.as_ref().is_none_or(|(loaded, _)| loaded != &model_id) {
+        let _ = app.emit("private-analysis-progress", (id.as_str(), requested_revision, "model_verify"));
+        #[cfg(target_os = "android")]
+        let gliner = if model_id == crate::models::GLINER_ID {
+            *cache = None;
+            Some(crate::gliner::GlinerEngine::load(&app)?)
+        } else { None };
+        if model_id != crate::models::GLINER_ID && cache.as_ref().is_none_or(|(loaded, _)| loaded != &model_id) {
             let path = crate::paths::models_dir(&app).join(crate::models::qwen_file(&model_id)?);
             let verify_timer = crate::performance::Timer::new("model_verify");
             crate::models::verify_model_file(&path)
                 .map_err(|_| "Qwen no está instalado o está dañado. Descárgalo desde Modelos.")?;
             drop(verify_timer);
+            let _ = app.emit("private-analysis-progress", (id.as_str(), requested_revision, "model_load"));
             let _load_timer = crate::performance::Timer::new("model_load");
             *cache = Some((
                 model_id.clone(),
@@ -1308,11 +1315,16 @@ pub(crate) async fn analyze_private_document(
             ));
         }
         let _analysis_timer = crate::performance::Timer::new("analysis");
-        let engine = &cache.as_ref().unwrap().1;
+        #[cfg(target_os = "android")]
+        let engine: &dyn EntityExtractor = match gliner.as_ref() { Some(engine) => engine, None => &cache.as_ref().ok_or("Modelo no disponible")?.1 };
+        #[cfg(not(target_os = "android"))]
+        let engine: &dyn EntityExtractor = &cache.as_ref().ok_or("Modelo no disponible")?.1;
         let mut original = session.original.clone();
         // OCR cleanup is part of the local pipeline; keep the extraction intact.
         // Gather suggestions from one snapshot so corrections cannot cascade.
-        if needs_ocr_cleanup(&session) {
+        // On mobile the extracted source stays exact; optional generative OCR
+        // cleanup otherwise doubles inference before entity detection even starts.
+        if !cfg!(target_os = "android") && needs_ocr_cleanup(&session) {
             let mut seen = HashSet::new();
             let ocr_chunks = chunks(&session.original);
             let ocr_total = ocr_chunks.len();
@@ -1328,7 +1340,7 @@ pub(crate) async fn analyze_private_document(
                 // A fragment Qwen cannot finish must not discard the OCR fixes
                 // it did produce for the rest of the document.
                 crate::llm::check_cancelled()?;
-                let Ok(suggestions) = engine.suggest_ocr_prefixes(&chunk) else {
+                let Ok(suggestions) = cache.as_ref().ok_or("Modelo no disponible")?.1.suggest_ocr_prefixes(&chunk) else {
                     continue;
                 };
                 for suggestion in suggestions {
@@ -1382,6 +1394,7 @@ pub(crate) async fn analyze_private_document(
         let mut warnings = leak_warnings(&sanitized, &analysis.entities);
         warnings.extend(analysis.coverage_warning());
         let mut advisories = privacy_advisories(&analysis.entities);
+        if model_id == crate::models::GLINER_ID { advisories.push("GLiNER INT8 es experimental; su ficha declara inglés. Revisa especialmente nombres, organizaciones e identificadores en español.".into()); }
         if names_unavailable { advisories.push("El detector complementario de nombres no estuvo disponible. Revisa nombres y organizaciones en todo el documento.".into()); }
         let privacy = app.state::<PrivacyState>();
         let mut guard = privacy

@@ -19,3 +19,25 @@ fi
 "$sdk_tools/apksigner" verify --verbose installers/BlueDoor-android-arm64-preview.apk
 "$sdk_tools/zipalign" -c -P 16 4 installers/BlueDoor-android-arm64-preview.apk
 shasum -a 256 installers/BlueDoor-android-arm64-preview.apk > installers/BlueDoor-android-arm64-preview.apk.sha256
+
+# Every native dependency must support Android's 16 KiB page size.
+export BLUEDOOR_ANDROID_READELF="$NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-readelf"
+python3 - <<'PY_NATIVE'
+import os, pathlib, subprocess, tempfile, zipfile
+mapping = pathlib.Path("src-tauri/gen/android/app/build/outputs/mapping/universalRelease/mapping.txt").read_text()
+for name in ("OnnxJavaType", "OnnxTensor", "TensorInfo", "OrtSession"):
+    original = f"ai.onnxruntime.{name}"
+    assert f"{original} -> {original}:" in mapping, f"ONNX JNI class renamed: {original}"
+print("ONNX JNI classes preserved by R8")
+with tempfile.TemporaryDirectory(prefix="bluedoor-elf-") as temporary:
+    with zipfile.ZipFile("installers/BlueDoor-android-arm64-preview.apk") as apk:
+        native = [name for name in apk.namelist() if name.startswith("lib/") and name.endswith(".so")]
+        assert native and all(name.startswith("lib/arm64-v8a/") for name in native), "Unexpected APK ABI"
+        for name in native:
+            path = pathlib.Path(temporary) / pathlib.Path(name).name
+            path.write_bytes(apk.read(name))
+            headers = subprocess.check_output([os.environ["BLUEDOOR_ANDROID_READELF"], "-lW", str(path)], text=True)
+            loads = [line.split() for line in headers.splitlines() if line.strip().startswith("LOAD")]
+            assert loads and all(int(row[-1], 16) >= 16384 for row in loads), f"Unaligned ELF: {name}"
+            print(f"16 KiB ELF verified: {name}")
+PY_NATIVE

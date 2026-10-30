@@ -18,6 +18,7 @@
   let t = $derived(getCopy());
 
   interface Props {
+    mobile?: boolean;
     onClose: () => void;
     onDone: () => void;
     onSetupComplete: () => void;
@@ -25,7 +26,7 @@
     onBusyChange?: (busy: boolean) => void;
   }
 
-  let { onClose, onDone, onSetupComplete, firstRun, onBusyChange }: Props = $props();
+  let { mobile = false, onClose, onDone, onSetupComplete, firstRun, onBusyChange }: Props = $props();
 
   // Estado de ficheros: id de modelo -> ¿instalado?
   let installed = $state<Record<string, boolean>>({});
@@ -56,10 +57,13 @@
   let setupRunning = $state(false);
   let setupCancelled = false;
   let setupStatus = $state("");
+  let contextTokens = $state(4096);
+  let chunkChars = $state(1200);
+  let performance = $state<{ stage: string; elapsedMs: number; peakRssKb: number | null }[]>([]);
   const setupKey = "bluedoor-setup-pending";
   let setupPending = $state(localStorage.getItem(setupKey) === "true");
   const busy = $derived(setupRunning || installingId !== null);
-  const offerSetup = $derived(loaded && (setupPending || !Object.values(installed).some(Boolean)));
+  const offerSetup = $derived(!mobile && loaded && (setupPending || !Object.values(installed).some(Boolean)));
   $effect(() => { onBusyChange?.(busy); });
   const nemotronId = "nemotron3-diarization";
   let unlistenProgress: (() => void) | null = null;
@@ -75,7 +79,9 @@
     if (!STT_OPTIONS.some((o) => o.id === getSttModel())) setSttModel(sttCurrent.id);
     unlistenProgress = await listen<[string, number]>("model-download-progress", (event) => {
       const [label, pct] = event.payload;
-      progress = { ...progress, [label]: pct };
+      const id = label === "gliner-pii-tokenizer" ? "gliner-pii-small-int8" : label;
+      const total = label === "gliner-pii-tokenizer" ? 96 + Math.round(pct * .04) : label === "gliner-pii-small-int8" ? Math.round(pct * .96) : pct;
+      progress = { ...progress, [id]: total };
     });
     try { await refresh(); } catch (e) { messageKind = "error"; message = String(e); }
     window.addEventListener("keydown", onKeyDown);
@@ -109,7 +115,10 @@
     for (const m of all.diarization) map[m.id] = m.installed;
     for (const m of all.privacy) map[m.id] = m.installed;
     privacyOptions = all.privacy;
-    if (!all.privacy.some(m => m.id === privacySelected)) privacySelected = all.privacy[0]?.id || "qwen3-fast";
+    if (!all.privacy.some(m => m.id === privacySelected)) {
+      privacySelected = all.privacy[0]?.id || "qwen3-fast";
+      localStorage.setItem("bluedoor-privacy-model", privacySelected);
+    }
     installed = map;
     loaded = true;
     nemotronAvailable = await invoke<boolean>("diarization_available").catch(() => false);
@@ -272,6 +281,7 @@
   </div>
 
   <div class="list">
+    {#if !mobile}
     <!-- Whisper -->
     <div class="card">
       <div class="card-head">
@@ -286,7 +296,7 @@
           <strong>{sttCurrent.family === "whisper" ? `Whisper ${sttCurrent.label}` : sttCurrent.label}</strong>
           <span class="row-size">{sttCurrent.size}</span>
         </div>
-        <button class="change-btn model-picker-trigger" onclick={(event) => openPicker("stt", event.currentTarget)} disabled={busy}>
+        <button class="change-btn model-picker-trigger" aria-label={t.changeModel} title={t.changeModel} onclick={(event) => openPicker("stt", event.currentTarget)} disabled={busy}>
           <Icon name="edit" size={16} /><span>{t.changeModel}</span>
         </button>
 
@@ -299,7 +309,7 @@
               <span>{progress[sttCurrent.id] ?? 0}%</span>
             </div>
           {:else if installed[sttCurrent.id]}
-            <span class="ok">{t.downloaded}</span>
+            <span class="ok">{mobile ? (t.langLabel === "ES" ? "Instalado" : "Installed") : t.downloaded}</span>
           {:else}
             <button class="download-btn" disabled={busy} onclick={() => install(sttCurrent.id)}><Icon name="download" size={20} /><span>{t.download}</span></button>
           {/if}
@@ -322,6 +332,7 @@
       </div>
     </div>
 
+    {/if}
     <!-- Qwen3: local document privacy -->
     <div class="card">
       <div class="card-head">
@@ -333,7 +344,7 @@
           <strong>{privacyOptions.find(m => m.id === privacySelected)?.name ?? "Qwen3-1.7B Q4_K_M"}</strong>
           <span class="row-size">{privacyOptions.find(m => m.id === privacySelected)?.size ?? "1.36 GB"}</span>
         </div>
-        <button class="change-btn model-picker-trigger" onclick={(event) => openPicker("privacy", event.currentTarget)} disabled={busy}>
+        <button class="change-btn model-picker-trigger" aria-label={t.changeModel} title={t.changeModel} onclick={(event) => openPicker("privacy", event.currentTarget)} disabled={busy}>
           <Icon name="edit" size={16} /><span>{t.changeModel}</span>
         </button>
         <div class="spacer"></div>
@@ -341,7 +352,7 @@
           {#if installingId === privacySelected}
             <div class="download-progress"><div class="progress-track"><div class="progress-fill" style={`width: ${progress[privacySelected] ?? 0}%`}></div></div><span>{progress[privacySelected] ?? 0}%</span></div>
           {:else if installed[privacySelected]}
-            <span class="ok">{t.downloaded}</span>
+            <span class="ok">{mobile ? (t.langLabel === "ES" ? "Instalado" : "Installed") : t.downloaded}</span>
           {:else if privacySelected === "belegal-pii-v1"}
             <span>{p("Restaura la copia local del modelo entrenado.")}</span>
           {:else}
@@ -354,6 +365,7 @@
       </div>
     </div>
 
+    {#if !mobile}
     <!-- Nemotron 3: local diarization trial -->
     <div class="card">
       <div class="card-head">
@@ -376,7 +388,7 @@
               <span>{progress[nemotronId] ?? 0}%</span>
             </div>
           {:else if installed[nemotronId]}
-            <span class="ok">{t.downloaded}</span>
+            <span class="ok">{mobile ? (t.langLabel === "ES" ? "Instalado" : "Installed") : t.downloaded}</span>
           {:else}
             <button class="download-btn" disabled={busy} onclick={() => install("diarization")}><Icon name="download" size={20} /><span>{t.download}</span></button>
           {/if}
@@ -400,7 +412,26 @@
         <p class="model-note">{t.langLabel === "ES" ? "Modelo descargado. Falta configurar el motor NeMo-Speech.cpp en esta prueba local." : "Model downloaded. Configure the NeMo-Speech.cpp runtime for this local trial."}</p>
       {/if}
     </div>
+    {/if}
   </div>
+
+  {#if mobile}
+    <section class="mobile-model-settings">
+      {#if privacySelected === "gliner-pii-small-int8"}<p>Experimental · INT8 ONNX en CPU. La ficha del modelo declara inglés; revisa con especial cuidado documentos en español. Conserva la revisión humana y las comprobaciones de exportación.</p>{/if}
+      <p>Elige y descarga un modelo antes de importar. Después del primer uso, el análisis funciona sin conexión.</p>
+      <button class="change-btn" disabled={busy} onclick={async () => { try { await invoke("unload_privacy_model"); messageKind = "status"; message = "Modelo liberado de la memoria."; } catch (e) { messageKind = "error"; message = String(e); } }}>Liberar modelo</button>
+      <details><summary>Rendimiento de Qwen</summary>
+        <label>Contexto (tokens)<input type="number" min="4096" max="8192" step="1024" bind:value={contextTokens}/></label>
+        <label>Fragmento (caracteres)<input type="number" min="900" max="2400" step="100" bind:value={chunkChars}/></label>
+        <button class="change-btn" disabled={busy} onclick={async () => { try { await invoke("configure_mobile_analysis", { contextTokens, chunkChars }); messageKind = "status"; message = "Perfil aplicado para el próximo análisis."; } catch (e) { messageKind = "error"; message = String(e); } }}>Aplicar perfil</button>
+      </details>
+      <details><summary>Mediciones locales</summary>
+        <button class="change-btn" onclick={async () => { performance = await invoke("get_local_performance"); }}>Actualizar mediciones</button>
+        <p>El máximo residente pertenece al proceso completo.</p>
+        {#each performance as sample}<p>{sample.stage}: {(sample.elapsedMs / 1000).toFixed(2)} s · {sample.peakRssKb === null ? "memoria no disponible" : `${Math.round(sample.peakRssKb / 1024)} MB`}</p>{/each}
+      </details>
+    </section>
+  {/if}
 
   <dialog class="model-picker" bind:this={modelPicker} aria-labelledby="model-picker-title" oncancel={(event) => { event.preventDefault(); menu = null; }}>
     <div class="picker-heading">

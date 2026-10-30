@@ -1,4 +1,5 @@
 {
+  "version": "0.4.1",
   "bundle": { "resources": [] },
   "app": { "windows": [{ "title": "BlueDoor", "width": 412, "height": 820, "resizable": true }] }
 }

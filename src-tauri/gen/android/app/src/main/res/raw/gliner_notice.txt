@@ -1,0 +1,5 @@
+GLiNER PII Small v1.0 — Knowledgator / Wordcab. Model and tokenizer: Apache License 2.0.
+https://huggingface.co/knowledgator/gliner-pii-small-v1.0
+Pinned revision: d21aad5b4a7ec82b3d0970fd1ac74a12c087d85e
+GLiNER preprocessing/decoding reference: https://github.com/urchade/GLiNER (Apache-2.0).
+ONNX Runtime: Microsoft, MIT License; packaged dependency contains its notices.

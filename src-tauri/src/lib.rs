@@ -12,6 +12,8 @@ mod diarization;
 #[path = "diarization_stub.rs"]
 mod diarization;
 mod documents;
+#[cfg(any(target_os = "android", test))]
+mod gliner;
 mod layout;
 mod llm;
 mod models;
@@ -120,6 +122,8 @@ pub fn run() {
             platform::share_export,
             #[cfg(target_os = "android")]
             android::preview_import_source,
+            #[cfg(target_os = "android")]
+            android::private_source_page,
             #[cfg(target_os = "android")]
             android::cancel_private_import,
             platform::open_chatgpt_home,

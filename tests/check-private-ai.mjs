@@ -37,7 +37,7 @@ try {
         return 1;
       }
       if(cmd==='plugin:event|unlisten')return;
-      if(cmd==='list_models')return {whisper:[{id:'small',path:'/mock/stt',installed:true}],parakeet:[],diarization:[],privacy:[{installed:true}]};
+      if(cmd==='list_models')return {whisper:[{id:'small',path:'/mock/stt',installed:true}],parakeet:[],diarization:[],privacy:[{id:"qwen3-fast",name:"Qwen3-1.7B Q4_K_M",size:"1.36 GB",installed:true}]};
       if(cmd==='diarization_available')return false;
       if(cmd==='get_privacy_session')return session;
       if(cmd==='get_private_extraction'){assertRevision(args);return extracted;}
@@ -144,6 +144,14 @@ try {
   await page.getByRole('status').filter({hasText:ui('Analizando con AI local')}).waitFor();
   await page.evaluate(()=>window.__emitAnalysisProgress(['stale-operation',0,'sanitizing']));
   assert.equal(await page.getByRole('status').filter({hasText:ui('Analizando con AI local')}).count(),1,'ignore progress from another operation');
+  if (mobile) {
+    const progress = await page.locator('.processing-slot').boundingBox();
+    assert(progress && progress.y >= 0 && progress.y + progress.height <= 850, 'Mobile analysis progress stays inside the viewport');
+    const cancel = page.getByRole('button', { name: 'Cancelar análisis', exact: true });
+    assert(await cancel.isVisible());
+    assert.notEqual(await cancel.evaluate(button => getComputedStyle(button).pointerEvents), 'none', 'Cancellation remains interactive');
+    if (language === 'es') await page.screenshot({ path: 'artifacts/android-analysis-progress.png', animations: 'disabled' });
+  }
   const {id,revision}=await page.evaluate(()=>window.__analysisRequest);
   const fragment=(n,total)=>ui('Leyendo con AI local · fragmento {0} de {1}').replace('{0}',n).replace('{1}',total);
   await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'reading:1/2:24']),[id,revision]);
@@ -154,6 +162,7 @@ try {
   await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'sanitizing']),[id,revision]);
   await page.getByRole('status').filter({hasText:ui('Protegiendo el documento')}).waitFor();
   await page.evaluate(()=>window.__finishAnalysis());
+  if (mobile) await page.getByRole("button", { name: ui("Revisar y editar"), exact: true }).click();
   const map=page.getByRole('button',{name:ui('Mapa privado'),exact:true});
   await map.waitFor();
   await page.waitForFunction(()=>!document.querySelector('.workspace-views button:last-child').disabled);

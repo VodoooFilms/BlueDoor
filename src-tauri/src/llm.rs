@@ -39,7 +39,11 @@ const N_CTX: u32 = 4096;
 const N_CTX: u32 = 8192;
 static CONTEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(N_CTX);
 pub(crate) static CHUNK_SIZE: std::sync::atomic::AtomicUsize =
-    std::sync::atomic::AtomicUsize::new(crate::privacy::CHUNK_CHARS);
+    std::sync::atomic::AtomicUsize::new(if cfg!(target_os = "android") {
+        1200
+    } else {
+        crate::privacy::CHUNK_CHARS
+    });
 fn context_size() -> u32 {
     CONTEXT.load(std::sync::atomic::Ordering::Relaxed)
 }
@@ -77,11 +81,13 @@ pub(crate) fn configure_mobile_analysis(
 const MAX_OUTPUT_TOKENS: usize = 1024;
 #[cfg(not(target_os = "android"))]
 const MAX_OUTPUT_TOKENS: usize = 2048;
-static CANCELLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static CANCEL_REASON: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 static ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 pub(crate) struct AnalysisLease;
 impl Drop for AnalysisLease {
     fn drop(&mut self) {
+        #[cfg(target_os = "android")]
+        let _ = crate::android::analysis_active(false);
         ACTIVE.store(false, std::sync::atomic::Ordering::SeqCst);
     }
 }
@@ -94,18 +100,34 @@ pub(crate) fn begin_analysis() -> Result<AnalysisLease, String> {
             std::sync::atomic::Ordering::SeqCst,
         )
         .map_err(|_| "Ya hay un análisis local en curso.")?;
-    CANCELLED.store(false, std::sync::atomic::Ordering::SeqCst);
-    Ok(AnalysisLease)
+    CANCEL_REASON.store(0, std::sync::atomic::Ordering::SeqCst);
+    let lease = AnalysisLease;
+    #[cfg(target_os = "android")]
+    crate::android::analysis_active(true)?;
+    Ok(lease)
 }
 #[tauri::command]
 pub(crate) fn cancel_private_analysis() {
-    CANCELLED.store(true, std::sync::atomic::Ordering::SeqCst);
+    CANCEL_REASON.store(1, std::sync::atomic::Ordering::SeqCst);
 }
 pub(crate) fn check_cancelled() -> Result<(), String> {
-    if CANCELLED.load(std::sync::atomic::Ordering::SeqCst) {
+    if CANCEL_REASON.load(std::sync::atomic::Ordering::SeqCst) == 2 {
+        Err("El análisis se interrumpió porque BlueDoor pasó al fondo o se bloqueó la pantalla. Vuelve al documento y pulsa Proteger para reintentarlo.".into())
+    } else if CANCEL_REASON.load(std::sync::atomic::Ordering::SeqCst) != 0 {
         Err("Análisis cancelado. La revisión sigue bloqueada.".into())
     } else {
         Ok(())
+    }
+}
+#[cfg(target_os = "android")]
+pub(crate) fn interrupt_background_analysis() {
+    if ACTIVE.load(std::sync::atomic::Ordering::SeqCst) {
+        let _ = CANCEL_REASON.compare_exchange(
+            0,
+            2,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        );
     }
 }
 #[tauri::command]
@@ -126,7 +148,7 @@ pub(crate) fn mobile_profile_for_test() {
 }
 const SAMPLER_SEED: u32 = 42;
 /// Tokens between UI progress reports while a fragment is being read.
-const PROGRESS_EVERY: usize = 24;
+const PROGRESS_EVERY: usize = if cfg!(target_os = "android") { 4 } else { 24 };
 
 #[derive(Default)]
 pub(crate) struct LlmState(pub Mutex<Option<(String, LlmEngine)>>);
@@ -498,7 +520,7 @@ impl LlmEngine {
         let threads = crate::types::auto_threads();
         #[cfg(target_os = "android")]
         let threads = threads.min(4);
-        let prefill_batch = if context_size() <= 4096 {
+        let prefill_batch = if cfg!(target_os = "android") || context_size() <= 4096 {
             256
         } else {
             context_size()
@@ -547,6 +569,7 @@ impl LlmEngine {
         // between batches, instead of one long uninterruptible prompt decode.
         let mut batch = LlamaBatch::new(prefill_batch as usize, 1);
         let mut last_batch_len = 0;
+        on_token(0);
         for (batch_index, prompt_batch) in tokens.chunks(prefill_batch as usize).enumerate() {
             check_cancelled()?;
             batch.clear();
@@ -559,6 +582,7 @@ impl LlmEngine {
             }
             ctx.decode(&mut batch)
                 .map_err(|e| format!("Error al decodificar el prompt: {}", e))?;
+            on_token(0);
         }
 
         let mut output = String::new();

@@ -77,8 +77,7 @@
     if (welcomeLoading) return;
     if (!welcomeReady && (recorderBusy || importing || privacyBusy || modelsBusy)) return;
     closeWelcome();
-    if (mobile) goPrivate();
-    else if (!welcomeReady) openModels();
+    if (!welcomeReady) openModels();
     else goPrivate();
   }
   let firstRun = $state(false);
@@ -220,7 +219,11 @@
     if (storedTheme === "light" || storedTheme === "dark") theme = storedTheme;
     mobile = await invoke<string>("app_platform").then(p => p === "android").catch(() => false);
     document.documentElement.classList.toggle("mobile-app", mobile);
-    if (mobile) { hydrated = true; } else await hydrate();
+    if (mobile) {
+      hydrated = true;
+      await checkWelcomeModels();
+      if (!welcomeReady) { workflow = "audio"; showModels = true; firstRun = false; }
+    } else await hydrate();
     if (localStorage.getItem(welcomeSeenKey) !== "true") openAbout();
     editId = localStorage.getItem("bluedoor-edit-id");
   });
@@ -317,7 +320,6 @@
   }
 
   function openModels() {
-    if (mobile) { goPrivate(); const tools = document.querySelector<HTMLDetailsElement>(".mobile-tools"); if (tools) { tools.open = true; tools.scrollIntoView(); } return; }
     if (recorderBusy || importing || privacyBusy || modelsBusy) return;
     requestNavigation(() => { workflow = "audio"; privateEditVisible = false; showModels = true; firstRun = false; });
   }
@@ -494,10 +496,11 @@
         <button class="nav-models" class:nav-active={workflow === "private" && !privateEditVisible} onclick={goPrivate} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="document" /><span>{p("Documentos")}</span></button>
         {#if !mobile}<button class="nav-models" class:nav-active={workflow === "audio" && !showModels && !activeTranscript} id="recordToggle" onclick={goHome} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title={recorderBusy || importing ? t.navigationBlocked : t.recordNav}><Icon name="audio" /><span>{p("Audio")}</span></button>{/if}
         <button class="nav-models" class:nav-active={(workflow === "private" && privateEditVisible) || (!showModels && workflow === "audio" && !!activeTranscript)} id="editToggle" onclick={goEdit} disabled={recorderBusy || importing || privacyBusy || modelsBusy || (!privateTranscript && !editTranscript)} title={recorderBusy || importing ? t.navigationBlocked : t.editNav}><Icon name="edit" /><span>{t.editNav}</span></button>
-        <button class="nav-models" class:nav-active={workflow === "vault"} onclick={goVault} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title="Vault · Cifrado local"><Icon name="vault" /><span>Vault</span></button>
+        {#if mobile}<button class="nav-models" class:nav-active={showModels} onclick={openModels} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="download" /><span>{t.langLabel === "ES" ? "Modelos" : "Models"}</span></button>{:else}<button class="nav-models" class:nav-active={workflow === "vault"} onclick={goVault} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title="Vault · Cifrado local"><Icon name="vault" /><span>Vault</span></button>{/if}
         <details class="settings-menu" bind:this={settingsEl}>
           <summary><Icon name="settings" /><span>{p("Ajustes")}</span></summary>
           <div class="settings-popover">
+            {#if mobile}<button onclick={() => { settingsEl.open = false; goVault(); }} disabled={privacyBusy || modelsBusy}><Icon name="vault" /><span>Vault</span></button>{/if}
             <button id="modelsToggle" class:nav-active={showModels && workflow !== "private"} onclick={() => { settingsEl.open = false; openModels(); }} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="download" /><span class="settings-label">{t.modelsTitle}</span></button>
             <button id="languageToggle" aria-label={t.switchLanguage} onclick={toggle}><Icon name="globe" /><span class="settings-label">{p("Idioma")}</span><span class="settings-value">{t.langLabel === "ES" ? "Español" : "English"}</span></button>
             <hr />
@@ -536,7 +539,7 @@
       </button>
     </section>
   {:else if showModels}
-    <ModelsView
+    <ModelsView {mobile}
       onClose={goPrivate}
       onDone={() => {
         firstRun = false;

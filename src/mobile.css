@@ -80,3 +80,46 @@
   :root .shell .feedback-host { position:static; flex:none; order:10; width:100%; max-height:25dvh; margin:16px 0 0; }
   :root .shell .vault-layout, :root .shell .vault-shell { display:flex; flex-direction:column; min-width:0; }
 }
+
+.mobile-app .mobile-model-settings { display:grid; gap:16px; padding:16px; border:1px solid var(--line); border-radius:10px; }
+.mobile-app .mobile-model-settings details[open] { display:grid; gap:12px; }
+.mobile-app .mobile-model-settings label { display:grid; gap:8px; }
+.mobile-app .mobile-model-settings p { margin:0; line-height:1.6; }
+.mobile-app .paste-document { padding:16px; border:1px solid var(--line); border-radius:10px; }
+.mobile-app .paste-document[open] { display:grid; gap:12px; }
+.mobile-app .paste-document textarea { width:100%; box-sizing:border-box; font:inherit; }
+.mobile-app .mobile-source { display:flex; flex-wrap:wrap; gap:12px; }
+@media(max-width:600px) {
+  :root .shell .models { padding:16px 0; min-width:0; overflow:visible; }
+  :root .shell .models .head-top, :root .shell .models .row { flex-wrap:wrap; gap:16px; }
+  :root .shell .models .head-copy { min-width:0; gap:12px; }
+  :root .shell .models h1 { font-size:23px; }
+  :root .shell .models .card { padding:16px; }
+  :root .shell .models .card-copy, :root .shell .models .row-copy { min-width:0; overflow-wrap:anywhere; }
+  :root .shell .models .row-copy { flex-basis:100%; }
+  :root .shell .models .spacer { display:none; }
+  :root .shell .models .right-actions { flex-wrap:wrap; gap:12px; }
+  :root .shell .models .model-picker { width:calc(100vw - 32px); max-width:480px; box-sizing:border-box; padding:16px; }
+}
+@media(max-width:600px) {
+  :root .shell .audio-container { flex:1 0 auto; }
+  :root .shell .models { flex:none; }
+  :root .shell .models .list { flex:none; overflow:visible; }
+  :root .shell .models .row-copy strong { white-space:normal; }
+  :root .shell .models .model-picker-trigger { width:44px; min-width:44px; min-height:44px; padding:8px; justify-content:center; }
+  :root .shell .models .model-picker-trigger span { display:none; }
+}
+
+@media(max-width:600px) {
+  :root .shell .models .right-actions { flex:1; width:auto; margin-left:0; }
+}
+@media(max-width:600px) {
+  :root .shell .privacy-workflow .processing-slot {
+    position:fixed; top:max(16px,env(safe-area-inset-top)); bottom:auto; left:16px; right:16px;
+    z-index:1100; height:auto; box-sizing:border-box; padding:16px; display:grid; gap:12px;
+    background:var(--background); border:1px solid var(--line); border-radius:10px;
+    box-shadow:0 8px 24px #08266355; pointer-events:auto;
+  }
+  :root .shell .processing-slot .processing-copy { white-space:normal; overflow-wrap:anywhere; }
+  :root .shell .processing-slot button { justify-self:start; }
+}

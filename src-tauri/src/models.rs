@@ -12,6 +12,10 @@ use tauri::Emitter;
 use crate::paths::models_dir;
 
 /// (id, nombre, peso, fichero). La tabla es la ÚNICA fuente de catálogo Whisper.
+pub(crate) const GLINER_ID: &str = "gliner-pii-small-int8";
+pub(crate) const GLINER_FILE: &str = "gliner-pii-small-int8.onnx";
+pub(crate) const GLINER_TOKENIZER_ID: &str = "gliner-pii-tokenizer";
+pub(crate) const GLINER_TOKENIZER_FILE: &str = "gliner-pii-tokenizer.json";
 pub(crate) const QWEN_ID: &str = "qwen3-fast";
 pub(crate) const QWEN_FILE: &str = "ggml-qwen3-1.7b-instruct-q4.gguf";
 pub(crate) const QWEN_Q8_ID: &str = "qwen3-q8";
@@ -173,10 +177,33 @@ pub(crate) fn list_models(app_handle: tauri::AppHandle) -> ModelsList {
             path: path.to_string_lossy().into(),
         });
     }
+    #[cfg(target_os = "android")]
+    {
+        // Android catalog excludes audio weights and desktop-only Q8 models.
+        whisper.clear();
+        privacy.retain(|entry| entry.id == QWEN_ID);
+        let path = models_dir(&app_handle).join(GLINER_FILE);
+        privacy.push(ModelEntry {
+            id: GLINER_ID.into(),
+            name: "GLiNER PII Small v1.0 · INT8 (experimental)".into(),
+            size: "82.7 MB + tokenizador 3.6 MB".into(),
+            installed: model_appears_installed(&path)
+                && model_appears_installed(&models_dir(&app_handle).join(GLINER_TOKENIZER_FILE)),
+            path: path.to_string_lossy().into(),
+        });
+    }
     ModelsList {
         whisper,
-        parakeet,
-        diarization,
+        parakeet: if cfg!(target_os = "android") {
+            vec![]
+        } else {
+            parakeet
+        },
+        diarization: if cfg!(target_os = "android") {
+            vec![]
+        } else {
+            diarization
+        },
         privacy,
     }
 }
@@ -310,6 +337,8 @@ fn asset_for_path(path: &std::path::Path) -> Option<&'static ModelAsset> {
         .find(|m| m.3 == file)
         .map(|m| m.0)
         .or_else(|| (file == NEMOTRON_FILE).then_some(NEMOTRON_ID))
+        .or_else(|| (file == GLINER_FILE).then_some(GLINER_ID))
+        .or_else(|| (file == GLINER_TOKENIZER_FILE).then_some(GLINER_TOKENIZER_ID))
         .or_else(|| (file == QWEN_FILE).then_some(QWEN_ID))
         .or_else(|| (file == QWEN_Q8_FILE).then_some(QWEN_Q8_ID))
         .or_else(|| (file == QWEN_PII_FILE).then_some(QWEN_PII_ID))
@@ -509,7 +538,9 @@ mod portability_tests {
                 || id == NEMOTRON_ID
                 || id == QWEN_ID
                 || id == QWEN_Q8_ID
-                || id == QWEN_PII_ID;
+                || id == QWEN_PII_ID
+                || id == GLINER_ID
+                || id == GLINER_TOKENIZER_ID;
             assert!(
                 known,
                 "asset en el manifest que no esta en el catalogo: {}",
@@ -585,6 +616,22 @@ pub(crate) async fn download_privacy_model(
     id: String,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
+    #[cfg(target_os = "android")]
+    if id == GLINER_ID {
+        return tauri::async_runtime::spawn_blocking(move || {
+            let model = models_dir(&app_handle).join(GLINER_FILE);
+            download_file(&app_handle, &model, GLINER_ID)?;
+            check_cancelled()?;
+            download_file(
+                &app_handle,
+                &models_dir(&app_handle).join(GLINER_TOKENIZER_FILE),
+                GLINER_TOKENIZER_ID,
+            )?;
+            Ok(model.to_string_lossy().into_owned())
+        })
+        .await
+        .map_err(|_| "La descarga se interrumpió.")?;
+    }
     if id == QWEN_PII_ID {
         return Err(
             "Este modelo se entrenó en este equipo. Restaura su copia local para reinstalarlo."
@@ -609,6 +656,17 @@ pub(crate) fn delete_privacy_model(id: String, app_handle: tauri::AppHandle) -> 
         .try_lock()
         .map_err(|_| "Termina el análisis local antes de borrar Qwen3")?;
     *cache = None;
+    #[cfg(target_os = "android")]
+    if id == GLINER_ID {
+        crate::android::unload_gliner()?;
+        for file in [GLINER_FILE, GLINER_TOKENIZER_FILE] {
+            let path = models_dir(&app_handle).join(file);
+            if path.exists() {
+                std::fs::remove_file(path).map_err(|_| "No se pudo eliminar GLiNER.")?;
+            }
+        }
+        return Ok(());
+    }
     let path = models_dir(&app_handle).join(qwen_file(&id)?);
     if path.exists() {
         std::fs::remove_file(&path).map_err(|e| format!("No se pudo eliminar Qwen3: {e}"))?;

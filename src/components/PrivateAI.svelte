@@ -12,6 +12,7 @@
   import importArt from "../assets/import-document.svg";
   import protectedArt from "../assets/protected-document.svg";
   import Icon from "./Icon.svelte";
+  import SourceDocument from "./SourceDocument.svelte";
   import DocumentLayout from "./DocumentLayout.svelte";
   import TranscriptView from "./TranscriptView.svelte";
   import type { Transcript, DocFormat } from "../lib/types";
@@ -33,7 +34,6 @@
   let analysisStep = $state("");
   let analysisId: string | null = null;
   let analysisRevision: number | null = null;
-  let unlistenDownload: (() => void) | undefined;
   let unlistenAnalysis: (() => void) | undefined;
   let disposed = false;
   let importZone = $state<HTMLButtonElement>();
@@ -55,6 +55,8 @@
     }).then(stop => { if (disposed) stop(); else unlistenDrop = stop; }).catch(() => {});
   });
   const stepLabel = $derived.by(() => {
+    if (analysisStep === "model_verify") return "Comprobando integridad del modelo local…";
+    if (analysisStep === "model_load") return "Cargando modelo en memoria…";
     const match = /^(reading|ocr):(\d+)\/(\d+)(?::(\d+))?$/.exec(analysisStep);
     if (!match) return "";
     const [, kind, done, total, tokens] = match;
@@ -75,19 +77,11 @@
   let pasted = $state("");
   let mobile = $state(false);
   onMount(() => { void invoke<string>("app_platform").then(p => mobile = p === "android").catch(() => {}); });
-  let performance = $state<{ stage: string; elapsedMs: number; peakRssKb: number | null }[]>([]);
   let compareOriginal = $state(false);
   let sourceEditing = $state(false);
   let sourceDraft = $state("");
-  let modelBusy = $state(false);
-  let contextTokens = $state(4096);
-  let chunkChars = $state(2000);
-  let modelStatus = $state("");
-  async function installMobileModel() {
-    modelBusy = true; modelStatus = "Descargando Qwen3-1.7B Q4_K_M (1,36 GB)…";
-    try { await invoke("download_privacy_model", { id: "qwen3-fast" }); modelStatus = "Qwen instalado. Disponible sin conexión."; }
-    catch (e) { modelStatus = String(e); } finally { modelBusy = false; }
-  }
+  let showExtracted = $state(false);
+  const hasMobileSource = $derived(mobile && !!session && /\.(pdf|png|jpe?g|tiff?|heic)$/i.test(session.fileName));
   async function importPasted() {
     await run("Importando texto local…", async () => { adopt(await invoke<PrivacySession>("import_private_text", { text: pasted, name: "Texto pegado.txt" })); pasted = ""; });
   }
@@ -118,7 +112,7 @@
     if (next?.id !== session?.id) { zoom = 100; fitWidth = true; exported = ""; exportReady = false; }
     if (!next?.analyzed || next.id !== session?.id) mapOpen = false;
     if (next) localStorage.setItem("bluedoor-session-in-memory", "true"); else localStorage.removeItem("bluedoor-session-in-memory");
-    sourceDraft = next?.original ?? ""; sourceEditing = false;
+    sourceDraft = next?.original ?? ""; sourceEditing = false; showExtracted = false;
     session = next;
     onSessionChange(next);
     entities = next?.entities.map(e => ({ ...e })) ?? [];
@@ -150,8 +144,6 @@
   onMount(async () => {
     const interruptedNativeSession = await invoke<boolean>("interrupted_private_session").catch(() => false);
     if (localStorage.getItem("bluedoor-interrupted-operation")) { error = "La operación anterior se interrumpió. Importa el original y vuelve a analizar; no se ha guardado sin cifrar."; localStorage.removeItem("bluedoor-interrupted-operation"); }
-    const stopDownload = await listen<[string, number]>("model-download-progress", event => { if (event.payload[0] === "qwen3-fast") modelStatus = `Descargando Qwen · ${event.payload[1]} %`; });
-    if (disposed) { stopDownload(); return; } unlistenDownload = stopDownload;
     const stop = await listen<[string, number, string]>("private-analysis-progress", event => {
       const [id, revision, phase] = event.payload;
       if (busy.startsWith("Analizando") && id === analysisId && revision === analysisRevision) {
@@ -173,7 +165,7 @@
       if (restored?.analyzed) onEdit(restored);
     } catch { error = "Abre el demo con Tauri para importar documentos y ejecutar Qwen localmente."; }
   });
-  onDestroy(() => { disposed = true; unlistenAnalysis?.(); unlistenDrop?.(); unlistenDownload?.(); });
+  onDestroy(() => { disposed = true; unlistenAnalysis?.(); unlistenDrop?.(); });
 
   async function run(label: string, action: () => Promise<void>) {
     if (busy) return;
@@ -205,7 +197,7 @@
       const modelId = localStorage.getItem("bluedoor-privacy-model") || "qwen3-fast";
       const analyzed = await invoke<PrivacySession>("analyze_private_document", { id: current.id, revision: current.revision, modelId });
       adopt(analyzed);
-      if (analyzed.analyzed) onEdit(analyzed);
+      if (analyzed.analyzed && !mobile) onEdit(analyzed);
     });
   }
   function addEntity() {
@@ -265,25 +257,8 @@
 
 <section class="privacy-workflow" aria-label="Private Legal" use:enterView={`${session?.id ?? "welcome"}:${editing}:${mapOpen}`}>
   <SaveNotice sequence={saveSequence} />
-    <details class="mobile-tools"><summary>Modelo local y texto pegado</summary>
-      <p>Qwen3-1.7B Q4_K_M · descarga inicial de 1,36 GB. El contenido permanece en el dispositivo.</p>
-      <button class="secondary" onclick={installMobileModel} disabled={modelBusy}>Descargar Qwen</button>
-      <button class="secondary" onclick={() => invoke("cancel_model_download")}>Cancelar descarga</button>
-      <button class="secondary" onclick={async () => { try { await invoke("unload_privacy_model"); modelStatus = "Modelo liberado de la memoria."; } catch (e) { modelStatus = String(e); } }}>Liberar modelo</button>
-      <label>Contexto (tokens)<input type="number" min="4096" max="8192" step="1024" bind:value={contextTokens} /></label>
-      <label>Fragmento (caracteres)<input type="number" min="900" max="2400" step="100" bind:value={chunkChars} /></label>
-      <button class="secondary" disabled={!!busy} onclick={async () => { try { await invoke("configure_mobile_analysis", { contextTokens, chunkChars }); modelStatus = "Perfil aplicado; el modelo se cargará al analizar."; } catch (e) { modelStatus = String(e); } }}>Aplicar perfil</button>
-      <p role="status">{modelStatus}</p>
-      <textarea aria-label="Texto para proteger" bind:value={pasted} placeholder="Pega aquí el documento" rows="5"></textarea>
-      <button class="primary" onclick={importPasted} disabled={!pasted.trim() || !!busy}>Importar texto</button>
-    </details>
-  <details class="local-performance"><summary>Mediciones locales</summary>
-    <button class="secondary" onclick={async () => { performance = await invoke("get_local_performance"); }}>Actualizar mediciones</button>
-    <p>Intentos en este dispositivo. El máximo de memoria es del proceso completo; puede incluir etapas anteriores.</p>
-    {#each performance as sample}<p>{sample.stage}: {(sample.elapsedMs / 1000).toFixed(2)} s · {sample.peakRssKb === null ? "memoria no disponible" : `${Math.round(sample.peakRssKb / 1024)} MB de máximo residente`}</p>{/each}
-  </details>
   {#if session}
-    <div class="mobile-source"><button class="secondary" onclick={async () => { try { await invoke("preview_import_source"); } catch (e) { error = String(e); } }}>Ver fuente PDF / imagen</button></div>
+    {#if hasMobileSource && !editing}<div class="mobile-source"><button disabled={!!busy} class="secondary" onclick={async () => { try { await invoke("preview_import_source"); } catch (e) { error = String(e); } }}>Ampliar original</button><button class="secondary" disabled={!!busy} onclick={() => showExtracted = !showExtracted}>{showExtracted ? "Ver PDF / imagen" : "Ver texto extraído"}</button></div>{/if}
     <div class="workspace-header">
       <div class="workspace-title"><strong>{session.fileName}</strong><span>{p(session.analyzed ? (session.reviewed ? "Revisión confirmada" : "Pendiente de revisión") : "Documento original")}{#if pageCount} · {pageCount} {p("páginas")}{/if}</span></div>
       {#if editing && session.analyzed}
@@ -336,7 +311,9 @@
     <div class="document-surface" class:hidden={mapOpen}>
       {#if compareOriginal && editing && !session.layoutAvailable}<div class="original-page"><pre>{session.original}</pre></div>
       {:else}
-      {#if session.layoutAvailable}
+      {#if hasMobileSource && !editing && !showExtracted}
+        {#key session.id}<SourceDocument documentId={session.id}/>{/key}
+      {:else if session.layoutAvailable}
         <DocumentLayout toolbarLeading={editing ? editorZoom : undefined} bind:zoom {fitWidth} onExportReady={(ready, count) => { exportReady = ready; pageCount = count; }} onSessionChange={adopt} onTextDirty={layoutEdited} {session} {entities} editable={editing} dirty={draftDirty} busy={!!busy} onAliasFocus={beginAliasEdit} onAliasChange={renameAlias} onApply={() => applyMap()} />
       {:else if editing && textTranscript}
         <TranscriptView transcript={textTranscript} privateDocument privateReviewed={session.reviewed} privateId={session.id} privateRevision={session.revision} onSave={onSaveText} onExportAction={(action, exporting) => { textExport = action; textExportBusy = exporting; }} onDirtyChange={(dirty, save) => { textEditorDirty = dirty; onTextDirty(dirty, save); }} {onConfirmReview} {onValidateExport} />
@@ -355,6 +332,7 @@
     <Feedback message={exported ? `${p("PDF guardado con el formato original.")} ${exported}` : ""} kind="status" />
   {:else}
 
+    {#if mobile}<details class="paste-document"><summary>Pegar texto</summary><textarea aria-label="Texto para proteger" bind:value={pasted} placeholder="Pega aquí el documento" rows="5"></textarea><button class="primary" onclick={importPasted} disabled={!pasted.trim() || !!busy}>Importar texto</button></details>{/if}
     <div class="welcome blue-import-screen">
       <h2 class="sr-only">{p("Lo privado permanece aquí.")}</h2>
       <button bind:this={importZone} class="welcome-import" class:dragging-document={draggingDocument} aria-label={p("Importar documento")} title={p("Importar documento")} onclick={() => importDocument()} disabled={!!busy}>
@@ -420,6 +398,7 @@
     .welcome-import.dragging-document { transform:none; }
     .processing-orbit { animation:none; }
   }
+  .processing-slot button { pointer-events:auto; }
   .processing-slot { position:absolute; bottom:8px; left:36px; right:36px; height:40px; padding:8px 0; pointer-events:none; }
   .processing-copy { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
   .processing-label { display:flex; align-items:center; gap:8px; justify-content:center; color:var(--muted); font-size:12px; }
