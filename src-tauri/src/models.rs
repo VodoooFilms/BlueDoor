@@ -166,7 +166,7 @@ pub(crate) fn list_models(app_handle: tauri::AppHandle) -> ModelsList {
     }];
     let mut privacy: Vec<ModelEntry> = [
         (QWEN_ID, QWEN_FILE, "Qwen3-0.6B Q4_K_M", "397 MB"),
-        (QWEN_Q8_ID, QWEN_Q8_FILE, "Qwen3-1.7B Q8_0", "2.22 GB"),
+        (QWEN_Q8_ID, QWEN_Q8_FILE, "Qwen3-1.7B Q8_0", "1.83 GB"),
     ]
     .into_iter()
     .map(|(id, file, name, size)| {

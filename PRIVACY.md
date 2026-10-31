@@ -34,7 +34,7 @@ Exports to PDF are validated in the application process, not in the interface: t
 
 - **Model downloads**: when you press "Download" in the Models window,
   the app fetches the selected Whisper, Parakeet or Nemotron model file from
-  `huggingface.co` and its download/CDN infrastructure. Requests disclose connection metadata such as IP address and the model requested; they do not include your audio, transcripts or documents. Qwen3 is fetched from `registry.ollama.ai` and its CDN as immutable public weights, also with no document content in the request. Model files are stored in
+  `huggingface.co` and its download/CDN infrastructure. Requests disclose connection metadata such as IP address and the model requested; they do not include your audio, transcripts or documents. Qwen3 weights are also fetched from pinned commits on `huggingface.co` as immutable public files, with no document content in the request. Model files are stored in
   `~/Library/Application Support/com.bluedoor.desktop/models/`.
 - **Browser navigation**: pressing **Send to GPT** opens the fixed address
   `https://chatgpt.com/`. The browser makes its own network requests and may use

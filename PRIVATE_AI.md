@@ -72,7 +72,7 @@ El código usa bibliotecas nativas dinámicas para evitar el conflicto de ggml c
 Qwen3, seleccionable en Modelos:
 
 - Peso predeterminado Qwen3-0.6B Q4_K_M: 396.705.472 bytes (397 MB) en disco; SHA-256 `ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a`. Fuente inmutable: `unsloth/Qwen3-0.6B-GGUF` pineada por commit `50968a4468ef4233ed78cd7c3de230dd1d61a56b`; licencia Apache-2.0 de Qwen3 incluida en `licenses/models`. Elegido por velocidad en dispositivos móviles y equipos con poca RAM; la arquitectura `qwen3` se detecta por metadatos GGUF, por lo que el sampler ChatML existente se aplica sin cambios. Los pesos antiguos Q4_K_M de 1,7B (blob Ollama `3d0b7905…`) dejan de servirse; una instalación con ese fichero lo volverá a descargar como 0.6B bajo el mismo id `qwen3-fast`.
-- Peso alternativo Q8_0: 2.220.088.992 bytes (2,22 GB), SHA-256 `48bffa1478e612465567147cae67bf5e1539ed3080ec5415a35789d6fd4c851d`; se descarga por separado y solo se carga si el usuario lo selecciona.
+- Peso alternativo Q8_0: 1.834.426.944 bytes (1,83 GB), SHA-256 `0becaa825564295d82e9af4d008bca5f8b7f5f73bf1c6a0b58f7c53ef26b47fd`. Fuente inmutable: `unsloth/Qwen3-1.7B-GGUF` pineada por commit `d7f544eead698dbd1f15126ef60b45a1e1933222`; licencia Apache-2.0 de Qwen3 incluida en `licenses/models`. Se descarga por separado y solo se carga si el usuario lo selecciona. (El antiguo blob de `registry.ollama.ai` `48bffa14…` deja de servirse; todas las descargas de pesos provienen ahora exclusivamente de `huggingface.co`.)
 - Fuentes primarias: [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B), [Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) y [llama-cpp-2 0.1.156](https://docs.rs/llama-cpp-2/0.1.156/llama_cpp_2/).
 
 ## Límites de privacidad

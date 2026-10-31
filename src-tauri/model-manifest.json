@@ -66,20 +66,22 @@
     "license_source": "https://huggingface.co/Qwen/Qwen3-1.7B/blob/70d244cc86ccca08cf5af4e1e306ecf908b1ad5e/LICENSE"
   },
   "qwen3-q8": {
-    "url": "https://registry.ollama.ai/v2/library/qwen3/blobs/sha256:48bffa1478e612465567147cae67bf5e1539ed3080ec5415a35789d6fd4c851d",
-    "size": 2220088992,
-    "sha256": "48bffa1478e612465567147cae67bf5e1539ed3080ec5415a35789d6fd4c851d",
+    "url": "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/d7f544eead698dbd1f15126ef60b45a1e1933222/Qwen3-1.7B-Q8_0.gguf?download=true",
+    "size": 1834426944,
+    "sha256": "0becaa825564295d82e9af4d008bca5f8b7f5f73bf1c6a0b58f7c53ef26b47fd",
     "license_source": "https://huggingface.co/Qwen/Qwen3-1.7B/blob/70d244cc86ccca08cf5af4e1e306ecf908b1ad5e/LICENSE"
   },
   "gliner-pii-small-int8": {
     "url": "https://huggingface.co/knowledgator/gliner-pii-small-v1.0/resolve/d21aad5b4a7ec82b3d0970fd1ac74a12c087d85e/onnx/model_quint8.onnx",
     "size": 82680500,
-    "sha256": "891589426ee96f2748b16439f44fad8c3f97e198e002a6637e58dee989500216"
+    "sha256": "891589426ee96f2748b16439f44fad8c3f97e198e002a6637e58dee989500216",
+    "license_source": "https://huggingface.co/knowledgator/gliner-pii-small-v1.0/blob/d21aad5b4a7ec82b3d0970fd1ac74a12c087d85e/README.md"
   },
   "gliner-pii-tokenizer": {
     "url": "https://huggingface.co/knowledgator/gliner-pii-small-v1.0/resolve/d21aad5b4a7ec82b3d0970fd1ac74a12c087d85e/tokenizer.json",
     "size": 3583593,
-    "sha256": "84b3a9b18f04a0ccd03b72d9f871b7e0bec40fd7021ef50bc30a7c3693c11205"
+    "sha256": "84b3a9b18f04a0ccd03b72d9f871b7e0bec40fd7021ef50bc30a7c3693c11205",
+    "license_source": "https://huggingface.co/knowledgator/gliner-pii-small-v1.0/blob/d21aad5b4a7ec82b3d0970fd1ac74a12c087d85e/README.md"
   },
   "gliner-multi-pii-tokenizer": {
     "url": "https://huggingface.co/onnx-community/gliner_multi_pii-v1/resolve/2e0397a7e8a250d76c37122232b3cbde42c8d629/tokenizer.json",
