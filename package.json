@@ -23,7 +23,8 @@
     "test:workspace:ui": "node tests/run-ui.mjs --workspace",
     "test:layout:ui": "node tests/run-ui.mjs --layout",
     "test:vault:ui": "node tests/run-ui.mjs --vault",
-    "test:brand:ui": "node tests/run-ui.mjs --brand"
+    "test:brand:ui": "node tests/run-ui.mjs --brand",
+    "eval:pii": "cargo test --locked --manifest-path src-tauri/Cargo.toml --lib adversarial_pii_eval -- --ignored --nocapture"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0"

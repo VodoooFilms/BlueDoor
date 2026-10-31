@@ -1,0 +1,1 @@
+{"categories":{"address":[24,23,0],"card":[24,0,0],"cedula":[24,24,0],"dob":[24,0,0],"email":[24,24,0],"iban":[24,0,0],"person":[36,0,0],"phone":[24,18,0],"rut":[24,0,0],"unassigned":[0,0,17]},"covered":89,"falsePositiveSpans":17,"gold":228,"layer":"production deterministic rules only","recall":0.39035087719298245}

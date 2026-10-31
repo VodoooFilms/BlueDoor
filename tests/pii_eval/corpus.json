@@ -1,0 +1,2708 @@
+[
+  {
+    "id": "rut-000",
+    "text": "RUT: 12.345.678-5",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "12.345.678-5"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-001",
+    "text": "Hola, mi RUT: 12.345.678-5; gracias",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "12.345.678-5"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-002",
+    "text": "🔐**RUT: 12.345.678-5**🙂",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "12.345.678-5"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-003",
+    "text": "> RUT: `12.345.678-5`",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "12.345.678-5"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-004",
+    "text": "Please keep my RUT: 12.345.678-5; private",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "12.345.678-5"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-005",
+    "text": "Oye mi RUT: 12.345.678-5\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "12.345.678-5"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-006",
+    "text": "RUT: 9.876.543-3",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "9.876.543-3"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-007",
+    "text": "Hola, mi RUT: 9.876.543-3; gracias",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "9.876.543-3"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-008",
+    "text": "🔐**RUT: 9.876.543-3**🙂",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "9.876.543-3"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-009",
+    "text": "> RUT: `9.876.543-3`",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "9.876.543-3"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-010",
+    "text": "Please keep my RUT: 9.876.543-3; private",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "9.876.543-3"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-011",
+    "text": "Oye mi RUT: 9.876.543-3\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "9.876.543-3"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-012",
+    "text": "RUT: 11.111.111-1",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "11.111.111-1"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-013",
+    "text": "Hola, mi RUT: 11.111.111-1; gracias",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "11.111.111-1"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-014",
+    "text": "🔐**RUT: 11.111.111-1**🙂",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "11.111.111-1"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-015",
+    "text": "> RUT: `11.111.111-1`",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "11.111.111-1"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-016",
+    "text": "Please keep my RUT: 11.111.111-1; private",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "11.111.111-1"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-017",
+    "text": "Oye mi RUT: 11.111.111-1\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "11.111.111-1"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-018",
+    "text": "RUT: 12345678-5",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "12345678-5"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-019",
+    "text": "Hola, mi RUT: 12345678-5; gracias",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "12345678-5"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-020",
+    "text": "🔐**RUT: 12345678-5**🙂",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "12345678-5"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-021",
+    "text": "> RUT: `12345678-5`",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "12345678-5"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-022",
+    "text": "Please keep my RUT: 12345678-5; private",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "12345678-5"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "rut-023",
+    "text": "Oye mi RUT: 12345678-5\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "rut",
+        "value": "12345678-5"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-024",
+    "text": "cédula: 1710034065",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "1710034065"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-025",
+    "text": "Hola, mi cédula: 1710034065; gracias",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "1710034065"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-026",
+    "text": "🔐**cédula: 1710034065**🙂",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "1710034065"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-027",
+    "text": "> cédula: `1710034065`",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "1710034065"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-028",
+    "text": "Please keep my cédula: 1710034065; private",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "1710034065"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-029",
+    "text": "Oye mi cédula: 1710034065\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "1710034065"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-030",
+    "text": "cédula: 0926687856",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "0926687856"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-031",
+    "text": "Hola, mi cédula: 0926687856; gracias",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "0926687856"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-032",
+    "text": "🔐**cédula: 0926687856**🙂",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "0926687856"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-033",
+    "text": "> cédula: `0926687856`",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "0926687856"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-034",
+    "text": "Please keep my cédula: 0926687856; private",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "0926687856"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-035",
+    "text": "Oye mi cédula: 0926687856\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "0926687856"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-036",
+    "text": "cédula: 0102030405",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "0102030405"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-037",
+    "text": "Hola, mi cédula: 0102030405; gracias",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "0102030405"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-038",
+    "text": "🔐**cédula: 0102030405**🙂",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "0102030405"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-039",
+    "text": "> cédula: `0102030405`",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "0102030405"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-040",
+    "text": "Please keep my cédula: 0102030405; private",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "0102030405"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-041",
+    "text": "Oye mi cédula: 0102030405\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "0102030405"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-042",
+    "text": "cédula: 1234567890",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "1234567890"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-043",
+    "text": "Hola, mi cédula: 1234567890; gracias",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "1234567890"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-044",
+    "text": "🔐**cédula: 1234567890**🙂",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "1234567890"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-045",
+    "text": "> cédula: `1234567890`",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "1234567890"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-046",
+    "text": "Please keep my cédula: 1234567890; private",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "1234567890"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "cedula-047",
+    "text": "Oye mi cédula: 1234567890\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "cedula",
+        "value": "1234567890"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-048",
+    "text": "teléfono: +56 9 6123 4567",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "+56 9 6123 4567"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-049",
+    "text": "Hola, mi teléfono: +56 9 6123 4567; gracias",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "+56 9 6123 4567"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-050",
+    "text": "🔐**teléfono: +56 9 6123 4567**🙂",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "+56 9 6123 4567"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-051",
+    "text": "> teléfono: `+56 9 6123 4567`",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "+56 9 6123 4567"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-052",
+    "text": "Please keep my teléfono: +56 9 6123 4567; private",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "+56 9 6123 4567"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-053",
+    "text": "Oye mi teléfono: +56 9 6123 4567\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "+56 9 6123 4567"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-054",
+    "text": "teléfono: 09 8765 4321",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "09 8765 4321"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-055",
+    "text": "Hola, mi teléfono: 09 8765 4321; gracias",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "09 8765 4321"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-056",
+    "text": "🔐**teléfono: 09 8765 4321**🙂",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "09 8765 4321"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-057",
+    "text": "> teléfono: `09 8765 4321`",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "09 8765 4321"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-058",
+    "text": "Please keep my teléfono: 09 8765 4321; private",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "09 8765 4321"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-059",
+    "text": "Oye mi teléfono: 09 8765 4321\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "09 8765 4321"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-060",
+    "text": "teléfono: +593 99 123 4567",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "+593 99 123 4567"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-061",
+    "text": "Hola, mi teléfono: +593 99 123 4567; gracias",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "+593 99 123 4567"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-062",
+    "text": "🔐**teléfono: +593 99 123 4567**🙂",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "+593 99 123 4567"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-063",
+    "text": "> teléfono: `+593 99 123 4567`",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "+593 99 123 4567"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-064",
+    "text": "Please keep my teléfono: +593 99 123 4567; private",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "+593 99 123 4567"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-065",
+    "text": "Oye mi teléfono: +593 99 123 4567\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "+593 99 123 4567"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-066",
+    "text": "teléfono: (02) 2345-6789",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "(02) 2345-6789"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-067",
+    "text": "Hola, mi teléfono: (02) 2345-6789; gracias",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "(02) 2345-6789"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-068",
+    "text": "🔐**teléfono: (02) 2345-6789**🙂",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "(02) 2345-6789"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-069",
+    "text": "> teléfono: `(02) 2345-6789`",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "(02) 2345-6789"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-070",
+    "text": "Please keep my teléfono: (02) 2345-6789; private",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "(02) 2345-6789"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "phone-071",
+    "text": "Oye mi teléfono: (02) 2345-6789\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "phone",
+        "value": "(02) 2345-6789"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-072",
+    "text": "IBAN: ES91 2100 0418 4502 0005 1332",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "ES91 2100 0418 4502 0005 1332"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-073",
+    "text": "Hola, mi IBAN: ES91 2100 0418 4502 0005 1332; gracias",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "ES91 2100 0418 4502 0005 1332"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-074",
+    "text": "🔐**IBAN: ES91 2100 0418 4502 0005 1332**🙂",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "ES91 2100 0418 4502 0005 1332"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-075",
+    "text": "> IBAN: `ES91 2100 0418 4502 0005 1332`",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "ES91 2100 0418 4502 0005 1332"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-076",
+    "text": "Please keep my IBAN: ES91 2100 0418 4502 0005 1332; private",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "ES91 2100 0418 4502 0005 1332"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-077",
+    "text": "Oye mi IBAN: ES91 2100 0418 4502 0005 1332\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "ES91 2100 0418 4502 0005 1332"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-078",
+    "text": "IBAN: GB82 WEST 1234 5698 7654 32",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "GB82 WEST 1234 5698 7654 32"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-079",
+    "text": "Hola, mi IBAN: GB82 WEST 1234 5698 7654 32; gracias",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "GB82 WEST 1234 5698 7654 32"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-080",
+    "text": "🔐**IBAN: GB82 WEST 1234 5698 7654 32**🙂",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "GB82 WEST 1234 5698 7654 32"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-081",
+    "text": "> IBAN: `GB82 WEST 1234 5698 7654 32`",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "GB82 WEST 1234 5698 7654 32"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-082",
+    "text": "Please keep my IBAN: GB82 WEST 1234 5698 7654 32; private",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "GB82 WEST 1234 5698 7654 32"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-083",
+    "text": "Oye mi IBAN: GB82 WEST 1234 5698 7654 32\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "GB82 WEST 1234 5698 7654 32"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-084",
+    "text": "IBAN: DE89 3704 0044 0532 0130 00",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "DE89 3704 0044 0532 0130 00"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-085",
+    "text": "Hola, mi IBAN: DE89 3704 0044 0532 0130 00; gracias",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "DE89 3704 0044 0532 0130 00"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-086",
+    "text": "🔐**IBAN: DE89 3704 0044 0532 0130 00**🙂",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "DE89 3704 0044 0532 0130 00"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-087",
+    "text": "> IBAN: `DE89 3704 0044 0532 0130 00`",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "DE89 3704 0044 0532 0130 00"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-088",
+    "text": "Please keep my IBAN: DE89 3704 0044 0532 0130 00; private",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "DE89 3704 0044 0532 0130 00"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-089",
+    "text": "Oye mi IBAN: DE89 3704 0044 0532 0130 00\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "DE89 3704 0044 0532 0130 00"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-090",
+    "text": "IBAN: FR14 2004 1010 0505 0001 3M02 606",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "FR14 2004 1010 0505 0001 3M02 606"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-091",
+    "text": "Hola, mi IBAN: FR14 2004 1010 0505 0001 3M02 606; gracias",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "FR14 2004 1010 0505 0001 3M02 606"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-092",
+    "text": "🔐**IBAN: FR14 2004 1010 0505 0001 3M02 606**🙂",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "FR14 2004 1010 0505 0001 3M02 606"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-093",
+    "text": "> IBAN: `FR14 2004 1010 0505 0001 3M02 606`",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "FR14 2004 1010 0505 0001 3M02 606"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-094",
+    "text": "Please keep my IBAN: FR14 2004 1010 0505 0001 3M02 606; private",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "FR14 2004 1010 0505 0001 3M02 606"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "iban-095",
+    "text": "Oye mi IBAN: FR14 2004 1010 0505 0001 3M02 606\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "iban",
+        "value": "FR14 2004 1010 0505 0001 3M02 606"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-096",
+    "text": "dirección: Av. Los Aromos 123, Santiago",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Av. Los Aromos 123, Santiago"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-097",
+    "text": "Hola, mi dirección: Av. Los Aromos 123, Santiago; gracias",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Av. Los Aromos 123, Santiago"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-098",
+    "text": "🔐**dirección: Av. Los Aromos 123, Santiago**🙂",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Av. Los Aromos 123, Santiago"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-099",
+    "text": "> dirección: `Av. Los Aromos 123, Santiago`",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Av. Los Aromos 123, Santiago"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-100",
+    "text": "Please keep my dirección: Av. Los Aromos 123, Santiago; private",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Av. Los Aromos 123, Santiago"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-101",
+    "text": "Oye mi dirección: Av. Los Aromos 123, Santiago\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Av. Los Aromos 123, Santiago"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-102",
+    "text": "dirección: Calle Ficticia 45, Quito",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Calle Ficticia 45, Quito"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-103",
+    "text": "Hola, mi dirección: Calle Ficticia 45, Quito; gracias",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Calle Ficticia 45, Quito"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-104",
+    "text": "🔐**dirección: Calle Ficticia 45, Quito**🙂",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Calle Ficticia 45, Quito"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-105",
+    "text": "> dirección: `Calle Ficticia 45, Quito`",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Calle Ficticia 45, Quito"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-106",
+    "text": "Please keep my dirección: Calle Ficticia 45, Quito; private",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Calle Ficticia 45, Quito"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-107",
+    "text": "Oye mi dirección: Calle Ficticia 45, Quito\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Calle Ficticia 45, Quito"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-108",
+    "text": "dirección: 123 Example Street, London",
+    "gold": [
+      {
+        "category": "address",
+        "value": "123 Example Street, London"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-109",
+    "text": "Hola, mi dirección: 123 Example Street, London; gracias",
+    "gold": [
+      {
+        "category": "address",
+        "value": "123 Example Street, London"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-110",
+    "text": "🔐**dirección: 123 Example Street, London**🙂",
+    "gold": [
+      {
+        "category": "address",
+        "value": "123 Example Street, London"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-111",
+    "text": "> dirección: `123 Example Street, London`",
+    "gold": [
+      {
+        "category": "address",
+        "value": "123 Example Street, London"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-112",
+    "text": "Please keep my dirección: 123 Example Street, London; private",
+    "gold": [
+      {
+        "category": "address",
+        "value": "123 Example Street, London"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-113",
+    "text": "Oye mi dirección: 123 Example Street, London\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "address",
+        "value": "123 Example Street, London"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-114",
+    "text": "dirección: Pasaje Inventado 88, Lima",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Pasaje Inventado 88, Lima"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-115",
+    "text": "Hola, mi dirección: Pasaje Inventado 88, Lima; gracias",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Pasaje Inventado 88, Lima"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-116",
+    "text": "🔐**dirección: Pasaje Inventado 88, Lima**🙂",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Pasaje Inventado 88, Lima"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-117",
+    "text": "> dirección: `Pasaje Inventado 88, Lima`",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Pasaje Inventado 88, Lima"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-118",
+    "text": "Please keep my dirección: Pasaje Inventado 88, Lima; private",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Pasaje Inventado 88, Lima"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "address-119",
+    "text": "Oye mi dirección: Pasaje Inventado 88, Lima\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "address",
+        "value": "Pasaje Inventado 88, Lima"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-120",
+    "text": "nombre: María José Pérez Soto",
+    "gold": [
+      {
+        "category": "person",
+        "value": "María José Pérez Soto"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-121",
+    "text": "Hola, mi nombre: María José Pérez Soto; gracias",
+    "gold": [
+      {
+        "category": "person",
+        "value": "María José Pérez Soto"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-122",
+    "text": "🔐**nombre: María José Pérez Soto**🙂",
+    "gold": [
+      {
+        "category": "person",
+        "value": "María José Pérez Soto"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-123",
+    "text": "> nombre: `María José Pérez Soto`",
+    "gold": [
+      {
+        "category": "person",
+        "value": "María José Pérez Soto"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-124",
+    "text": "Please keep my nombre: María José Pérez Soto; private",
+    "gold": [
+      {
+        "category": "person",
+        "value": "María José Pérez Soto"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-125",
+    "text": "Oye mi nombre: María José Pérez Soto\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "person",
+        "value": "María José Pérez Soto"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-126",
+    "text": "nombre: José Luis Muñoz Díaz",
+    "gold": [
+      {
+        "category": "person",
+        "value": "José Luis Muñoz Díaz"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-127",
+    "text": "Hola, mi nombre: José Luis Muñoz Díaz; gracias",
+    "gold": [
+      {
+        "category": "person",
+        "value": "José Luis Muñoz Díaz"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-128",
+    "text": "🔐**nombre: José Luis Muñoz Díaz**🙂",
+    "gold": [
+      {
+        "category": "person",
+        "value": "José Luis Muñoz Díaz"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-129",
+    "text": "> nombre: `José Luis Muñoz Díaz`",
+    "gold": [
+      {
+        "category": "person",
+        "value": "José Luis Muñoz Díaz"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-130",
+    "text": "Please keep my nombre: José Luis Muñoz Díaz; private",
+    "gold": [
+      {
+        "category": "person",
+        "value": "José Luis Muñoz Díaz"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-131",
+    "text": "Oye mi nombre: José Luis Muñoz Díaz\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "person",
+        "value": "José Luis Muñoz Díaz"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-132",
+    "text": "nombre: Ana Sofía Vera Ríos",
+    "gold": [
+      {
+        "category": "person",
+        "value": "Ana Sofía Vera Ríos"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-133",
+    "text": "Hola, mi nombre: Ana Sofía Vera Ríos; gracias",
+    "gold": [
+      {
+        "category": "person",
+        "value": "Ana Sofía Vera Ríos"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-134",
+    "text": "🔐**nombre: Ana Sofía Vera Ríos**🙂",
+    "gold": [
+      {
+        "category": "person",
+        "value": "Ana Sofía Vera Ríos"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-135",
+    "text": "> nombre: `Ana Sofía Vera Ríos`",
+    "gold": [
+      {
+        "category": "person",
+        "value": "Ana Sofía Vera Ríos"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-136",
+    "text": "Please keep my nombre: Ana Sofía Vera Ríos; private",
+    "gold": [
+      {
+        "category": "person",
+        "value": "Ana Sofía Vera Ríos"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-137",
+    "text": "Oye mi nombre: Ana Sofía Vera Ríos\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "person",
+        "value": "Ana Sofía Vera Ríos"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-138",
+    "text": "nombre: James Alex Smith",
+    "gold": [
+      {
+        "category": "person",
+        "value": "James Alex Smith"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-139",
+    "text": "Hola, mi nombre: James Alex Smith; gracias",
+    "gold": [
+      {
+        "category": "person",
+        "value": "James Alex Smith"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-140",
+    "text": "🔐**nombre: James Alex Smith**🙂",
+    "gold": [
+      {
+        "category": "person",
+        "value": "James Alex Smith"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-141",
+    "text": "> nombre: `James Alex Smith`",
+    "gold": [
+      {
+        "category": "person",
+        "value": "James Alex Smith"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-142",
+    "text": "Please keep my nombre: James Alex Smith; private",
+    "gold": [
+      {
+        "category": "person",
+        "value": "James Alex Smith"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "person-143",
+    "text": "Oye mi nombre: James Alex Smith\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "person",
+        "value": "James Alex Smith"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-144",
+    "text": "correo: ana@example.org",
+    "gold": [
+      {
+        "category": "email",
+        "value": "ana@example.org"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-145",
+    "text": "Hola, mi correo: ana@example.org; gracias",
+    "gold": [
+      {
+        "category": "email",
+        "value": "ana@example.org"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-146",
+    "text": "🔐**correo: ana@example.org**🙂",
+    "gold": [
+      {
+        "category": "email",
+        "value": "ana@example.org"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-147",
+    "text": "> correo: `ana@example.org`",
+    "gold": [
+      {
+        "category": "email",
+        "value": "ana@example.org"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-148",
+    "text": "Please keep my correo: ana@example.org; private",
+    "gold": [
+      {
+        "category": "email",
+        "value": "ana@example.org"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-149",
+    "text": "Oye mi correo: ana@example.org\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "email",
+        "value": "ana@example.org"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-150",
+    "text": "correo: jose@gmial.com",
+    "gold": [
+      {
+        "category": "email",
+        "value": "jose@gmial.com"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-151",
+    "text": "Hola, mi correo: jose@gmial.com; gracias",
+    "gold": [
+      {
+        "category": "email",
+        "value": "jose@gmial.com"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-152",
+    "text": "🔐**correo: jose@gmial.com**🙂",
+    "gold": [
+      {
+        "category": "email",
+        "value": "jose@gmial.com"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-153",
+    "text": "> correo: `jose@gmial.com`",
+    "gold": [
+      {
+        "category": "email",
+        "value": "jose@gmial.com"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-154",
+    "text": "Please keep my correo: jose@gmial.com; private",
+    "gold": [
+      {
+        "category": "email",
+        "value": "jose@gmial.com"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-155",
+    "text": "Oye mi correo: jose@gmial.com\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "email",
+        "value": "jose@gmial.com"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-156",
+    "text": "correo: maria@hotmial.con",
+    "gold": [
+      {
+        "category": "email",
+        "value": "maria@hotmial.con"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-157",
+    "text": "Hola, mi correo: maria@hotmial.con; gracias",
+    "gold": [
+      {
+        "category": "email",
+        "value": "maria@hotmial.con"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-158",
+    "text": "🔐**correo: maria@hotmial.con**🙂",
+    "gold": [
+      {
+        "category": "email",
+        "value": "maria@hotmial.con"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-159",
+    "text": "> correo: `maria@hotmial.con`",
+    "gold": [
+      {
+        "category": "email",
+        "value": "maria@hotmial.con"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-160",
+    "text": "Please keep my correo: maria@hotmial.con; private",
+    "gold": [
+      {
+        "category": "email",
+        "value": "maria@hotmial.con"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-161",
+    "text": "Oye mi correo: maria@hotmial.con\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "email",
+        "value": "maria@hotmial.con"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-162",
+    "text": "correo: alex+test@example.net",
+    "gold": [
+      {
+        "category": "email",
+        "value": "alex+test@example.net"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-163",
+    "text": "Hola, mi correo: alex+test@example.net; gracias",
+    "gold": [
+      {
+        "category": "email",
+        "value": "alex+test@example.net"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-164",
+    "text": "🔐**correo: alex+test@example.net**🙂",
+    "gold": [
+      {
+        "category": "email",
+        "value": "alex+test@example.net"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-165",
+    "text": "> correo: `alex+test@example.net`",
+    "gold": [
+      {
+        "category": "email",
+        "value": "alex+test@example.net"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-166",
+    "text": "Please keep my correo: alex+test@example.net; private",
+    "gold": [
+      {
+        "category": "email",
+        "value": "alex+test@example.net"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "email-167",
+    "text": "Oye mi correo: alex+test@example.net\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "email",
+        "value": "alex+test@example.net"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-168",
+    "text": "tarjeta: 4111 1111 1111 1111",
+    "gold": [
+      {
+        "category": "card",
+        "value": "4111 1111 1111 1111"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-169",
+    "text": "Hola, mi tarjeta: 4111 1111 1111 1111; gracias",
+    "gold": [
+      {
+        "category": "card",
+        "value": "4111 1111 1111 1111"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-170",
+    "text": "🔐**tarjeta: 4111 1111 1111 1111**🙂",
+    "gold": [
+      {
+        "category": "card",
+        "value": "4111 1111 1111 1111"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-171",
+    "text": "> tarjeta: `4111 1111 1111 1111`",
+    "gold": [
+      {
+        "category": "card",
+        "value": "4111 1111 1111 1111"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-172",
+    "text": "Please keep my tarjeta: 4111 1111 1111 1111; private",
+    "gold": [
+      {
+        "category": "card",
+        "value": "4111 1111 1111 1111"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-173",
+    "text": "Oye mi tarjeta: 4111 1111 1111 1111\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "card",
+        "value": "4111 1111 1111 1111"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-174",
+    "text": "tarjeta: 5555-5555-5555-4444",
+    "gold": [
+      {
+        "category": "card",
+        "value": "5555-5555-5555-4444"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-175",
+    "text": "Hola, mi tarjeta: 5555-5555-5555-4444; gracias",
+    "gold": [
+      {
+        "category": "card",
+        "value": "5555-5555-5555-4444"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-176",
+    "text": "🔐**tarjeta: 5555-5555-5555-4444**🙂",
+    "gold": [
+      {
+        "category": "card",
+        "value": "5555-5555-5555-4444"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-177",
+    "text": "> tarjeta: `5555-5555-5555-4444`",
+    "gold": [
+      {
+        "category": "card",
+        "value": "5555-5555-5555-4444"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-178",
+    "text": "Please keep my tarjeta: 5555-5555-5555-4444; private",
+    "gold": [
+      {
+        "category": "card",
+        "value": "5555-5555-5555-4444"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-179",
+    "text": "Oye mi tarjeta: 5555-5555-5555-4444\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "card",
+        "value": "5555-5555-5555-4444"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-180",
+    "text": "tarjeta: 3782 822463 10005",
+    "gold": [
+      {
+        "category": "card",
+        "value": "3782 822463 10005"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-181",
+    "text": "Hola, mi tarjeta: 3782 822463 10005; gracias",
+    "gold": [
+      {
+        "category": "card",
+        "value": "3782 822463 10005"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-182",
+    "text": "🔐**tarjeta: 3782 822463 10005**🙂",
+    "gold": [
+      {
+        "category": "card",
+        "value": "3782 822463 10005"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-183",
+    "text": "> tarjeta: `3782 822463 10005`",
+    "gold": [
+      {
+        "category": "card",
+        "value": "3782 822463 10005"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-184",
+    "text": "Please keep my tarjeta: 3782 822463 10005; private",
+    "gold": [
+      {
+        "category": "card",
+        "value": "3782 822463 10005"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-185",
+    "text": "Oye mi tarjeta: 3782 822463 10005\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "card",
+        "value": "3782 822463 10005"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-186",
+    "text": "tarjeta: 6011 1111 1111 1117",
+    "gold": [
+      {
+        "category": "card",
+        "value": "6011 1111 1111 1117"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-187",
+    "text": "Hola, mi tarjeta: 6011 1111 1111 1117; gracias",
+    "gold": [
+      {
+        "category": "card",
+        "value": "6011 1111 1111 1117"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-188",
+    "text": "🔐**tarjeta: 6011 1111 1111 1117**🙂",
+    "gold": [
+      {
+        "category": "card",
+        "value": "6011 1111 1111 1117"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-189",
+    "text": "> tarjeta: `6011 1111 1111 1117`",
+    "gold": [
+      {
+        "category": "card",
+        "value": "6011 1111 1111 1117"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-190",
+    "text": "Please keep my tarjeta: 6011 1111 1111 1117; private",
+    "gold": [
+      {
+        "category": "card",
+        "value": "6011 1111 1111 1117"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "card-191",
+    "text": "Oye mi tarjeta: 6011 1111 1111 1117\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "card",
+        "value": "6011 1111 1111 1117"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-192",
+    "text": "fecha de nacimiento: 03/04/90",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "03/04/90"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-193",
+    "text": "Hola, mi fecha de nacimiento: 03/04/90; gracias",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "03/04/90"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-194",
+    "text": "🔐**fecha de nacimiento: 03/04/90**🙂",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "03/04/90"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-195",
+    "text": "> fecha de nacimiento: `03/04/90`",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "03/04/90"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-196",
+    "text": "Please keep my fecha de nacimiento: 03/04/90; private",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "03/04/90"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-197",
+    "text": "Oye mi fecha de nacimiento: 03/04/90\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "03/04/90"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-198",
+    "text": "fecha de nacimiento: 04-03-1990",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "04-03-1990"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-199",
+    "text": "Hola, mi fecha de nacimiento: 04-03-1990; gracias",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "04-03-1990"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-200",
+    "text": "🔐**fecha de nacimiento: 04-03-1990**🙂",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "04-03-1990"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-201",
+    "text": "> fecha de nacimiento: `04-03-1990`",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "04-03-1990"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-202",
+    "text": "Please keep my fecha de nacimiento: 04-03-1990; private",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "04-03-1990"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-203",
+    "text": "Oye mi fecha de nacimiento: 04-03-1990\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "04-03-1990"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-204",
+    "text": "fecha de nacimiento: 1990-04-03",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "1990-04-03"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-205",
+    "text": "Hola, mi fecha de nacimiento: 1990-04-03; gracias",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "1990-04-03"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-206",
+    "text": "🔐**fecha de nacimiento: 1990-04-03**🙂",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "1990-04-03"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-207",
+    "text": "> fecha de nacimiento: `1990-04-03`",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "1990-04-03"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-208",
+    "text": "Please keep my fecha de nacimiento: 1990-04-03; private",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "1990-04-03"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-209",
+    "text": "Oye mi fecha de nacimiento: 1990-04-03\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "1990-04-03"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-210",
+    "text": "fecha de nacimiento: 3.4.1990",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "3.4.1990"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-211",
+    "text": "Hola, mi fecha de nacimiento: 3.4.1990; gracias",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "3.4.1990"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-212",
+    "text": "🔐**fecha de nacimiento: 3.4.1990**🙂",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "3.4.1990"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-213",
+    "text": "> fecha de nacimiento: `3.4.1990`",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "3.4.1990"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-214",
+    "text": "Please keep my fecha de nacimiento: 3.4.1990; private",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "3.4.1990"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "dob-215",
+    "text": "Oye mi fecha de nacimiento: 3.4.1990\n¿lo recibiste?",
+    "gold": [
+      {
+        "category": "dob",
+        "value": "3.4.1990"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "context-216",
+    "text": "Hablé con María José Pérez Soto ayer.",
+    "gold": [
+      {
+        "category": "person",
+        "value": "María José Pérez Soto"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "context-217",
+    "text": "María José Pérez Soto me pidió ayuda.",
+    "gold": [
+      {
+        "category": "person",
+        "value": "María José Pérez Soto"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "context-218",
+    "text": "Can you call María José Pérez Soto tomorrow?",
+    "gold": [
+      {
+        "category": "person",
+        "value": "María José Pérez Soto"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "context-219",
+    "text": "Hablé con José Luis Muñoz Díaz ayer.",
+    "gold": [
+      {
+        "category": "person",
+        "value": "José Luis Muñoz Díaz"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "context-220",
+    "text": "José Luis Muñoz Díaz me pidió ayuda.",
+    "gold": [
+      {
+        "category": "person",
+        "value": "José Luis Muñoz Díaz"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "context-221",
+    "text": "Can you call José Luis Muñoz Díaz tomorrow?",
+    "gold": [
+      {
+        "category": "person",
+        "value": "José Luis Muñoz Díaz"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "context-222",
+    "text": "Hablé con Ana Sofía Vera Ríos ayer.",
+    "gold": [
+      {
+        "category": "person",
+        "value": "Ana Sofía Vera Ríos"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "context-223",
+    "text": "Ana Sofía Vera Ríos me pidió ayuda.",
+    "gold": [
+      {
+        "category": "person",
+        "value": "Ana Sofía Vera Ríos"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "context-224",
+    "text": "Can you call Ana Sofía Vera Ríos tomorrow?",
+    "gold": [
+      {
+        "category": "person",
+        "value": "Ana Sofía Vera Ríos"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "context-225",
+    "text": "Hablé con James Alex Smith ayer.",
+    "gold": [
+      {
+        "category": "person",
+        "value": "James Alex Smith"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "context-226",
+    "text": "James Alex Smith me pidió ayuda.",
+    "gold": [
+      {
+        "category": "person",
+        "value": "James Alex Smith"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "context-227",
+    "text": "Can you call James Alex Smith tomorrow?",
+    "gold": [
+      {
+        "category": "person",
+        "value": "James Alex Smith"
+      }
+    ],
+    "negative": []
+  },
+  {
+    "id": "negative-228",
+    "text": "Pedido 12345678 confirmado.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "12345678"
+      }
+    ]
+  },
+  {
+    "id": "negative-229",
+    "text": "Order 12345678 shipped.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "12345678"
+      }
+    ]
+  },
+  {
+    "id": "negative-230",
+    "text": "Referencia técnica: 12345678.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "12345678"
+      }
+    ]
+  },
+  {
+    "id": "negative-231",
+    "text": "Pedido 987654321 confirmado.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "987654321"
+      }
+    ]
+  },
+  {
+    "id": "negative-232",
+    "text": "Order 987654321 shipped.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "987654321"
+      }
+    ]
+  },
+  {
+    "id": "negative-233",
+    "text": "Referencia técnica: 987654321.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "987654321"
+      }
+    ]
+  },
+  {
+    "id": "negative-234",
+    "text": "Pedido 2026-10-31 14:35:22 confirmado.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "2026-10-31 14:35:22"
+      }
+    ]
+  },
+  {
+    "id": "negative-235",
+    "text": "Order 2026-10-31 14:35:22 shipped.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "2026-10-31 14:35:22"
+      }
+    ]
+  },
+  {
+    "id": "negative-236",
+    "text": "Referencia técnica: 2026-10-31 14:35:22.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "2026-10-31 14:35:22"
+      }
+    ]
+  },
+  {
+    "id": "negative-237",
+    "text": "Pedido 03/04/90 confirmado.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "03/04/90"
+      }
+    ]
+  },
+  {
+    "id": "negative-238",
+    "text": "Order 03/04/90 shipped.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "03/04/90"
+      }
+    ]
+  },
+  {
+    "id": "negative-239",
+    "text": "Referencia técnica: 03/04/90.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "03/04/90"
+      }
+    ]
+  },
+  {
+    "id": "negative-240",
+    "text": "Pedido 4111 1111 1111 1112 confirmado.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "4111 1111 1111 1112"
+      }
+    ]
+  },
+  {
+    "id": "negative-241",
+    "text": "Order 4111 1111 1111 1112 shipped.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "4111 1111 1111 1112"
+      }
+    ]
+  },
+  {
+    "id": "negative-242",
+    "text": "Referencia técnica: 4111 1111 1111 1112.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "4111 1111 1111 1112"
+      }
+    ]
+  },
+  {
+    "id": "negative-243",
+    "text": "Pedido ES90 2100 0418 4502 0005 1332 confirmado.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "ES90 2100 0418 4502 0005 1332"
+      }
+    ]
+  },
+  {
+    "id": "negative-244",
+    "text": "Order ES90 2100 0418 4502 0005 1332 shipped.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "ES90 2100 0418 4502 0005 1332"
+      }
+    ]
+  },
+  {
+    "id": "negative-245",
+    "text": "Referencia técnica: ES90 2100 0418 4502 0005 1332.",
+    "gold": [],
+    "negative": [
+      {
+        "category": "non_pii",
+        "value": "ES90 2100 0418 4502 0005 1332"
+      }
+    ]
+  }
+]

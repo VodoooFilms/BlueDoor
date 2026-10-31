@@ -2094,3 +2094,6 @@ pub(crate) fn update_private_source(
     *guard = Some(next.clone());
     Ok(next)
 }
+
+#[cfg(test)]
+mod pii_eval;
