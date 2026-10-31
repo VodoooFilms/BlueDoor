@@ -1,0 +1,29 @@
+name: Android beta bug
+description: Report an Android beta issue using fictional data
+body:
+  - type: markdown
+    attributes:
+      value: "Do not attach personal documents, model inputs, entity maps or keys. Logs are optional; inspect and redact them yourself. No logs are uploaded automatically."
+  - type: input
+    id: version
+    attributes:
+      label: BlueDoor version and APK source
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device model, Android version, available RAM
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps using fictional data
+      description: Include selected model, expected result and actual result.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Optional manually redacted log excerpt
+      description: Follow docs/ANDROID_BETA.md. Never include personal document content.
+      render: text

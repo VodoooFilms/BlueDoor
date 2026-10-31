@@ -1,0 +1,82 @@
+{
+  "categories": {
+    "address": {
+      "covered": 24,
+      "fp": 8,
+      "gold": 24,
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "tp": 16
+    },
+    "card": {
+      "covered": 24,
+      "fp": 0,
+      "gold": 24,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 24
+    },
+    "cedula": {
+      "covered": 24,
+      "fp": 0,
+      "gold": 24,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 24
+    },
+    "dob": {
+      "covered": 24,
+      "fp": 0,
+      "gold": 24,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 24
+    },
+    "email": {
+      "covered": 24,
+      "fp": 0,
+      "gold": 24,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 24
+    },
+    "iban": {
+      "covered": 24,
+      "fp": 0,
+      "gold": 24,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 24
+    },
+    "person": {
+      "covered": 36,
+      "fp": 0,
+      "gold": 36,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 36
+    },
+    "phone": {
+      "covered": 24,
+      "fp": 9,
+      "gold": 24,
+      "precision": 0.7272727272727273,
+      "recall": 1.0,
+      "tp": 24
+    },
+    "rut": {
+      "covered": 24,
+      "fp": 0,
+      "gold": 24,
+      "precision": 1.0,
+      "recall": 1.0,
+      "tp": 24
+    }
+  },
+  "covered": 228,
+  "falsePositiveSpans": 17,
+  "gold": 228,
+  "layer": "production deterministic rules only",
+  "precision": 0.9282700421940928,
+  "recall": 1.0
+}

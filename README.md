@@ -63,3 +63,11 @@ Los documentos en `docs/archive/` y `docs/milestones/` son antecedentes históri
 - El chequeo del 17 de octubre de 2026 pasó tipos, build, Clippy y suites de UI; 104 pruebas nativas aprobadas y 15 omitidas. Véase [el informe](docs/AUDIT_2026-10-17.md) para el alcance.
 - Antes de distribuir: completar los textos de licencia pendientes, firma Developer ID, notarización y prueba en un Mac limpio.
 - Modelos, instaladores, documentos personales y resultados de QA se mantienen fuera de Git.
+
+## Beta Android
+
+Android distribution targets F-Droid and direct APK sideload. The signed public
+beta is pending. See [installation and optional bug reports](docs/ANDROID_BETA.md)
+and [F-Droid blockers, source builds and release signing](docs/FDROID.md).
+Processing remains on-device; models download only on request. No telemetry or
+remote crash reporting is configured. Logs are exported and submitted manually.

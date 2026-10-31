@@ -37,8 +37,8 @@ fn adversarial_pii_eval() {
             c[0] += 1;
             c[1] += usize::from(covered.iter().all(|v| *v));
         }
-        // Each unique predicted span is a TP only if fully within an annotated
-        // private value. Partial protection still counts as a recall miss.
+        // A precision TP must exactly match a gold value and category.
+        // Partial byte protection still counts as a recall miss.
         let mut unique = HashSet::new();
         for hit in &hits {
             for (start, _) in text.match_indices(&hit.text) {
