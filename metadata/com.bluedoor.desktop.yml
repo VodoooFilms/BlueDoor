@@ -1,0 +1,21 @@
+# Draft only. Do not enable until OCR is FLOSS and a clean Linux build is verified.
+Disabled: Proprietary ML Kit OCR/barcode dependencies; source build not yet verified on F-Droid
+Categories:
+  - Writing
+License: MIT
+AuthorName: BlueDoor
+SourceCode: https://github.com/VodoooFilms/BlueDoor
+IssueTracker: https://github.com/VodoooFilms/BlueDoor/issues
+RepoType: git
+Repo: https://github.com/VodoooFilms/BlueDoor.git
+AutoName: BlueDoor
+Summary: Private document protection with on-device AI
+Description: |-
+  Review sensitive document data locally before exporting a protected copy.
+  Model downloads are opt-in. No telemetry or remote crash reporting.
+  This Android beta requires human review and does not guarantee anonymity.
+Builds: []
+AutoUpdateMode: None
+UpdateCheckMode: None
+CurrentVersion: 0.5.7
+CurrentVersionCode: 5007

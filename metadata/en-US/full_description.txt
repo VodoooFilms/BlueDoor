@@ -1,0 +1,10 @@
+BlueDoor is a local workspace for reviewing and protecting private documents.
+On-device models suggest sensitive spans; you review the map before export.
+Models are downloaded only when you request them, from pinned sources with
+SHA-256 verification. Documents are not uploaded. There are no application
+accounts, advertising, analytics or remote crash reports.
+
+Android beta: detection can miss sensitive details. Review every page, including
+images and indirect identifiers, before sharing. This is pseudonymization,
+not a guarantee of anonymity. Current OCR dependencies block F-Droid inclusion;
+this listing is preparation, not a claim of availability in F-Droid.

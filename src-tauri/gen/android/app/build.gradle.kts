@@ -15,6 +15,7 @@ val tauriProperties = Properties().apply {
 
 android {
     compileSdk = 36
+    ndkVersion = "27.2.12479018"
     namespace = "com.bluedoor.desktop"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"

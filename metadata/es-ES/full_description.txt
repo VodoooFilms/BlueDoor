@@ -1,0 +1,8 @@
+BlueDoor permite revisar y proteger documentos privados con modelos locales.
+Revisa el mapa de entidades antes de exportar. La descarga de modelos es
+voluntaria, con revisiones fijas y verificación SHA-256. Los documentos no se
+suben. Sin cuentas, publicidad, analítica ni informes remotos de fallos.
+
+Beta Android: revisa cada página y los identificadores indirectos antes de
+compartir. Es seudonimización; no garantiza anonimato. Las dependencias OCR
+actuales impiden la inclusión en F-Droid. Esta ficha es preparatoria.

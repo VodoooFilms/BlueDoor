@@ -85,3 +85,25 @@ partial downloads (`.part`) and temporary audio from interrupted sessions.
 
 Questions about this policy: open an issue in this repository or contact the
 repository owner.
+
+## Android permissions and diagnostics
+
+The Android source manifest retains only `android.permission.INTERNET` for
+explicit model downloads, with pinned revisions and SHA-256 checks. No document
+content is sent. Android does not provide the desktop Tauri filesystem sandbox;
+files are selected through the system picker and shared through scoped content
+URIs/FileProvider. No storage-wide, camera, microphone, contacts or location
+permission is requested by this Android document workflow.
+
+The merged manifest also contains AndroidX's signature-only
+`com.bluedoor.desktop.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, which prevents
+other apps from reaching internal receivers. The unused transitive
+`ACCESS_NETWORK_STATE` permission is explicitly removed. There is no need for
+connectivity monitoring to do local inference. Backups are disabled and release
+cleartext traffic is disabled. Audit the merged release manifest after dependency
+updates; the source manifest alone does not show every transitive declaration.
+
+No automatic crash collection or telemetry is added. Optional logcat export is
+manual and local; the user reviews/redacts an excerpt before choosing to submit
+it to GitHub. Current ML Kit dependencies remain an F-Droid inclusion blocker;
+disabled uploader discovery is not a substitute for removing proprietary code.
