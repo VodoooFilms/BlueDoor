@@ -26,6 +26,21 @@ android {
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
+    // Signing is opt-in. F-Droid builds unsigned and signs independently.
+    val signingEnvironment = listOf("ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD",
+        "ANDROID_KEYSTORE_ALIAS", "ANDROID_KEYSTORE_KEY_PASSWORD")
+    val suppliedSigning = signingEnvironment.count { !System.getenv(it).isNullOrBlank() }
+    require(suppliedSigning == 0 || suppliedSigning == signingEnvironment.size) {
+        "Supply all ANDROID_KEYSTORE_* variables, or none for an unsigned build"
+    }
+    if (suppliedSigning == signingEnvironment.size) {
+        signingConfigs.create("upstreamRelease") {
+            storeFile = file(System.getenv("ANDROID_KEYSTORE_PATH"))
+            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("ANDROID_KEYSTORE_ALIAS")
+            keyPassword = System.getenv("ANDROID_KEYSTORE_KEY_PASSWORD")
+        }
+    }
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
@@ -39,6 +54,9 @@ android {
             }
         }
         getByName("release") {
+            if (suppliedSigning == signingEnvironment.size) {
+                signingConfig = signingConfigs.getByName("upstreamRelease")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }

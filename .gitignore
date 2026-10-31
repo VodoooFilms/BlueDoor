@@ -73,3 +73,8 @@ src-tauri/gen/android/app/tauri.build.gradle.kts
 src-tauri/gen/android/app/tauri.properties
 *.apk
 *.aab
+
+# Release signing identities must always remain outside version control.
+*.keystore
+*.jks
+*.p12
