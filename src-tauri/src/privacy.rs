@@ -404,12 +404,14 @@ pub(crate) fn deterministic_detections(text: &str) -> Vec<Detection> {
         MONEY_BEFORE.get_or_init(|| Regex::new(r"(?i)(?:USD|EUR|US\$|\$|€)[ \t]*$").unwrap());
     let after = MONEY_AFTER
         .get_or_init(|| Regex::new(r"(?i)^[ \t]*(?:USD|EUR|d[oó]lares|euros)\b").unwrap());
-    let mut result = vec![];
+    let structured = structured::detections(text);
+    let mut result = structured.clone();
     for (kind, pattern) in patterns() {
         for captures in pattern.captures_iter(text) {
             let matched = captures.get(1).unwrap_or_else(|| captures.get(0).unwrap());
             let mut hit = matched.as_str().trim().trim_end_matches(['.', '/', '-']);
             if *kind == Kind::Address {
+                hit = hit.trim_start_matches(['`', '*']);
                 let prefix = if hit.starts_with("Av. ") { 4 } else { 0 };
                 if let Some(end) = hit[prefix..].find(". ") {
                     hit = &hit[..prefix + end];
@@ -455,6 +457,12 @@ pub(crate) fn deterministic_detections(text: &str) -> Vec<Detection> {
                 }
             }
             if *kind == Kind::Other && !hit.chars().any(|c| c.is_ascii_digit()) {
+                continue;
+            }
+            // A checksummed/explicit structured value owns its complete span;
+            // generic numeric rules must not emit fragments inside it.
+            if structured.iter().any(|d| d.text != hit && text.match_indices(&d.text).any(|(start, _)|
+                start <= matched.start() && matched.end() <= start + d.text.len())) {
                 continue;
             }
             result.push(Detection {
@@ -767,7 +775,7 @@ pub(crate) fn merge_detection_sources(
     ] {
         for detection in detections {
             let text = detection.text.trim().to_string();
-            if is_public_fact(&text) {
+            if is_public_fact(&text) && !(source == "pattern" && detection.kind == Kind::Other) {
                 continue;
             }
             if text.len() < 2 || text.len() > 500 || !grounded(original, &text) {
@@ -1662,6 +1670,14 @@ pub(crate) async fn analyze_private_document(
             *cache = None;
             Some(crate::gliner::GlinerEngine::load(&app, &model_id)?)
         } else { None };
+        // The multilingual NER pass runs before Qwen. Missing/corrupt weights
+        // fail closed; downloading remains an explicit action in Models.
+        #[cfg(target_os = "android")]
+        let pre_ner = if crate::models::gliner_files(&model_id).is_none() {
+            let ner = crate::gliner::GlinerEngine::load(&app, crate::models::GLINER_MULTI_ID)
+                .map_err(|_| "Instala GLiNER multilingüe desde Modelos antes de analizar con Qwen en Android.".to_string())?;
+            Some(analyze_with_progress(&ner, &session.original, &mut |_, _, _| {})?)
+        } else { None };
         if crate::models::gliner_files(&model_id).is_none() && cache.as_ref().is_none_or(|(loaded, _)| loaded != &model_id) {
             let path = crate::paths::models_dir(&app).join(crate::models::qwen_file(&model_id)?);
             let verify_timer = crate::performance::Timer::new("model_verify");
@@ -1725,6 +1741,14 @@ pub(crate) async fn analyze_private_document(
             );
         };
         let mut analysis = analyze_with_progress(engine, &original, &mut report)?;
+        #[cfg(target_os = "android")]
+        if let Some(ner) = pre_ner {
+            analysis.failed_fragments += ner.failed_fragments;
+            analysis.fragments += ner.fragments;
+            analysis.entities = merge_detection_sources(&original,
+                analysis.entities.iter().map(|e| Detection { kind: e.kind, text: e.original.clone() }).collect(),
+                ner.entities.into_iter().map(|e| Detection { kind: e.kind, text: e.original }).collect())?;
+        }
         crate::llm::check_cancelled()?;
         // A specialized on-device name detector complements the generative
         // model; names must not depend exclusively on its response budget.
@@ -2097,3 +2121,5 @@ pub(crate) fn update_private_source(
 
 #[cfg(test)]
 mod pii_eval;
+
+mod structured;

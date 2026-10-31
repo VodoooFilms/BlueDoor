@@ -203,6 +203,7 @@ try {
   await page.locator('.settings-menu summary').click();
   await page.locator('#languageToggle').click();
   assert((await page.locator('.rich-editor').innerText()).includes('Texto añadido.'),'language switch preserves the draft');
+  await page.locator('.settings-menu summary').click();
   await page.locator('#languageToggle').click();
   await page.keyboard.press('Escape');
   if(mobile) { assert(await page.getByRole('button',{name:ui('Exportar PDF'),exact:true}).isDisabled()); await page.locator('.save-btn').click(); }

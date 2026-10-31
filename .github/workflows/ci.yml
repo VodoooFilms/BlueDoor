@@ -61,6 +61,8 @@ jobs:
       # llama-cpp se compila desde el crate; no hay paso nativo manual.
       - name: Tests
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+      - name: Adversarial PII recall gate (99 percent)
+        run: pnpm eval:pii
       - name: Original-page editor workflows
         run: |
           pnpm exec playwright install webkit

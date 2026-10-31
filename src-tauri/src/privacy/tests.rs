@@ -2169,9 +2169,14 @@ fn compound_names_cover_middle_words_and_ocr_surnames_from_partial_detections() 
         if let Some((_, ending)) = text.split_once(full) {
             assert!(protected.ends_with(ending));
         }
-        assert!(privacy_advisories(&entities)
-            .iter()
-            .any(|a| a.contains("nombres parciales")));
+        // No completion advisory is needed when a deterministic field rule
+        // already found the complete value before the model's partial span.
+        let field_already_complete = deterministic_detections(text).iter()
+            .any(|d| d.kind == Kind::Person && d.text == full);
+        if !field_already_complete {
+            assert!(privacy_advisories(&entities).iter()
+                .any(|a| a.contains("nombres parciales")), "{text}: {entities:?}");
+        }
     }
 }
 
