@@ -60,9 +60,9 @@
     "license_source": "https://huggingface.co/handy-computer/parakeet-tdt-0.6b-v3-gguf/blob/90f082450fcbacdb54e5900c44ef697c9ea59622/README.md"
   },
   "qwen3-fast": {
-    "url": "https://registry.ollama.ai/v2/library/qwen3/blobs/sha256:3d0b790534fe4b79525fc3692950408dca41171676ed7e21db57af5c65ef6ab6",
-    "size": 1359279776,
-    "sha256": "3d0b790534fe4b79525fc3692950408dca41171676ed7e21db57af5c65ef6ab6",
+    "url": "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf?download=true",
+    "size": 396705472,
+    "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
     "license_source": "https://huggingface.co/Qwen/Qwen3-1.7B/blob/70d244cc86ccca08cf5af4e1e306ecf908b1ad5e/LICENSE"
   },
   "qwen3-q8": {

@@ -111,7 +111,7 @@ def main():
     # Never put weights inside resource paths or artifact upload paths.
     models = Path(os.environ.get('RUNNER_TEMP', tempfile.gettempdir())) / 'bluedoor-qa-models'
     models.mkdir(exist_ok=True)
-    for model_id, filename in [('qwen3-fast', 'ggml-qwen3-1.7b-instruct-q4.gguf'),
+    for model_id, filename in [('qwen3-fast', 'ggml-qwen3-0.6b-instruct-q4.gguf'),
                                ('qwen3-q8', 'ggml-qwen3-1.7b-instruct-q8.gguf')]:
         destination = output / model_id
         destination.mkdir(exist_ok=True)

@@ -179,7 +179,7 @@
       await refresh();
       const queue = [
         { family: DEFAULT_STT, name: "Parakeet TDT v3" },
-        { family: "privacy" as const, name: "Qwen3-1.7B Q4_K_M" },
+        { family: "privacy" as const, name: "Qwen3-0.6B Q4_K_M" },
         { family: "diarization" as const, name: "Nemotron 3 Diarization" },
       ];
       for (const [index, model] of queue.entries()) {
@@ -339,8 +339,8 @@
       </div>
       <div class="row privacy-model-row">
         <div class="row-copy">
-          <strong title={privacyOptions.find(m => m.id === privacySelected)?.name}>{privacyOptions.find(m => m.id === privacySelected)?.name ?? "Qwen3-1.7B Q4_K_M"}</strong>
-          <span class="row-size">{privacyOptions.find(m => m.id === privacySelected)?.size ?? "1.36 GB"}</span>
+          <strong title={privacyOptions.find(m => m.id === privacySelected)?.name}>{privacyOptions.find(m => m.id === privacySelected)?.name ?? "Qwen3-0.6B Q4_K_M"}</strong>
+          <span class="row-size">{privacyOptions.find(m => m.id === privacySelected)?.size ?? "397 MB"}</span>
         </div>
         <button class="change-btn model-picker-trigger" aria-label={t.changeModel} title={t.changeModel} onclick={(event) => openPicker("privacy", event.currentTarget)} disabled={busy}>
           <Icon name="edit" size={16} /><span>{t.changeModel}</span>

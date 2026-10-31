@@ -32,7 +32,7 @@ pub(crate) fn gliner_files(id: &str) -> Option<(&'static str, &'static str, &'st
     }
 }
 pub(crate) const QWEN_ID: &str = "qwen3-fast";
-pub(crate) const QWEN_FILE: &str = "ggml-qwen3-1.7b-instruct-q4.gguf";
+pub(crate) const QWEN_FILE: &str = "ggml-qwen3-0.6b-instruct-q4.gguf";
 pub(crate) const QWEN_Q8_ID: &str = "qwen3-q8";
 pub(crate) const QWEN_Q8_FILE: &str = "ggml-qwen3-1.7b-instruct-q8.gguf";
 pub(crate) const QWEN_PII_ID: &str = "belegal-pii-v1";
@@ -165,15 +165,15 @@ pub(crate) fn list_models(app_handle: tauri::AppHandle) -> ModelsList {
         path: path.to_string_lossy().to_string(),
     }];
     let mut privacy: Vec<ModelEntry> = [
-        (QWEN_ID, QWEN_FILE, "Q4_K_M", "1.36 GB"),
-        (QWEN_Q8_ID, QWEN_Q8_FILE, "Q8_0", "2.22 GB"),
+        (QWEN_ID, QWEN_FILE, "Qwen3-0.6B Q4_K_M", "397 MB"),
+        (QWEN_Q8_ID, QWEN_Q8_FILE, "Qwen3-1.7B Q8_0", "2.22 GB"),
     ]
     .into_iter()
-    .map(|(id, file, weight, size)| {
+    .map(|(id, file, name, size)| {
         let path = models_dir(&app_handle).join(file);
         ModelEntry {
             id: id.into(),
-            name: format!("Qwen3-1.7B {weight}"),
+            name: name.into(),
             size: size.into(),
             installed: model_appears_installed(&path),
             path: path.to_string_lossy().into(),
@@ -606,12 +606,13 @@ mod portability_tests {
         );
         assert_eq!(parakeet.size, 739_508_576);
         let qwen = asset_for_path(std::path::Path::new(QWEN_FILE)).unwrap();
-        assert_eq!(qwen.size, 1_359_279_776);
+        assert_eq!(qwen.size, 396_705_472);
         assert_eq!(
             qwen.sha256,
-            "3d0b790534fe4b79525fc3692950408dca41171676ed7e21db57af5c65ef6ab6"
+            "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
         );
-        assert!(qwen.url.ends_with(&qwen.sha256));
+        assert!(qwen.url.ends_with("?download=true"));
+        assert!(qwen.url.contains("/resolve/"));
         if let Some(trained) = asset_for_path(std::path::Path::new(QWEN_PII_FILE)) {
             assert!(
                 trained.url.is_empty(),
