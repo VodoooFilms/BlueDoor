@@ -475,7 +475,7 @@
         {#each privacyOptions as option (option.id)}
           <button class="model-choice" class:selected={option.id === privacySelected} aria-pressed={option.id === privacySelected} disabled={busy} onclick={() => pickPrivacy(option.id)}>
             <ModelFamilyIcon modelId={option.id} />
-            <span class="choice-copy"><strong>{option.name}</strong><span>{option.size}</span></span>
+            <span class="choice-copy"><strong title={option.name}>{option.name}</strong><span>{option.size}</span></span>
             {#if option.id === privacySelected}<Icon name="check" size={20} />{/if}
           </button>
         {/each}
@@ -719,7 +719,7 @@
   .model-choice:hover { background:#ffffff16; }
   .model-choice.selected { border-color:white; background:#ffffff1f; }
   .choice-copy { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
-  .choice-copy strong { font-size:14px; font-weight:650; }
+  .choice-copy strong { font-size:14px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .choice-copy > span { font-size:12px; color:#c5dbff; }
   @media (max-width:600px) { .model-choices { grid-template-columns:1fr; } }
   @media (max-width: 900px) {

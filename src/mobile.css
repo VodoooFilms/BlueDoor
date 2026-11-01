@@ -102,7 +102,7 @@
   :root .shell .audio-container { flex:1 0 auto; }
   :root .shell .models { flex:none; }
   :root .shell .models .list { flex:none; overflow:visible; }
-  :root .shell .models .row-copy strong { white-space:normal; }
+  :root .shell .models .row-copy strong { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   :root .shell .models .model-picker-trigger { width:44px; min-width:44px; min-height:44px; padding:8px; justify-content:center; }
   :root .shell .models .model-picker-trigger span { display:none; }
 }
@@ -131,7 +131,7 @@
   :root .shell .models .cancel-download-btn { height:44px; min-height:44px; font-size:12px; padding:8px 10px; }
   :root .shell .models .privacy-model-row { display:grid; grid-template-columns:minmax(0,1fr) 44px 44px; gap:12px; }
   :root .shell .models .privacy-model-row .row-copy { grid-column:1; width:auto; min-width:0; }
-  :root .shell .models .privacy-model-row .row-copy strong { white-space:normal; font-size:13px; overflow-wrap:anywhere; }
+  :root .shell .models .privacy-model-row .row-copy strong { white-space:nowrap; font-size:13px; overflow:hidden; text-overflow:ellipsis; }
   :root .shell .models .privacy-model-row .row-size { font-size:11px; }
   :root .shell .models .privacy-model-delete { width:44px; height:44px; }
   :root .shell .models .privacy-model-status { grid-column:1 / -1; width:100%; margin:0; }

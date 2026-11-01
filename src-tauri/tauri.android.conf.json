@@ -1,5 +1,5 @@
 {
-  "version": "0.5.7",
+  "version": "0.5.8",
   "bundle": { "resources": [] },
   "app": { "windows": [{ "title": "Bluedoor", "width": 412, "height": 820, "resizable": true }] }
 }

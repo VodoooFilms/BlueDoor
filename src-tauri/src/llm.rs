@@ -101,8 +101,8 @@ impl Drop for AnalysisLease {
 pub(crate) fn begin_analysis() -> Result<AnalysisLease, String> {
     ACTIVE
         .compare_exchange(
-            true,
             false,
+            true,
             std::sync::atomic::Ordering::SeqCst,
             std::sync::atomic::Ordering::SeqCst,
         )
@@ -694,6 +694,25 @@ impl LlmEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn analysis_lease_starts_rejects_overlap_and_releases_on_exit() {
+        let first = begin_analysis().expect("an idle app must accept its first analysis");
+        assert!(
+            begin_analysis().is_err(),
+            "overlapping analysis must be rejected"
+        );
+        drop(first);
+        let retry = begin_analysis().expect("finishing an analysis must release the slot");
+        drop(retry);
+        let failed_job = || -> Result<(), String> {
+            let _lease = begin_analysis()?;
+            Err("simulated model load failure".into())
+        };
+        assert!(failed_job().is_err());
+        let after_error = begin_analysis().expect("a failed analysis must release the slot");
+        drop(after_error);
+    }
+
     #[test]
     #[ignore = "Requires the verified local Qwen model; uses only synthetic receipt names"]
     fn real_mobile_receipt_names() {

@@ -1,5 +1,11 @@
 # Cambios de Bluedoor
 
+## 0.5.8 — 1 de noviembre de 2026
+
+- Corregida la reserva del análisis local: el primer análisis puede iniciarse, se rechazan ejecuciones simultáneas y se libera la reserva al finalizar o fallar. La versión 0.5.7 impedía iniciar el análisis, incluido GLiNER.
+- Los nombres en las tarjetas y el selector de modelos permanecen en una línea; el nombre completo se conserva como tooltip.
+- Regresión nativa del ciclo de análisis, 155 pruebas nativas aprobadas y selector de modelos Android verificado.
+
 ## 0.4.0 — 5 de octubre de 2026
 
 - Limpieza de cachés, temporales y compilaciones antiguas; una sola app actual en Aplicaciones. Eliminadas cinco definiciones frontend sin uso y regeneración automática de entradas QA para las pruebas de layout.
