@@ -1,16 +1,16 @@
 # Beta Android
 
-The signed public beta is pending; no release APK has been published by this
-change. Download only a signed `Bluedoor-android-arm64-release.apk` from the
-[project releases](https://github.com/VodoooFilms/Bluedoor/releases), once listed.
-Do not install a preview or an unsigned build as a release.
+The current public testing preview is [0.5.13, with APK and checksum](https://github.com/VodoooFilms/BlueDoor/releases/tag/v0.5.13-android-preview).
+It targets ARM64 Android devices and uses the existing local preview certificate.
+It is not a Google Play production release or an F-Droid release. Update an
+existing preview with the same signature without uninstalling.
 
 1. Compare the downloaded APK SHA-256 with its `.sha256` sidecar; verify the
    release certificate fingerprint against the maintainer's published value.
 2. On Android, open the APK and grant “Install unknown apps” to the browser or
    file manager you used. Install, then turn that permission off again.
-3. Download the desired models explicitly in Models. Android Qwen analysis also
-   requires GLiNER multilingual; no model is downloaded automatically.
+3. Download the desired model explicitly in Models. Qwen, GLiNER Small and
+   GLiNER Multi are independent choices; Qwen does not require GLiNER.
 4. Test with fictional documents first. Review every entity and page before
    sharing an export. Detection is fallible; pseudonymization is not anonymity.
 

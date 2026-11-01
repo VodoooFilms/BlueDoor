@@ -1,81 +1,77 @@
 # Bluedoor
 
 <p align="center">
-  <img src="assets/branding/bluedoor-app-icon.svg" alt="Bluedoor: icono de puerta blanca dentro de un recuadro azul" width="160" />
+  <img src="assets/branding/bluedoor-app-icon.svg" alt="Bluedoor" width="128" />
 </p>
 
-**Una capa de preparación local para el trabajo legal con IA.**
+**Prepare sensitive documents for sharing, right on your Android phone.**
 
-Aplicación de escritorio para preparar documentos legales y transcripciones en tu propio equipo: análisis local de información sensible, alias revisables, edición enriquecida, exportación PDF y un Vault cifrado para lo que quieres conservar.
+Bluedoor is a mobile-first document privacy workspace. Import a document, detect sensitive information with an on-device model, review and edit the proposed aliases, and export a protected PDF. Document processing stays on your device.
 
-<p align="center">
-  <img src="assets/branding/bluedoor-workspace.png" alt="Bluedoor: pantalla de importación de documentos, navegación de audio y edición, con procesamiento local" width="1200" />
-</p>
+[Download Android preview](https://github.com/VodoooFilms/BlueDoor/releases/tag/v0.5.13-android-preview) · [Product page](https://www.prompthea.com/projects/bluedoor) · [Report an issue](https://github.com/VodoooFilms/BlueDoor/issues/new?template=android-beta.yml)
 
-Proyecto independiente de escritorio, con datos y preferencias propios. Repositorio de desarrollo: [VodoooFilms/Bluedoor](https://github.com/VodoooFilms/Bluedoor). Presentación del producto: [Bluedoor en Prompthea](https://www.prompthea.com/projects/bluedoor).
+## Android first
 
-La interfaz sigue la referencia Bluedoor: fondo azul intenso, marca de puerta y navegación blancas, ilustraciones SVG azul claro al 80 % y botones principales blancos con texto azul. Las pantallas de documentos, audio, ajustes, modelos, edición y mapa privado comparten la misma identidad. Los documentos conservan su contenido y formato, con hoja blanca y tinta legible.
+- **Local document analysis:** choose Qwen, GLiNER PII Small or GLiNER Multi. Each model downloads and runs independently; Qwen is a separate 397 MB download.
+- **Import and OCR:** work with PDFs, supported images, DOCX and text. Review the extracted content and the original document before sharing.
+- **Editable privacy map:** inspect detected people, organizations, identifiers and contact details; correct omissions and choose readable aliases.
+- **Document editing and PDF export:** review the protected result, approve it and export. Changes invalidate the previous approval.
+- **Batch review:** process several documents and manage shared aliases within the batch.
+- **Encrypted Vault:** optionally save work locally, protected by a password and recovery phrase.
+- **Offline processing:** download the chosen model first, then analyze documents without an internet connection. No automatic document uploads, telemetry or remote crash reporting.
+- **Mobile interface:** portrait-friendly review, source zoom, stable detection progress, and English/Spanish UI.
 
-## Android preview 0.5.13
+Detection can miss information. Human review of the privacy map and document pages is required; Bluedoor does not guarantee anonymity.
 
-[Descargar el APK ARM64 y su checksum](https://github.com/VodoooFilms/BlueDoor/releases/tag/v0.5.13-android-preview).
-La versión 0.5.13 ofrece Qwen independiente (397 MB), corrige las relecturas de fragmentos y estabiliza el selector y el diálogo de detección en Android.
-Compilación preliminar con firma local de prueba; no es una publicación en Google Play.
-Incluye Qwen y GLiNER como opciones locales. Los modelos se descargan desde la aplicación.
-El análisis requiere revisión humana y no garantiza una anonimización completa.
+## Install on Android
 
-## Desarrollo
+Current preview: **0.5.13**, for **ARM64 Android devices, Android 7.0 or later**.
+
+1. Download the APK and its SHA-256 checksum from the [0.5.13 release](https://github.com/VodoooFilms/BlueDoor/releases/tag/v0.5.13-android-preview).
+2. Open the APK on your phone and allow installation from that source when prompted.
+3. For an existing preview with the same signature, install as an update **without uninstalling**.
+4. Open **Models** and download your chosen model. Qwen does not require GLiNER; model files are not bundled in the APK.
+5. Start with a fictional document, detect, review, approve and export.
+
+This is a testing preview signed with the existing local preview certificate. It is not a Google Play production release. F-Droid distribution is planned but has [documented blockers](docs/FDROID.md).
+
+[Installation and voluntary bug reports](docs/ANDROID_BETA.md) · [Android validation](docs/ANDROID-VALIDATION.md) · [Qwen performance and regression evidence](docs/ANDROID-QWEN-REGRESSION-2026-11-01.md)
+
+## Privacy and local data
+
+Documents are processed locally. Model downloads are explicit actions; reporting a bug or sharing a PDF is also a user action. The Vault provides optional encrypted storage rather than automatically saving original documents.
+
+Bluedoor uses its own application identity, `com.bluedoor.desktop`, and independent preferences and storage. It does not automatically migrate personal documents from other applications. Uninstalling clears app storage; preserve any files you need before removing the app.
+
+See [privacy information](PRIVACY.md), the [Vault threat model](docs/VAULT_2026-10-23.md), and [third-party notices](THIRD_PARTY_NOTICES.md).
+
+## Desktop development
+
+The repository also contains desktop work for macOS and Windows. Desktop includes audio transcription and speaker-related workflows that are **not available in the Android app**. The current public download above is the Android preview.
+
+Built with **Svelte 5, Tauri 2 and Rust**, with local llama.cpp and ONNX model execution.
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm dev
-# Aplicación nativa (requiere toolchain Rust/Xcode y runtime local)
+# Native desktop development, with platform prerequisites installed:
 pnpm tauri dev
 ```
 
-## Verificación
+For Android toolchain, source builds and signing, see [the build guide](docs/FDROID.md#toolchain-and-build). Release builds require an explicit signing identity; preview signing is not a production release identity.
+
+## Verification
 
 ```sh
 pnpm typecheck
 pnpm build
-pnpm test:native
 pnpm check:native
+pnpm test:native
 pnpm test:ui
-pnpm test:brand:ui
-pnpm test:workspace:ui
-pnpm test:layout:ui
-pnpm test:vault:ui
+node tests/run-ui.mjs --android-models
+node tests/run-ui.mjs --model-switch
 ```
 
-## Compilación macOS
+Real Android inference regressions use synthetic documents and an explicitly prepared emulator. Their setup and measured limits are documented in the [Qwen regression report](docs/ANDROID-QWEN-REGRESSION-2026-11-01.md). Emulator timings do not establish performance on every phone. Check the [Actions runs](https://github.com/VodoooFilms/BlueDoor/actions) for current CI status.
 
-`pnpm release:mac:dev` crea una compilación de desarrollo con firma ad hoc. `pnpm release:mac` requiere identidad de distribución y notarización configuradas. Se generó e instaló la compilación local de desarrollo 0.4.0 en `/Applications/Bluedoor.app`; no se publicó. La instalación independiente requiere descargar sus modelos desde Ajustes.
-
-## Identidad y datos
-
-- Aplicación: **Bluedoor**, identificador `com.bluedoor.desktop`.
-- Idioma inicial: inglés; Ajustes permite cambiar a español y conserva la elección.
-- Historial y modelos: directorio de datos propio de Tauri; en macOS `~/Library/Application Support/com.bluedoor.desktop/`.
-- Las preferencias y la primera bienvenida usan claves propias. No se copian documentos, historial ni modelos personales de otras aplicaciones.
-- El Vault cifra documentos, transcripciones y originales en reposo con una contraseña y una frase de recuperación. Su modelo de amenaza y sus límites están en [docs/VAULT_2026-10-23.md](docs/VAULT_2026-10-23.md).
-- Los modelos publicados conservan sus identificadores y hashes. El modelo experimental propio se denomina `bluedoor-pii-v1`, con archivo `bluedoor-pii-v1-q4.gguf`.
-- Marca SVG e iconos editables en `src/assets/` y `assets/branding/`.
-
-Los documentos en `docs/archive/` y `docs/milestones/` son antecedentes históricos de la base. La licencia y los avisos originales se conservan. Véanse [PRIVACY.md](PRIVACY.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) y [docs/BLUEDOOR_FORK.md](docs/BLUEDOOR_FORK.md).
-
-## Estado y límites
-
-- Desarrollo y demostraciones privadas en Mac con Apple Silicon; no hay instalador público.
-- La detección puede omitir información. Revisar el mapa privado y las páginas antes de compartir; no se garantiza anonimato.
-- **Send to GPT** abre ChatGPT en el navegador. No sube ni adjunta el documento; la carga del PDF exportado es manual.
-- El chequeo del 17 de octubre de 2026 pasó tipos, build, Clippy y suites de UI; 104 pruebas nativas aprobadas y 15 omitidas. Véase [el informe](docs/AUDIT_2026-10-17.md) para el alcance.
-- Antes de distribuir: completar los textos de licencia pendientes, firma Developer ID, notarización y prueba en un Mac limpio.
-- Modelos, instaladores, documentos personales y resultados de QA se mantienen fuera de Git.
-
-## Beta Android
-
-Android distribution targets F-Droid and direct APK sideload. The signed public
-beta is pending. See [installation and optional bug reports](docs/ANDROID_BETA.md)
-and [F-Droid blockers, source builds and release signing](docs/FDROID.md).
-Processing remains on-device; models download only on request. No telemetry or
-remote crash reporting is configured. Logs are exported and submitted manually.
+Model weights, installers, personal documents and local QA artifacts stay outside Git. Downloadable APKs and checksums are attached to releases. Historical desktop milestones are retained in `docs/archive/` and `docs/milestones/`.
