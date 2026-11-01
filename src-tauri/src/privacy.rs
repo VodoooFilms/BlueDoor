@@ -1727,7 +1727,8 @@ pub(crate) async fn analyze_private_document(
         // treating every tokenizer failure as a download.
         #[cfg(target_os = "android")]
         let pre_ner = if crate::models::requires_mobile_ner(&model_id) {
-            let ner = crate::gliner::GlinerEngine::load(&app, crate::models::GLINER_MULTI_ID)?;
+            let ner = crate::gliner::GlinerEngine::load(&app, crate::models::GLINER_MULTI_ID)
+                .map_err(|error| format!("Qwen necesita su detector auxiliar GLiNER Multi. Completa la descarga de Qwen desde Modelos. {error}"))?;
             Some(analyze_with_progress(&ner, &session.original, &mut |_, _, _| {})?)
         } else { None };
         if crate::models::gliner_files(&model_id).is_none() && cache.as_ref().is_none_or(|(loaded, _)| loaded != &model_id) {

@@ -4,7 +4,7 @@
   import { privateCopy as p } from "../lib/private-i18n";
   import Icon from "./Icon.svelte";
   import Feedback from "./Feedback.svelte";
-  let { controller:c, modelId, dirty=false }:{controller:BatchController;modelId:string;dirty?:boolean}=$props();
+  let { controller:c, modelId, dirty=false }:{controller:BatchController;modelId:()=>string;dirty?:boolean}=$props();
   let dialog = $state<HTMLDialogElement>();
   let returnFocus:HTMLElement|null=null;
   let wasOpen=false;
@@ -125,10 +125,10 @@
     <div class="batch-dialog-actions" class:long-actions={c.mode==="export"||c.mode==="aliasChange"||c.mode==="list"}>
       {#if c.mode==="aliasChange"}<button onclick={()=>c.cancelAliasChange()} disabled={c.working}><Icon name="close" size={18}/>{p("Cancelar")}</button><button class="primary" onclick={()=>c.confirmAliasChange()} disabled={c.working}><Icon name="check" size={18}/>{p(aliasMerge?"Confirmar unión":"Actualizar documentos")}</button>
       {:else if c.mode==="aliases"}<button onclick={cancelDialog} disabled={c.working}><Icon name="check" size={18}/>{p("Listo")}</button>
-      {:else if c.mode==="prepare"}<button onclick={cancelDialog} disabled={c.working}><Icon name="close" size={18}/>{p("Cancelar")}</button><button class="primary" onclick={()=>c.start(modelId)} disabled={!c.selected.length||c.working}><Icon name="search" size={18}/><span>{p("Detectar")}</span></button>
+      {:else if c.mode==="prepare"}<button onclick={cancelDialog} disabled={c.working}><Icon name="close" size={18}/>{p("Cancelar")}</button><button class="primary" onclick={()=>c.start(modelId())} disabled={!c.selected.length||c.working}><Icon name="search" size={18}/><span>{p("Detectar")}</span></button>
       {:else if c.mode==="export"}<button onclick={cancelDialog}><Icon name="close" size={18}/>{p("Cancelar")}</button><button class="primary" onclick={()=>c.export()} disabled={!c.approved||c.locked||dirty}><Icon name="folder" size={18}/>{p("Elegir carpeta y exportar")}</button>
       {:else if c.mode==="close"}<button onclick={cancelDialog}><Icon name="arrow-left" size={18}/>{p("Conservar lote")}</button><button class="primary" onclick={()=>c.close()} disabled={c.locked||dirty}><Icon name="close" size={18}/>{p("Cerrar lote")}</button>
-      {:else}{#if pending}<button class="primary" disabled={c.locked||dirty} onclick={()=>c.start(modelId)}><Icon name="search" size={18}/>{p("Continuar detección")}</button>{/if}<button onclick={cancelDialog}><Icon name="check" size={18}/>{p("Listo")}</button>{/if}
+      {:else}{#if pending}<button class="primary" disabled={c.locked||dirty} onclick={()=>c.start(modelId())}><Icon name="search" size={18}/>{p("Continuar detección")}</button>{/if}<button onclick={cancelDialog}><Icon name="check" size={18}/>{p("Listo")}</button>{/if}
     </div>
   </dialog>
 

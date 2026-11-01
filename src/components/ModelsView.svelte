@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { privacyModel, MOBILE_PRIVACY_MODEL } from "../lib/privacy-model";
+  import { privacyModel } from "../lib/privacy-model";
   import Feedback from "./Feedback.svelte";
   import { microphoneError } from "../lib/user-errors";
   import Icon from "./Icon.svelte";
@@ -82,15 +82,20 @@
   const ready = $derived(STT_OPTIONS.some((o) => installed[o.id]));
 
   onMount(async () => {
-    if (privacyModelRequired) localStorage.setItem("bluedoor-privacy-model", mobile ? MOBILE_PRIVACY_MODEL : "qwen3-fast");
     privacySelected = privacyModel(mobile);
+    localStorage.setItem("bluedoor-privacy-model", privacySelected);
     // Si venía guardado un modelo que ya no ofrecemos (tiny/base), volver al recomendado.
     if (!STT_OPTIONS.some((o) => o.id === getSttModel())) setSttModel(sttCurrent.id);
     unlistenProgress = await listen<[string, number]>("model-download-progress", (event) => {
       const [label, pct] = event.payload;
       const id = label === "gliner-multi-pii-tokenizer" ? "gliner-multi-pii-fp16" : label === "gliner-pii-tokenizer" ? "gliner-pii-small-int8" : label;
       const total = label === "gliner-multi-pii-tokenizer" ? 95 + Math.round(pct * .05) : label === "gliner-multi-pii-fp16" ? Math.round(pct * .95) : label === "gliner-pii-tokenizer" ? 96 + Math.round(pct * .04) : label === "gliner-pii-small-int8" ? Math.round(pct * .96) : pct;
-      progress = { ...progress, [id]: total };
+      if (mobile && installingId === "qwen3-fast") {
+        const qwenProgress = label === "qwen3-fast" ? Math.round(pct * .40)
+          : label === "gliner-multi-pii-fp16" ? 40 + Math.round(pct * .584)
+          : label === "gliner-multi-pii-tokenizer" ? 98 + Math.round(pct * .02) : null;
+        if (qwenProgress !== null) progress = { ...progress, [installingId]: qwenProgress };
+      } else progress = { ...progress, [id]: total };
     });
     try { await refresh(); } catch (e) { messageKind = "error"; message = String(e); }
     window.addEventListener("keydown", onKeyDown);
@@ -132,7 +137,7 @@
     for (const m of all.diarization) map[m.id] = m.installed;
     for (const m of all.privacy) map[m.id] = m.installed;
     privacyOptions = [...all.privacy].sort((a, b) => modelBytes(a.size) - modelBytes(b.size));
-    if (!all.privacy.some(m => m.id === privacySelected && m.installed) && all.privacy.some(m => m.installed) && (allowFallback || privacySelected !== MOBILE_PRIVACY_MODEL || !all.privacy.some(m => m.id === privacySelected))) {
+    if (all.privacy.some(m => m.installed) && (allowFallback || !all.privacy.some(m => m.id === privacySelected))) {
       privacySelected = all.privacy.find(m => m.installed)!.id;
       localStorage.setItem("bluedoor-privacy-model", privacySelected);
     }
@@ -380,6 +385,7 @@
           <ModelFamilyIcon modelId={privacySelected} />
         <div class="row-copy">
           <strong title={privacyOptions.find(m => m.id === privacySelected)?.name}>{privacyOptions.find(m => m.id === privacySelected)?.name ?? "Qwen3-0.6B Q4_K_M"}</strong>
+          {#if mobile && privacySelected === "qwen3-fast"}<span class="model-dependency">{t.langLabel === "ES" ? "Incluye GLiNER Multi auxiliar" : "Includes auxiliary GLiNER Multi"}</span>{/if}
           <span class="row-size">{privacyOptions.find(m => m.id === privacySelected)?.size ?? "397 MB"}</span>
         </div>
         </div>

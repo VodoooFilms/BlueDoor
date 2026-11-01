@@ -44,6 +44,14 @@
     return () => clearInterval(timer);
   });
   let processingDialog = $state<HTMLDialogElement>();
+  let reanalysisDialog = $state<HTMLDialogElement>();
+  let reanalysisModel = $state<{ id: string; name: string } | null>(null);
+  $effect(() => {
+    if (!reanalysisDialog) return;
+    if (reanalysisModel && active && !reanalysisDialog.open) reanalysisDialog.showModal();
+    else if ((!reanalysisModel || !active) && reanalysisDialog.open) reanalysisDialog.close();
+  });
+
   const modalProcessing = $derived(busy.startsWith("Importando") || busy.startsWith("Analizando"));
   $effect(() => {
     if (!processingDialog) return;
@@ -215,7 +223,7 @@
       if (next) adopt(next);
     });
   }
-  async function analyze() {
+  async function analyze(expectedModelId?: string) {
     if (!session || busy) return;
     const current = session;
     analysisId = current.id;
@@ -224,6 +232,7 @@
     analysisStep = "";
     await run("Analizando documento local…", async () => {
       const modelId = privacyModel(mobile);
+      if (expectedModelId && modelId !== expectedModelId) throw new Error(p("El modelo activo cambió. Confirma de nuevo el análisis."));
       const all = await invoke<{ privacy: { id: string; installed: boolean }[] }>("list_models");
       if (!all.privacy.some(model => model.id === modelId && model.installed)) {
         onMissingModel();
@@ -257,11 +266,29 @@
     return applied;
   }
   async function clearResult() {
-    if (!session) return;
-    const current = session;
-    await run("Borrando resultado local…", async () => {
-      adopt(await invoke<PrivacySession>("reset_private_analysis", { id: current.id, revision: current.revision }));
+    if (!session || busy) return;
+    await run("Comprobando modelo activo…", async () => {
+      const id = privacyModel(mobile);
+      const all = await invoke<{ privacy: { id: string; name: string; installed: boolean }[] }>("list_models");
+      const model = all.privacy.find(model => model.id === id);
+      if (!model?.installed) { onMissingModel(); return; }
+      reanalysisModel = { id, name: model.name };
     });
+  }
+  async function confirmReanalysis() {
+    if (!session || busy || !reanalysisModel) return;
+    const confirmed = reanalysisModel;
+    reanalysisModel = null;
+    if (privacyModel(mobile) !== confirmed.id) { await clearResult(); return; }
+    const current = session;
+    let ready = false;
+    const reset = await run("Comprobando modelo activo…", async () => {
+      const all = await invoke<{ privacy: { id: string; installed: boolean }[] }>("list_models");
+      if (!all.privacy.some(model => model.id === confirmed.id && model.installed)) { onMissingModel(); return; }
+      adopt(await invoke<PrivacySession>("reset_private_analysis", { id: current.id, revision: current.revision }));
+      ready = true;
+    });
+    if (reset && ready) await analyze(confirmed.id);
   }
   async function clear() {
     await run("Cerrando documento…", async () => { await invoke("clear_privacy_session"); adopt(null); });
@@ -309,7 +336,7 @@
 {#snippet processingIndicator()}
   <div class="processing-slot">
     <div class="processing-label" role="status" aria-live="polite">
-      <span class="processing-orbit" aria-hidden="true"></span><span class="processing-copy" title={stepLabel || processingLabel}>{stepLabel || processingLabel}</span>
+      <span class="processing-orbit" aria-hidden="true"></span><span class="processing-copy" title={stepLabel || processingLabel}><span class="processing-primary">{(stepLabel || processingLabel).split(" · ")[0]}</span>{#if (stepLabel || processingLabel).includes(" · ")}<span class="processing-details"><span class="sr-only">{" · "}</span>{(stepLabel || processingLabel).split(" · ").slice(1).join(" · ")}</span>{/if}</span>
     </div>
     {#if mobile && busy.startsWith("Importando")}<button class="secondary" onclick={() => invoke("cancel_private_import")}>{p("Cancelar extracción")}</button>{/if}
     {#if protecting}<div class="processing-actions"><button class="secondary" onclick={() => invoke("cancel_private_analysis")}>{p("Cancelar análisis")}</button><span class="processing-elapsed" aria-label={p("Tiempo transcurrido en segundos")}>{String(elapsedSeconds).padStart(3, "0")} s</span></div>{/if}
@@ -319,7 +346,7 @@
 
 <section class="privacy-workflow" aria-label="Private Legal" use:enterView={`${session?.id ?? "welcome"}:${editing}:${mapOpen}`}>
   <SaveNotice sequence={saveSequence} />
-  <BatchQueue controller={batch} modelId={privacyModel(mobile)} dirty={batchDirty}/>
+  <BatchQueue controller={batch} modelId={() => privacyModel(mobile)} dirty={batchDirty}/>
 
   {#if session}
     {#if hasMobileSource && !session.layoutAvailable && !editing && (!session.analyzed || showOriginal)}<div class="mobile-source"><button disabled={(!!busy || batch.locked)} class="secondary" onclick={async () => { try { await invoke("preview_import_source"); } catch (e) { error = String(e); } }}>Ampliar original</button><button class="secondary" disabled={(!!busy || batch.locked)} onclick={() => showExtracted = !showExtracted}>{showExtracted ? "Ver PDF / imagen" : "Ver texto extraído"}</button></div>{/if}
@@ -349,7 +376,7 @@
         <button class="secondary" onclick={() => importDocument()} disabled={(!!busy || batch.locked) || !!batch.view} aria-label={p("Importar otro documento")} title={p("Importar otro documento")}><Icon name="file-plus" size={20} /><span>{p(mobile ? "Importar otro" : "Importar otro documento")}</span></button>
 
         {#if session.analyzed}<button class="primary" onclick={() => { if (session) onEdit(session); }} disabled={(!!busy || batch.locked)} aria-label={p(mobile ? "Editar" : "Revisar y editar")} title={p(mobile ? "Editar" : "Revisar y editar")}><Icon name="pencil" size={20} /><span>{p(mobile ? "Editar" : "Revisar y editar")}</span></button>
-        {:else}<button class="primary analyze-button" onclick={analyze} disabled={(!!busy || batch.locked) || sourceEditing} aria-label={p("Proteger documento")} title={p("Proteger documento")}><Icon name="shield" size={20} /><span>{p("Proteger documento")}</span></button>{/if}
+        {:else}<button class="primary analyze-button" onclick={() => analyze()} disabled={(!!busy || batch.locked) || sourceEditing} aria-label={p("Proteger documento")} title={p("Proteger documento")}><Icon name="shield" size={20} /><span>{p("Proteger documento")}</span></button>{/if}
         </div>
       {/if}
     </div>
@@ -434,6 +461,17 @@
     <div class="batch-entry-menu"><details class="document-menu"><summary aria-label={p("Acciones del documento")} title={p("Acciones del documento")}>···</summary><div>{@render batchMenu()}</div></details></div>
     {/if}
   {/if}
+  <dialog class="reanalysis-dialog" bind:this={reanalysisDialog} aria-label={p("Volver a analizar")} oncancel={() => reanalysisModel = null}>
+    {#if reanalysisModel}
+      <h2>{p("Volver a analizar")}</h2>
+      <p>{p("Modelo activo")}: <strong>{reanalysisModel.name}</strong></p>
+      <p>{p("Se reemplazará el análisis anterior. Tendrás que revisar de nuevo el resultado.")}</p>
+      <div class="reanalysis-actions">
+        <button class="secondary" onclick={() => reanalysisModel = null}><Icon name="close" /><span>{p("Cancelar")}</span></button>
+        <button class="primary" onclick={confirmReanalysis}><Icon name="shield" /><span>{p("Volver a analizar")}</span></button>
+      </div>
+    {/if}
+  </dialog>
   <dialog class="processing-dialog" bind:this={processingDialog} aria-label={p("Procesando documento")} oncancel={event => event.preventDefault()}>
     {#if modalProcessing}{@render processingIndicator()}{/if}
   </dialog>
@@ -442,6 +480,15 @@
 </section>
 
 <style>
+  .reanalysis-dialog { max-width:480px; width:calc(100vw - 40px); padding:24px; border:1px solid #bfd8ff66; border-radius:16px; background:var(--modal-surface); color:white; }
+  .reanalysis-dialog::backdrop { background:var(--modal-backdrop); backdrop-filter:blur(var(--modal-blur)); }
+  .reanalysis-dialog h2 { color:white; font-size:21px; }
+  .reanalysis-dialog p { line-height:1.6; }
+  .reanalysis-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:12px; margin-top:20px; }
+  .processing-copy { display:flex; flex-direction:column; align-items:center; text-align:center; gap:5px; }
+  .processing-primary,.processing-details { display:block; }
+  .processing-details { font-size:12px; opacity:.85; }
+
   .privacy-workflow { position:relative; display:flex; flex-direction:column; flex:1; min-height:0; min-width:0; border:1px solid var(--line); border-top:0; border-radius:0 0 6px 6px; background:var(--background); padding:16px; gap:12px; }
   .workspace-header { display:flex; flex-wrap:wrap; align-items:center; gap:12px; flex:none; }
   .review-instruction { margin:0; color:var(--text); font-size:14px; line-height:1.5; }

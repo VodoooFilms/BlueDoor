@@ -1,6 +1,10 @@
 import { getLang } from "./i18n-store.svelte";
 
 const ENGLISH: Record<string, string> = {
+  "Comprobando modelo activo…": "Checking active model…",
+  "Modelo activo": "Active model",
+  "El modelo activo cambió. Confirma de nuevo el análisis.": "The active model changed. Confirm the analysis again.",
+  "Se reemplazará el análisis anterior. Tendrás que revisar de nuevo el resultado.": "The previous analysis will be replaced. You will need to review the result again.",
   "1 documento": "1 document",
   "Se actualizará 1 documento.": "1 document will be updated.",
   "1 documento aprobado volverá a Por revisar.": "1 approved document will return to To review.",

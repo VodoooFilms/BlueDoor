@@ -54,6 +54,12 @@ try {
       await run("check-batch-aliases.mjs", language);
       await run("check-batch-aliases.mjs", language, { BLUEDOOR_TEST_MOBILE: "1" });
     }
+  } else if (process.argv.includes("--model-switch")) {
+    await run("check-privacy-model.mjs");
+    for (const language of ["es", "en"]) {
+      await run("check-private-ai.mjs", language, { BLUEDOOR_TEST_MODEL_SWITCH: "1" });
+      await run("check-private-ai.mjs", language, { BLUEDOOR_TEST_MODEL_SWITCH: "1", BLUEDOOR_TEST_MOBILE: "1" });
+    }
   } else if (process.argv.includes("--model-setup")) {
     await run("check-model-setup.mjs");
   } else if (process.argv.includes("--first-model")) {

@@ -37,7 +37,7 @@ try {
         return 1;
       }
       if(cmd==='plugin:event|unlisten')return;
-      if(cmd==='list_models')return {whisper:[{id:'small',path:'/mock/stt',installed:true}],parakeet:[],diarization:[],privacy:[{id:"qwen3-fast",name:"Qwen3-1.7B Q4_K_M",size:"1.36 GB",installed:!window.__missingPrivacyModel}]};
+      if(cmd==='list_models')return {whisper:[{id:'small',path:'/mock/stt',installed:true}],parakeet:[],diarization:[],privacy:[{id:"qwen3-fast",name:"Qwen3-1.7B Q4_K_M",size:"1.36 GB",installed:!window.__missingPrivacyModel}, ...(mobile || window.__testModelSwitch ? [{id:"gliner-pii-small-int8",name:"GLiNER PII Small",size:"86 MB",installed:!window.__missingPrivacyModel},{id:"gliner-multi-pii-fp16",name:"GLiNER Multi PII",size:"596 MB",installed:!window.__missingPrivacyModel}] : [])]};
       if(cmd==='diarization_available')return false;
       if(cmd==='get_privacy_session')return session;
       if(cmd==='get_private_extraction'){assertRevision(args);return extracted;}
@@ -162,7 +162,7 @@ try {
   if (mobile) {
     const progress = await page.locator('.processing-slot').boundingBox();
     assert(progress && progress.y >= 0 && progress.y + progress.height <= 850, 'Mobile analysis progress stays inside the viewport');
-    const cancel = page.getByRole('button', { name: 'Cancelar análisis', exact: true });
+    const cancel = page.getByRole('button', { name: ui('Cancelar análisis'), exact: true });
     assert(await cancel.isVisible());
     assert.notEqual(await cancel.evaluate(button => getComputedStyle(button).pointerEvents), 'none', 'Cancellation remains interactive');
     if (language === 'es') await page.screenshot({ path: 'artifacts/android-analysis-progress.png', animations: 'disabled' });
@@ -184,6 +184,7 @@ try {
   assert.match(await page.getByRole('status').innerText(),/24 tokens/);
   await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'reading:2/2:96']),[id,revision]);
   await page.getByRole('status').filter({hasText:fragment(2,2)}).waitFor();
+  if (process.env.BLUEDOOR_TEST_MODEL_SWITCH === '1' && mobile && language === 'es') await page.screenshot({path:'artifacts/059-progress-two-lines.png',animations:'disabled'});
   await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'sanitizing']),[id,revision]);
   await page.getByRole('status').filter({hasText:ui('Protegiendo el documento')}).waitFor();
   if (process.env.BLUEDOOR_TEST_PROCESSING_ONLY === '1') {
@@ -204,6 +205,32 @@ try {
     process.exit(0);
   }
   await page.evaluate(()=>window.__finishAnalysis());
+  if (process.env.BLUEDOOR_TEST_MODEL_SWITCH === '1') {
+    await page.locator('.processing-dialog').waitFor({state:'hidden'});
+    await page.evaluate(() => { window.__testModelSwitch = true; });
+    for (const [modelId, modelName] of [['gliner-pii-small-int8','GLiNER PII Small'],['qwen3-fast','Qwen3-1.7B Q4_K_M'],['gliner-multi-pii-fp16','GLiNER Multi PII']]) {
+      await page.evaluate(id => localStorage.setItem('bluedoor-privacy-model',id),modelId);
+      const beforeReset = await page.evaluate(() => window.__privacyCalls.filter(c=>c.cmd==='reset_private_analysis').length);
+      await page.locator('.workspace-header .document-menu summary').click();
+      await page.getByRole('button',{name:ui('Volver a analizar'),exact:true}).click();
+      const confirmation = page.locator('.reanalysis-dialog');
+      await confirmation.getByText(modelName,{exact:true}).waitFor();
+      if (mobile && language === 'es') await page.screenshot({path:'artifacts/059-reanalysis-confirmation.png',animations:'disabled'});
+      assert.equal(await page.evaluate(() => window.__privacyCalls.filter(c=>c.cmd==='reset_private_analysis').length),beforeReset,'opening confirmation preserves the current result');
+      await confirmation.getByRole('button',{name:ui('Cancelar'),exact:true}).click();
+      assert.equal(await page.evaluate(() => window.__privacyCalls.filter(c=>c.cmd==='reset_private_analysis').length),beforeReset,'cancelling preserves the current result');
+      await page.locator('.workspace-header .document-menu summary').click();
+      await page.getByRole('button',{name:ui('Volver a analizar'),exact:true}).click();
+      await confirmation.getByRole('button',{name:ui('Volver a analizar'),exact:true}).click();
+      await page.waitForFunction(id=>window.__analysisRequest?.modelId===id,modelId);
+      assert.equal(await page.evaluate(() => window.__analysisRequest.modelId),modelId);
+      await page.evaluate(()=>window.__finishAnalysis());
+      await page.locator('.processing-dialog').waitFor({state:'hidden'});
+    }
+    await page.screenshot({path:`artifacts/reanalysis-model-switch-${language}.png`});
+    console.log('PASS GLiNER Small → Qwen → GLiNER Multi reanalysis confirms and executes the current model; cancelling preserves results');
+    await browser.close();process.exit(0);
+  }
   if (mobile) {
     await page.locator('.protected-preview').waitFor();
     const protectedView = await page.locator('.protected-preview pre').innerText();

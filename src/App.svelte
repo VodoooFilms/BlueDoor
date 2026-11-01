@@ -64,7 +64,7 @@
     try {
       const all = await invoke<{ whisper: { installed: boolean }[]; parakeet: { installed: boolean }[]; privacy: { id: string; installed: boolean }[] }>("list_models");
       let selected = privacyModel(mobile);
-      if (!all.privacy.some(m => m.id === selected && m.installed)) {
+      if (!all.privacy.some(m => m.id === selected)) {
         const available = all.privacy.find(m => m.installed);
         if (available) { selected = available.id; localStorage.setItem("bluedoor-privacy-model", selected); }
       }

@@ -1,5 +1,13 @@
 # Cambios de Bluedoor
 
+## 0.5.9 — 1 de noviembre de 2026
+
+- Conservada la selección al abrir Modelos, reanudar una descarga y detectar la plataforma; los lotes consultan el modelo actual al iniciar cada ejecución.
+- «Volver a analizar» confirma el modelo activo y comprueba que siga instalado antes de sustituir el resultado. Cancelar conserva el análisis anterior.
+- Qwen en Android descarga y comprueba la presencia de GLiNER Multi y su tokenizador auxiliar; el catálogo muestra el tamaño combinado y la dependencia.
+- Progreso de análisis en dos líneas centradas.
+- Regresiones del cambio GLiNER Small → Qwen → GLiNER Multi en español/inglés y móvil/escritorio; 156 pruebas nativas aprobadas.
+
 ## 0.5.8 — 1 de noviembre de 2026
 
 - Corregida la reserva del análisis local: el primer análisis puede iniciarse, se rechazan ejecuciones simultáneas y se libera la reserva al finalizar o fallar. La versión 0.5.7 impedía iniciar el análisis, incluido GLiNER.

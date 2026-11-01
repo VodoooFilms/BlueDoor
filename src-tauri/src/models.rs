@@ -44,6 +44,27 @@ pub(crate) fn requires_mobile_ner(id: &str) -> bool {
     matches!(id, QWEN_ID | QWEN_Q8_ID | QWEN_PII_ID)
 }
 
+/// Android Qwen analysis includes this auxiliary NER pass. Download and
+/// readiness must use the same dependency list as inference.
+#[cfg(any(target_os = "android", test))]
+fn mobile_ner_assets(id: &str) -> &'static [(&'static str, &'static str)] {
+    if requires_mobile_ner(id) {
+        &[
+            (GLINER_MULTI_ID, GLINER_MULTI_FILE),
+            (GLINER_MULTI_TOKENIZER_ID, GLINER_MULTI_TOKENIZER_FILE),
+        ]
+    } else {
+        &[]
+    }
+}
+
+#[cfg(any(target_os = "android", test))]
+fn mobile_ner_ready(directory: &std::path::Path, id: &str) -> bool {
+    mobile_ner_assets(id)
+        .iter()
+        .all(|(_, file)| model_appears_installed(&directory.join(file)))
+}
+
 pub(crate) fn privacy_llm_file(id: &str) -> Result<&'static str, String> {
     match id {
         QWEN_ID => Ok(QWEN_FILE),
@@ -204,6 +225,10 @@ pub(crate) fn list_models(app_handle: tauri::AppHandle) -> ModelsList {
         // Android excludes audio weights and the larger Qwen Q8 option.
         whisper.clear();
         privacy.retain(|entry| matches!(entry.id.as_str(), QWEN_ID));
+        for entry in &mut privacy {
+            entry.installed &= mobile_ner_ready(&models_dir(&app_handle), &entry.id);
+            entry.size = "397 MB + GLiNER 596 MB".into();
+        }
         let path = models_dir(&app_handle).join(GLINER_FILE);
         privacy.push(ModelEntry {
             id: GLINER_ID.into(),
@@ -587,6 +612,27 @@ mod portability_tests {
     }
 
     #[test]
+    fn android_qwen_is_not_ready_until_both_auxiliary_assets_exist() {
+        let directory = tempfile::tempdir().unwrap();
+        assert!(!mobile_ner_ready(directory.path(), QWEN_ID));
+        let assets = mobile_ner_assets(QWEN_ID);
+        assert_eq!(assets.len(), 2);
+        for (index, (id, file)) in assets.iter().enumerate() {
+            assert!(model_assets().contains_key(*id));
+            let path = directory.path().join(file);
+            File::create(&path)
+                .unwrap()
+                .set_len(model_assets()[*id].size)
+                .unwrap();
+            assert_eq!(mobile_ner_ready(directory.path(), QWEN_ID), index == 1);
+        }
+        std::fs::remove_file(directory.path().join(GLINER_MULTI_TOKENIZER_FILE)).unwrap();
+        assert!(!mobile_ner_ready(directory.path(), QWEN_ID));
+        assert!(mobile_ner_assets(GLINER_ID).is_empty());
+        assert!(mobile_ner_assets(GLINER_MULTI_ID).is_empty());
+    }
+
+    #[test]
     fn mobile_ner_dependencies_follow_model_family() {
         for id in [GLINER_ID, GLINER_MULTI_ID] {
             assert!(
@@ -695,6 +741,15 @@ pub(crate) async fn download_privacy_model(
     let destination = models_dir(&app_handle).join(privacy_llm_file(&id)?);
     tauri::async_runtime::spawn_blocking(move || {
         download_file(&app_handle, &destination, &id)?;
+        #[cfg(target_os = "android")]
+        for (dependency_id, file) in mobile_ner_assets(&id) {
+            check_cancelled()?;
+            download_file(
+                &app_handle,
+                &models_dir(&app_handle).join(file),
+                dependency_id,
+            )?;
+        }
         Ok(destination.to_string_lossy().to_string())
     })
     .await

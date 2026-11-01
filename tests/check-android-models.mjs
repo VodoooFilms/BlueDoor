@@ -6,7 +6,6 @@ try {
   await page.addInitScript(() => {
     localStorage.setItem('bluedoor-language', 'es');
     localStorage.setItem('bluedoor-welcome-seen', 'true');
-    localStorage.setItem('bluedoor-privacy-model', 'gliner-multi-pii-fp16');
     window.__modelCalls = [];
     let callback = 0;
     const callbacks = new Map();
@@ -72,6 +71,12 @@ try {
   await page.screenshot({path:'artifacts/android-model-picker-families.png',fullPage:true});
   await page.getByRole('button', { name: /Qwen3-0.6B/ }).click();
   assert.equal(await page.evaluate(() => localStorage.getItem('bluedoor-privacy-model')), 'qwen3-fast');
+  await page.reload();
+  await page.locator('.welcome[role="dialog"] .close').click();
+  await page.locator('.privacy-model-row').getByText('Qwen3-0.6B Q4_K_M', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem('bluedoor-privacy-model')), 'qwen3-fast', 'An explicit pending Qwen download must survive reload while GLiNER is installed');
+  await page.getByText('Incluye GLiNER Multi auxiliar', { exact: true }).waitFor();
+
   await page.getByRole('button', { name: 'Descargar', exact: true }).click();
   await page.waitForFunction(() => typeof window.__finishDownload === 'function');
   await page.evaluate(() => window.__finishDownload());
