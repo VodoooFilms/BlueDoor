@@ -561,7 +561,7 @@
     .welcome-import.dragging-document { transform:none; }
     .processing-orbit { animation:none; }
   }
-  .processing-dialog { width:min(460px,calc(100vw - 48px)); box-sizing:border-box; padding:28px; border:1px solid var(--modal-border); border-radius:18px; background:var(--modal-surface); color:white; box-shadow:var(--modal-shadow); }
+  .processing-dialog { height:280px; max-height:calc(100dvh - 32px); overflow:auto; width:min(460px,calc(100vw - 48px)); box-sizing:border-box; padding:28px; border:1px solid var(--modal-border); border-radius:18px; background:var(--modal-surface); color:white; box-shadow:var(--modal-shadow); }
   .processing-dialog::backdrop { background:var(--modal-backdrop); backdrop-filter:blur(var(--modal-blur)); }
   .processing-dialog .processing-label { color:white; font-size:14px; }
   .processing-dialog .processing-copy { white-space:normal; overflow-wrap:anywhere; }

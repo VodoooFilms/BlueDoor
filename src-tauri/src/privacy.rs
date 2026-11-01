@@ -1552,9 +1552,8 @@ fn analyze_with_progress(
         // fragment can cut an entity in half, and text the model read is still
         // real text of the document even if it straddles the split.
         let first = extractor.extract(&chunk, &mut report);
-        // Repeating an overflowing task with a longer instruction spends the
-        // same budget again. Split it immediately instead. The exact-copy retry
-        // is reserved for malformed or ungrounded suggestions.
+        // Split overflowing tasks immediately. Do not spend another complete
+        // generation budget on the same fragment before splitting it.
         let overflowed = first
             .as_ref()
             .is_err_and(|reason| reason.contains("no terminó dentro del límite"));
@@ -1723,14 +1722,6 @@ pub(crate) async fn analyze_private_document(
             *cache = None;
             Some(crate::gliner::GlinerEngine::load(&app, &model_id)?)
         } else { None };
-        // Keep Qwen's auxiliary pass and preserve load errors instead of
-        // treating every tokenizer failure as a download.
-        #[cfg(target_os = "android")]
-        let pre_ner = if crate::models::requires_mobile_ner(&model_id) {
-            let ner = crate::gliner::GlinerEngine::load(&app, crate::models::GLINER_MULTI_ID)
-                .map_err(|error| format!("Qwen necesita su detector auxiliar GLiNER Multi. Completa la descarga de Qwen desde Modelos. {error}"))?;
-            Some(analyze_with_progress(&ner, &session.original, &mut |_, _, _| {})?)
-        } else { None };
         if crate::models::gliner_files(&model_id).is_none() && cache.as_ref().is_none_or(|(loaded, _)| loaded != &model_id) {
             let path = crate::paths::models_dir(&app).join(crate::models::privacy_llm_file(&model_id)?);
             let verify_timer = crate::performance::Timer::new("model_verify");
@@ -1794,14 +1785,6 @@ pub(crate) async fn analyze_private_document(
             );
         };
         let mut analysis = analyze_with_progress(engine, &original, &mut report)?;
-        #[cfg(target_os = "android")]
-        if let Some(ner) = pre_ner {
-            analysis.failed_fragments += ner.failed_fragments;
-            analysis.fragments += ner.fragments;
-            analysis.entities = merge_detection_sources(&original,
-                analysis.entities.iter().map(|e| Detection { kind: e.kind, text: e.original.clone() }).collect(),
-                ner.entities.into_iter().map(|e| Detection { kind: e.kind, text: e.original }).collect())?;
-        }
         crate::llm::check_cancelled()?;
         // A specialized on-device name detector complements the generative
         // model; names must not depend exclusively on its response budget.

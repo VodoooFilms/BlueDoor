@@ -16,10 +16,10 @@ Proyecto independiente de escritorio, con datos y preferencias propios. Reposito
 
 La interfaz sigue la referencia Bluedoor: fondo azul intenso, marca de puerta y navegación blancas, ilustraciones SVG azul claro al 80 % y botones principales blancos con texto azul. Las pantallas de documentos, audio, ajustes, modelos, edición y mapa privado comparten la misma identidad. Los documentos conservan su contenido y formato, con hoja blanca y tinta legible.
 
-## Android preview 0.5.9
+## Android preview 0.5.13
 
-[Descargar el APK ARM64 y su checksum](https://github.com/VodoooFilms/BlueDoor/releases/tag/v0.5.9-android-preview).
-La versión 0.5.9 conserva el modelo seleccionado y confirma el modelo activo al volver a analizar. Qwen prepara también su detector auxiliar en Android.
+[Descargar el APK ARM64 y su checksum](https://github.com/VodoooFilms/BlueDoor/releases/tag/v0.5.13-android-preview).
+La versión 0.5.13 ofrece Qwen independiente (397 MB), corrige las relecturas de fragmentos y estabiliza el selector y el diálogo de detección en Android.
 Compilación preliminar con firma local de prueba; no es una publicación en Google Play.
 Incluye Qwen y GLiNER como opciones locales. Los modelos se descargan desde la aplicación.
 El análisis requiere revisión humana y no garantiza una anonimización completa.

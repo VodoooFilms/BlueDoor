@@ -168,6 +168,7 @@ try {
     if (language === 'es') await page.screenshot({ path: 'artifacts/android-analysis-progress.png', animations: 'disabled' });
   }
   const {id,revision}=await page.evaluate(()=>window.__analysisRequest);
+  const stableProgressBox = await page.locator(".processing-dialog").boundingBox();
   for (const [step, es, en] of [
     ['model_verify', 'Comprobando integridad del modelo local…', 'Checking local model integrity…'],
     ['model_load', 'Cargando modelo en memoria…', 'Loading model into memory…'],
@@ -177,6 +178,7 @@ try {
   ]) {
     await page.evaluate(([id, revision, step]) => window.__emitAnalysisProgress([id, revision, step]), [id, revision, step]);
     await page.locator('.processing-copy').filter({ hasText: language === 'en' ? en : es }).waitFor();
+    assert.deepEqual(await page.locator('.processing-dialog').boundingBox(), stableProgressBox, 'Phase text must not resize or move the progress dialog');
   }
   const fragment=(n,total)=>ui('Leyendo con AI local · fragmento {0} de {1}').replace('{0}',n).replace('{1}',total);
   await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'reading:1/2:24']),[id,revision]);

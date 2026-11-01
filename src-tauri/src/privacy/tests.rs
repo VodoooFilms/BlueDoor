@@ -1636,7 +1636,7 @@ fn always_failing_model_terminates_instead_of_looping() {
     };
     let analysis = analyze_with_progress(&rec, &text, &mut |_, _, _| {}).unwrap();
     let sizes = rec.sizes.borrow().clone();
-    // Overflow must split immediately, without paying for the same task twice.
+    // Overflow splits immediately, without paying for the same task twice.
     let passes = sizes.len();
     let mut maximum_calls = 0;
     let mut pending_sizes: Vec<_> = chunks(&text).iter().map(|v| v.chars().count()).collect();
@@ -2460,4 +2460,51 @@ fn crossing_entity_matches_never_expose_the_uncovered_tail() {
     }
     let reversed = entities.into_iter().rev().collect::<Vec<_>>();
     assert_eq!(sanitize(text, &reversed).unwrap(), protected);
+}
+
+#[test]
+#[ignore = "Requires verified Qwen weights; synthetic Android legal fixture"]
+fn real_mobile_qwen_legal_document() {
+    crate::llm::mobile_profile_for_test();
+    let (_guard, engine) = locked_qwen_engine();
+    let text = include_str!("../../../tests/fixtures/android-legal-es.txt");
+    let analysis = analyze_with_progress(&engine, text, &mut |_, _, _| {}).unwrap();
+    assert!(analysis.complete(), "{analysis:?}");
+    assert_eq!(
+        engine.generations_for_test(),
+        1,
+        "legal fixture must finish on the first generation"
+    );
+    assert!(!analysis.entities.is_empty());
+}
+
+#[test]
+#[ignore = "Requires verified Qwen weights; measures real mobile fragment amplification"]
+fn real_mobile_qwen_fragment_budget() {
+    crate::llm::mobile_profile_for_test();
+    let (_guard, engine) = locked_qwen_engine();
+    let text = include_str!("../../../tests/fixtures/android-legal-es.txt").repeat(6);
+    let initial = chunks(&text).len();
+    let started = std::time::Instant::now();
+    let analysis = analyze_with_progress(&engine, &text, &mut |_, _, _| {}).unwrap();
+    eprintln!(
+        "initial={initial} fragments={} generations={} seconds={:.2}",
+        analysis.fragments,
+        engine.generations_for_test(),
+        started.elapsed().as_secs_f64()
+    );
+    assert!(analysis.complete(), "incomplete coverage");
+    assert!(
+        engine.generations_for_test() <= initial,
+        "fragments were repeatedly generated"
+    );
+    let protected = sanitize(&text, &analysis.entities).unwrap();
+    for value in [
+        "Ana Pérez",
+        "Comercial Lirio",
+        "ana@example.com",
+        "0912345678",
+    ] {
+        assert!(!protected.contains(value), "private value remains");
+    }
 }

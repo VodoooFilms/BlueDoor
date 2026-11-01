@@ -1,5 +1,13 @@
 # Cambios de Bluedoor
 
+## 0.5.13 — 1 de noviembre de 2026
+
+- Qwen descarga y ejecuta solo su modelo de 397 MB; GLiNER Small y Multi permanecen independientes.
+- Extracción móvil con JSON restringido y prompt compacto para evitar respuestas inválidas y relecturas; se conserva el perfil 4096 / 1200 + 300 / 384 tokens. Regresión Android de cuatro fragmentos: 18 → 4 generaciones, 96 → 34 segundos en emulador.
+- GLiNER Multi sin «español» en el nombre; tarjetas del selector dentro del panel desde 320 px; cierre de Choose a model unificado con Documentación.
+- Diálogo de detección de tamaño fijo, texto centrado y sin saltos entre fases; avisos con texto y cierre centrados.
+- Corregidos el ancho de tarjetas de escritorio y los siete errores de Clippy reportados en CI. Tipos, build, pruebas de UX pertinentes, 154 pruebas nativas y regresiones reales de Android aprobadas. El recorrido general de bienvenida conserva un timeout pendiente; no se declara todo CI aprobado.
+
 ## 0.5.9 — 1 de noviembre de 2026
 
 - Conservada la selección al abrir Modelos, reanudar una descarga y detectar la plataforma; los lotes consultan el modelo actual al iniciar cada ejecución.

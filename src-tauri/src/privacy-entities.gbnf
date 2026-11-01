@@ -1,0 +1,6 @@
+root ::= "{" ws "\"entities\"" ws ":" ws "[" ws (entity (ws "," ws entity)*)? ws "]" ws "}"
+entity ::= "{" ws "\"kind\"" ws ":" ws kind ws "," ws "\"text\"" ws ":" ws string ws "}"
+kind ::= "\"PERSON\"" | "\"COMPANY\"" | "\"ID\"" | "\"EMAIL\"" | "\"PHONE\"" | "\"ADDRESS\"" | "\"CASE\"" | "\"OTHER\""
+string ::= "\"" char+ "\""
+char ::= [^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F])
+ws ::= [ \t\n\r]*

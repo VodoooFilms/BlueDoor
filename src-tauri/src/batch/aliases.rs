@@ -383,7 +383,7 @@ mod tests {
         session.analyzed = true;
         session.analysis_complete = true;
         session.entities = vec![entity(name, "PERSON_01")];
-        session.sanitized = format!("PERSON_01 firma.");
+        session.sanitized = "PERSON_01 firma.".to_string();
         let session = reconcile(batch, &session).unwrap();
         let id = session.id.clone();
         batch.items.push(Item {

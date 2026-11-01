@@ -215,3 +215,20 @@
 :root .shell .privacy-workflow .map-actions .compact-action-label { display:inline; }
 
 :root .shell .privacy-workflow .map-select select { appearance:none; -webkit-appearance:none; width:100%; padding-right:44px; }
+
+/* Keep model settings readable within the native desktop window. */
+@media (min-width: 761px) {
+  :root .shell .models { width:100%; max-width:1080px; align-self:center; box-sizing:border-box; }
+  :root .shell .models .card { padding:12px 16px; gap:10px; }
+  :root .shell .models .card-head { min-height:42px; }
+  :root .shell .models .row { min-height:54px; padding:8px 12px; }
+  :root .shell .models .privacy-section-title { margin-top:4px; }
+}
+
+/* Reserve every progress row so phase changes never resize the modal. */
+:root .shell .privacy-workflow .processing-dialog .processing-slot { height:100%; box-sizing:border-box; grid-template-rows:minmax(0,1fr) 44px 4px; }
+:root .shell .privacy-workflow .processing-dialog .processing-label { grid-row:1; flex-direction:column; justify-content:center; gap:10px; min-height:0; }
+:root .shell .privacy-workflow .processing-dialog .processing-copy { width:100%; justify-content:center; text-align:center; }
+:root .shell .privacy-workflow .processing-dialog .processing-actions,
+:root .shell .privacy-workflow .processing-dialog .processing-slot > button { grid-row:2; }
+:root .shell .privacy-workflow .processing-dialog .processing-track { grid-row:3; align-self:center; }

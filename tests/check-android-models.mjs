@@ -18,7 +18,7 @@ try {
       if (cmd === 'diarization_available') return false;
       const installed = JSON.parse(localStorage.getItem('qa-installed-models') || '[]');
       if (cmd === 'list_models') return { whisper: [], parakeet: [], diarization: [], privacy: [
-        { id: 'gliner-multi-pii-fp16', name: 'GLiNER Multi PII · español · FP16', size: '596 MB', installed: installed.includes('gliner-multi-pii-fp16') },
+        { id: 'gliner-multi-pii-fp16', name: 'GLiNER Multi PII · FP16', size: '596 MB', installed: installed.includes('gliner-multi-pii-fp16') },
         { id: 'qwen3-fast', name: 'Qwen3-0.6B Q4_K_M', size: '397 MB', installed: installed.includes('qwen3-fast') },
         { id: 'gliner-pii-small-int8', name: 'GLiNER PII Small v1.0 · INT8', size: '82,7 MB + tokenizador 3,6 MB', installed: installed.includes('gliner-pii-small-int8') },
       ] };
@@ -68,6 +68,16 @@ try {
   await page.getByRole('button', { name: 'Cambiar', exact: true }).click();
   assert.equal(await page.locator('.model-picker [data-model-family]').count(), 3);
   for (const family of ['qwen', 'gliner']) assert(await page.locator(`.model-picker [data-model-family=${family}]`).first().isVisible());
+  for (const width of [320, 360, 412]) {
+    await page.setViewportSize({ width, height: 850 });
+    const panel = await page.locator('.model-picker').boundingBox();
+    for (const card of await page.locator('.model-choice').all()) {
+      const bounds = await card.boundingBox();
+      assert(bounds.x >= panel.x + 15 && bounds.x + bounds.width <= panel.x + panel.width - 15, 'Every model card stays inside the selector padding');
+    }
+    assert(await page.locator('.model-picker').evaluate(el => el.scrollWidth <= el.clientWidth), 'Selector has no horizontal overflow');
+  }
+  await page.setViewportSize({ width: 412, height: 850 });
   await page.screenshot({path:'artifacts/android-model-picker-families.png',fullPage:true});
   await page.getByRole('button', { name: /Qwen3-0.6B/ }).click();
   assert.equal(await page.evaluate(() => localStorage.getItem('bluedoor-privacy-model')), 'qwen3-fast');
@@ -75,7 +85,7 @@ try {
   await page.locator('.welcome[role="dialog"] .close').click();
   await page.locator('.privacy-model-row').getByText('Qwen3-0.6B Q4_K_M', { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => localStorage.getItem('bluedoor-privacy-model')), 'qwen3-fast', 'An explicit pending Qwen download must survive reload while GLiNER is installed');
-  await page.getByText('Incluye GLiNER Multi auxiliar', { exact: true }).waitFor();
+  assert.equal(await page.getByText('Incluye GLiNER Multi auxiliar', { exact: true }).count(), 0);
 
   await page.getByRole('button', { name: 'Descargar', exact: true }).click();
   await page.waitForFunction(() => typeof window.__finishDownload === 'function');

@@ -146,14 +146,14 @@ fn decode_spans(
     {
         for start in 0..words.len() {
             for width in 0..12.min(words.len() - start) {
-                for label in 0..LABELS.len() {
+                for (label, (_, kind)) in LABELS.iter().enumerate() {
                     if people_only && label != 0 {
                         continue;
                     }
                     let score = output.logits[(start * 12 + width) * LABELS.len() + label];
                     let end = start + width;
                     if score > threshold
-                        && !(LABELS[label].1 == Kind::Person
+                        && !(*kind == Kind::Person
                             && (start..=end).any(|w| is_field_word(&text[words[w].0..words[w].1])))
                     {
                         candidates.push((score, start, end, label));
@@ -638,12 +638,12 @@ mod tests {
         let mut logits = vec![-10.; 2 * 8 * 3];
         // Person proposal covering the label and the number.
         for tag in 0..3 {
-            logits[0 * 8 * 3 + tag] = 5.;
-            logits[1 * 8 * 3 + tag] = 5.;
+            logits[tag] = 5.;
+            logits[8 * 3 + tag] = 5.;
         }
         // Identifier proposal for the number itself.
         for tag in 0..3 {
-            logits[1 * 8 * 3 + 2 * 3 + tag] = 4.;
+            logits[8 * 3 + 2 * 3 + tag] = 4.;
         }
         let hits = decode(
             text,

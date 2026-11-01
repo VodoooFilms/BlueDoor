@@ -90,12 +90,7 @@
       const [label, pct] = event.payload;
       const id = label === "gliner-multi-pii-tokenizer" ? "gliner-multi-pii-fp16" : label === "gliner-pii-tokenizer" ? "gliner-pii-small-int8" : label;
       const total = label === "gliner-multi-pii-tokenizer" ? 95 + Math.round(pct * .05) : label === "gliner-multi-pii-fp16" ? Math.round(pct * .95) : label === "gliner-pii-tokenizer" ? 96 + Math.round(pct * .04) : label === "gliner-pii-small-int8" ? Math.round(pct * .96) : pct;
-      if (mobile && installingId === "qwen3-fast") {
-        const qwenProgress = label === "qwen3-fast" ? Math.round(pct * .40)
-          : label === "gliner-multi-pii-fp16" ? 40 + Math.round(pct * .584)
-          : label === "gliner-multi-pii-tokenizer" ? 98 + Math.round(pct * .02) : null;
-        if (qwenProgress !== null) progress = { ...progress, [installingId]: qwenProgress };
-      } else progress = { ...progress, [id]: total };
+      progress = { ...progress, [id]: total };
     });
     try { await refresh(); } catch (e) { messageKind = "error"; message = String(e); }
     window.addEventListener("keydown", onKeyDown);
@@ -385,7 +380,6 @@
           <ModelFamilyIcon modelId={privacySelected} />
         <div class="row-copy">
           <strong title={privacyOptions.find(m => m.id === privacySelected)?.name}>{privacyOptions.find(m => m.id === privacySelected)?.name ?? "Qwen3-0.6B Q4_K_M"}</strong>
-          {#if mobile && privacySelected === "qwen3-fast"}<span class="model-dependency">{t.langLabel === "ES" ? "Incluye GLiNER Multi auxiliar" : "Includes auxiliary GLiNER Multi"}</span>{/if}
           <span class="row-size">{privacyOptions.find(m => m.id === privacySelected)?.size ?? "397 MB"}</span>
         </div>
         </div>
@@ -467,7 +461,7 @@
   <dialog class="model-picker" bind:this={modelPicker} aria-labelledby="model-picker-title" oncancel={(event) => { event.preventDefault(); menu = null; }}>
     <div class="picker-heading">
       <div><h2 id="model-picker-title">{t.langLabel === "ES" ? "Elegir modelo" : "Choose a model"}</h2><p>{menu === "stt" ? t.setupWhisperTitle : (t.langLabel === "ES" ? "Privacidad de documentos" : "Document privacy")}</p></div>
-      <button class="picker-close" aria-label={t.langLabel === "ES" ? "Cerrar selector" : "Close selector"} onclick={() => menu = null}><Icon name="close" /></button>
+      <button class="picker-close" aria-label={t.langLabel === "ES" ? "Cerrar selector" : "Close selector"} title={t.langLabel === "ES" ? "Cerrar selector" : "Close selector"} onclick={() => menu = null}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
     </div>
     <div class="model-choices" role="group" aria-label={t.langLabel === "ES" ? "Modelos disponibles" : "Available models"}>
       {#if menu === "stt"}
@@ -714,20 +708,22 @@
   .dialog-actions .cancel:hover { background: var(--hover); }
   .dialog-actions .danger { border-color: var(--error); color: var(--error); }
   .dialog-actions .danger:hover { background: var(--error-background); color: #fff; }
-  .model-picker { width:min(760px,calc(100vw - 48px)); max-height:calc(100vh - 64px); padding:26px; border:1px solid #a7caff66; border-radius:18px; background:var(--modal-surface); color:white; box-shadow:var(--modal-shadow); }
+  .model-picker { box-sizing:border-box; min-width:0; width:min(760px,calc(100vw - 48px)); max-height:calc(100vh - 64px); padding:26px; border:1px solid #a7caff66; border-radius:18px; background:var(--modal-surface); color:white; box-shadow:var(--modal-shadow); }
   .model-picker::backdrop { background:var(--modal-backdrop); backdrop-filter:blur(var(--modal-blur)); }
   .picker-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:22px; }
   .picker-heading h2 { font:650 23px/1.3 var(--font-heading); margin:0 0 5px; }
   .picker-heading p { margin:0; color:#c5dbff; font-size:14px; }
-  .picker-close { display:grid; place-items:center; width:36px; height:36px; border:1px solid #c5dbff55; border-radius:9px; background:transparent; color:white; cursor:pointer; }
-  .model-choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-  .model-choice { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:17px; min-height:78px; border:1px solid #b8d4ff55; border-radius:12px; background:#ffffff08; color:white; text-align:left; cursor:pointer; }
+  .picker-close { display:grid; place-items:center; flex:none; width:40px; height:40px; padding:0; border:0; border-radius:6px; color:var(--text); background:transparent; cursor:pointer; }
+  .picker-close:hover { background:var(--hover); }
+  .picker-close:focus-visible { outline:2px solid white; outline-offset:4px; }
+  .model-choices { min-width:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .model-choice { box-sizing:border-box; width:100%; min-width:0; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:17px; min-height:78px; border:1px solid #b8d4ff55; border-radius:12px; background:#ffffff08; color:white; text-align:left; cursor:pointer; }
   .model-choice:hover { background:#ffffff16; }
   .model-choice.selected { border-color:white; background:#ffffff1f; }
   .choice-copy { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
   .choice-copy strong { font-size:14px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .choice-copy > span { font-size:12px; color:#c5dbff; }
-  @media (max-width:600px) { .model-choices { grid-template-columns:1fr; } }
+  @media (max-width:600px) { .model-choices { grid-template-columns:minmax(0,1fr); } }
   @media (max-width: 900px) {
     .head-top { flex-wrap: wrap; gap: 14px; }
     .card { padding:14px; }
