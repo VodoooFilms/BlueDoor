@@ -19,7 +19,7 @@ try {
       if (['check_installation','save_transcripts','plugin:event|unlisten'].includes(cmd)) return;
       if (cmd==='load_transcripts') return [];
       if (cmd==='plugin:event|listen') return 1;
-      if (cmd==='list_models') return {whisper:[],parakeet:[],diarization:[],privacy:[{installed:true}]};
+      if (cmd==='list_models') return {whisper:[],parakeet:[],diarization:[],privacy:[{id:'qwen3-fast',installed:true}]};
       if (cmd==='diarization_available') return false;
       if (cmd==='get_privacy_session') return structuredClone(session);
       if (cmd==='preview_private_layout') return {id:session.id,revision:session.revision,estimated:false,pages:[0,1].map(()=>({width:500,height:200,imageBase64:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV1cAAAAASUVORK5CYII='})),redactions:[{page:0,entityIndex:0,rect:[30,30,180,20]},{page:0,entityIndex:2,rect:[30,80,180,20]},{page:1,entityIndex:1,rect:[30,30,180,20]},{page:1,entityIndex:0,rect:[30,80,180,20]}].map(a=>({...a,alias:session.entities[a.entityIndex].alias}))};
@@ -41,7 +41,8 @@ try {
     }};
   });
   await page.goto('http://localhost:1420');
-  await page.locator('.welcome[role="dialog"] .close').click();
+  const welcome = page.locator('.welcome[role="dialog"] .close');
+  if (await welcome.count()) await welcome.click();
   await page.getByRole('button',{name:'Mapa privado',exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Mapa privado',exact:true}).count(),1);
   await page.getByRole('combobox',{name:'Zoom',exact:true}).selectOption('400');
@@ -94,5 +95,26 @@ try {
   await page.getByRole('button',{name:'Mapa privado',exact:true}).first().click();
   assert.equal(await first.inputValue(),'PROVEEDOR PRINCIPAL');
   assert.equal(await page.getByRole('textbox',{name:'Alias 2',exact:true}).inputValue(),'PROVEEDOR PRINCIPAL');
-  console.log('PASS shared aliases: map typing, collision isolation, PDF editing from second original, all occurrences, reviewed export payload, reopen map');
+  // The floating alias editor covers the toolbar on Android, so its check button
+  // must apply the alias and close the panel on its own.
+  await page.getByRole('button',{name:'Documento',exact:true}).click();
+  await page.getByRole('button',{name:'Editar alias PROVEEDOR PRINCIPAL, Página 2',exact:true}).first().click();
+  const confirmPanel=page.getByRole('complementary',{name:'Editar alias',exact:true});
+  const confirmAlias=confirmPanel.getByRole('textbox',{name:'Alias en el documento',exact:true});
+  await confirmAlias.fill('PROVEEDOR FINAL');
+  await confirmPanel.getByRole('button',{name:'Confirmar alias',exact:true}).click();
+  await page.waitForFunction(()=>window.__reviewed?.revision===6);
+  assert.equal(await confirmPanel.count(),0,'confirm applies the alias and closes the editor');
+  assert.deepEqual(await page.evaluate(()=>window.__reviewed.entities.map(e=>e.alias)),['PROVEEDOR FINAL','PROVEEDOR FINAL','COMPANY_02']);
+  // Closing with unsaved alias drafts is allowed, and those drafts stay reachable
+  // from the private map instead of trapping the user in the document view.
+  await page.getByRole('button',{name:'Editar alias PROVEEDOR FINAL, Página 1',exact:true}).first().click();
+  const dismissPanel=page.getByRole('complementary',{name:'Editar alias',exact:true});
+  await dismissPanel.getByRole('textbox',{name:'Alias en el documento',exact:true}).fill('BORRADOR SIN GUARDAR');
+  await dismissPanel.getByRole('button',{name:'Cerrar editor de alias',exact:true}).click();
+  assert.equal(await dismissPanel.count(),0,'close works with unsaved alias drafts');
+  await page.getByRole('button',{name:'Mapa privado',exact:true}).first().click();
+  assert.equal(await page.getByRole('textbox',{name:'Alias 1',exact:true}).inputValue(),'BORRADOR SIN GUARDAR');
+  await page.locator('.map-page').getByRole('button',{name:'Restablecer cambios',exact:true}).click();
+  console.log('PASS shared aliases: map typing, collision isolation, PDF editing from second original, all occurrences, reviewed export payload, reopen map, confirm and dismiss without trapping');
 } finally { await browser.close(); }

@@ -21,8 +21,8 @@ La documentación oficial confirma la adjunción de PDF: https://learn.chatgpt.c
 
 ## APK con los ajustes
 
-Generado a petición del usuario: 0.5.1 / 5001, ARM64, firma local preview. Archivo `installers/BlueDoor-android-arm64-preview.apk`, 62915252 bytes. SHA-256: `e0770e32bec6111e9e04d90c5b9d4c4d09d26a8204f8df4dfae90b07e023101a`. Typecheck y build correctos; firma, versión, alineación ZIP/ELF de 16 KiB y clases JNI ONNX verificadas por el script. Sin prueba en teléfono conectado en esta construcción.
+Generado a petición del usuario: 0.5.1 / 5001, ARM64, firma local preview. Archivo `installers/Bluedoor-android-arm64-preview.apk`, 62915252 bytes. SHA-256: `e0770e32bec6111e9e04d90c5b9d4c4d09d26a8204f8df4dfae90b07e023101a`. Typecheck y build correctos; firma, versión, alineación ZIP/ELF de 16 KiB y clases JNI ONNX verificadas por el script. Sin prueba en teléfono conectado en esta construcción.
 
 ## Fondo de barras — 0.5.2 / 5002
 
-Fondo nativo azul #1248BC en ventana y contenedor, barras transparentes e iconos claros; contraste automático desactivado en API 29+ para evitar franjas ajenas a la marca. Temas claro y oscuro usan el mismo fondo, también al arrancar. Se conserva el cálculo de insets y su padding. Typecheck y construcción release correctos; firma y alineación ZIP/ELF verificadas. APK: `installers/BlueDoor-android-arm64-preview.apk`, SHA-256 `abca6a550f2bf7ef225ef19f010128e91c83da8df1127379ac7934cba56f3eb5`. Pendiente comprobar los colores de las barras en teléfono real.
+Fondo nativo azul #1248BC en ventana y contenedor, barras transparentes e iconos claros; contraste automático desactivado en API 29+ para evitar franjas ajenas a la marca. Temas claro y oscuro usan el mismo fondo, también al arrancar. Se conserva el cálculo de insets y su padding. Typecheck y construcción release correctos; firma y alineación ZIP/ELF verificadas. APK: `installers/Bluedoor-android-arm64-preview.apk`, SHA-256 `abca6a550f2bf7ef225ef19f010128e91c83da8df1127379ac7934cba56f3eb5`. Pendiente comprobar los colores de las barras en teléfono real.

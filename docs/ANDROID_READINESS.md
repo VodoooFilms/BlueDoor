@@ -46,7 +46,7 @@ compiles the new GLiNER-before-Qwen path; device runtime validation is pending.
 - `pnpm eval:pii`: passed the 99% gate; see synthetic-only limitation above.
 - `BLUEDOOR_ANDROID_BUILD_MODE=unsigned ./scripts/build-android.sh` with JDK 17:
   passed. App ID/version 0.5.7/5007, retained ONNX JNI classes, 16 KiB ZIP/native
-  alignment checked. Unsigned artifact: `installers/BlueDoor-android-arm64-unsigned.apk`,
+  alignment checked. Unsigned artifact: `installers/Bluedoor-android-arm64-unsigned.apk`,
   **69,406,077 bytes (66.19 MiB)**. It is not an installable signed release.
 - Merged release manifest contains only INTERNET and AndroidX's signature-only
   internal receiver permission. ACCESS_NETWORK_STATE is removed.

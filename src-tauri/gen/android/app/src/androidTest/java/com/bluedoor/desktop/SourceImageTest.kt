@@ -18,7 +18,7 @@ class SourceImageTest {
     for (orientation in 1..8) {
       val source = Bitmap.createBitmap(2, 3, Bitmap.Config.ARGB_8888)
       source.setPixels(intArrayOf(Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW, Color.MAGENTA, Color.CYAN), 0, 2, 0, 0, 2, 3)
-      val image = BlueDoorAndroid.orientBitmap(source, orientation)
+      val image = AndroidBridge.orientBitmap(source, orientation)
       assertEquals("orientation $orientation width", if (orientation >= 5) 3 else 2, image.width)
       assertEquals("orientation $orientation height", if (orientation >= 5) 2 else 3, image.height)
       assertEquals("orientation $orientation top-left", expected[orientation - 1], image.getPixel(0, 0))

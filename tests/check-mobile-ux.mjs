@@ -71,11 +71,30 @@ try {
  await page.goto('http://localhost:1420');
  await page.waitForTimeout(350);
  await page.screenshot({path:'artifacts/ux-welcome-portrait.png'});
- await page.locator('.welcome[role="dialog"] .close').click();
+ assert.equal(await page.locator('.welcome[role="dialog"]').count(),0,'Installed model opens import directly');
  await page.getByRole('button',{name:'Importar documento',exact:true}).click();
  await page.getByRole('img',{name:'Página 1',exact:true}).waitFor();
  await page.waitForTimeout(350);
  await page.screenshot({path:'artifacts/ux-document-portrait.png',fullPage:true});
+ for (const lang of ['es', 'en']) {
+  if (lang === 'en') {
+   await page.locator('.settings-menu summary').click();
+   await page.locator('#languageToggle').click();
+  }
+  for (const width of [320, 360, 412]) {
+   await page.setViewportSize({width,height:900});
+   if (lang === 'en' && width === 412) await page.screenshot({path:'artifacts/ux-document-portrait-en.png',fullPage:true});
+   const buttons = await page.locator('.document-actions > button').evaluateAll(elements => elements.map(el => {
+    const rect = el.getBoundingClientRect(), label = el.querySelector('span');
+    return {width:rect.width, height:rect.height, fits:el.scrollWidth <= el.clientWidth, labelHeight:label.getBoundingClientRect().height};
+   }));
+   assert(Math.abs(buttons[0].width-buttons[1].width)<1, `${lang}/${width}: equal action widths`);
+   assert(buttons.every(button => button.fits && button.labelHeight < 24), `${lang}/${width}: labels fit one line`);
+  }
+ }
+ await page.locator('.settings-menu summary').click();
+ await page.locator('#languageToggle').click();
+ await page.setViewportSize({width:412,height:900});
  await page.getByRole('button',{name:'Proteger documento',exact:true}).click();
  await page.getByRole('button',{name:'Exportar PDF',exact:true}).waitFor();
  await page.getByRole('button',{name:'Documentos',exact:true}).click();
@@ -105,33 +124,11 @@ try {
  await page.waitForTimeout(350);
  await page.screenshot({path:'artifacts/ux-edit-landscape.png',fullPage:true});
  await page.setViewportSize({width:412,height:900});
- await page.getByRole('button',{name:'Cubrir zona manualmente',exact:true}).click();
- const surface=page.getByRole('button',{name:'Seleccionar cobertura, página 1',exact:true});
- await surface.scrollIntoViewIfNeeded();
- // Keyboard selection exposes accessible coordinates as an alternative to dragging.
- await surface.focus(); await page.keyboard.press('Enter');
- await page.getByRole('spinbutton',{name:'Cobertura X',exact:true}).fill('40');
- await page.getByRole('spinbutton',{name:'Cobertura Y',exact:true}).fill('50');
- assert(await page.getByRole('button',{name:'Exportar PDF',exact:true}).isDisabled());
- await page.screenshot({path:'artifacts/android-manual-cover.png'});
- await page.getByRole('button',{name:'Guardar cobertura',exact:true}).click();
- await page.getByRole('button',{name:'Deshacer última cobertura · página 1',exact:true}).waitFor();
- const saved=await page.evaluate(()=>window.__layoutCalls.filter(c=>c.cmd==='save_private_manual_cover').at(-1));
- assert.equal(saved.args.page,0);assert.equal(saved.args.rect[0],40);assert.equal(saved.args.rect[1],50);
- assert(await page.getByRole('button',{name:'Exportar PDF',exact:true}).isDisabled(),'cover requires fresh approval');
- await page.getByRole('button',{name:'Deshacer última cobertura · página 1',exact:true}).click();
- await page.getByRole('button',{name:'Deshacer última cobertura · página 1',exact:true}).waitFor({state:'detached'});
- assert.equal(await page.evaluate(()=>window.__layoutCalls.filter(c=>c.cmd==='save_private_manual_cover').at(-1).args.rect),null);
- await page.getByRole('button',{name:'Cubrir zona manualmente',exact:true}).click();
- await surface.scrollIntoViewIfNeeded();
- const dragBox=await surface.boundingBox();
- const startX=dragBox.x+20, startY=Math.max(20,dragBox.y+20);
- await page.mouse.move(startX,startY); await page.mouse.down();
- await page.mouse.move(startX+60,startY+30,{steps:5}); await page.mouse.up();
- await page.getByRole('button',{name:'Guardar cobertura',exact:true}).click();
- await page.getByRole('button',{name:'Deshacer última cobertura · página 1',exact:true}).waitFor();
- const dragged=await page.evaluate(()=>window.__layoutCalls.filter(c=>c.cmd==='save_private_manual_cover').at(-1).args.rect);
- assert(dragged[2]>0 && dragged[3]>0,'pointer drag produces a native page rectangle');
+ assert.equal(await page.getByRole('button',{name:'Cubrir zona manualmente',exact:true}).count(),0);
+ const actions=await page.locator('.review-actions').boundingBox();
+ const approval=await page.locator('.approve-review').boundingBox();
+ assert(Math.abs(actions.width-approval.width)<2,'Approval spans the action row width');
+ assert(approval.y>=actions.y+actions.height,'Approval sits below export and GPT');
  // Settings language selection closes the dropdown as well.
  await page.locator('.settings-menu summary').click();
  await page.locator('#languageToggle').click();

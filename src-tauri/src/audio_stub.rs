@@ -6,7 +6,7 @@ use crate::types::{AppState, TranscriptionResult, WhisperConfig};
 use std::path::Path;
 use tauri::State;
 
-const UNAVAILABLE: &str = "La transcripción de audio no forma parte de BlueDoor para Android. Usa la protección de documentos.";
+const UNAVAILABLE: &str = "La transcripción de audio no forma parte de Bluedoor para Android. Usa la protección de documentos.";
 
 #[tauri::command]
 pub(crate) async fn choose_audio_file(

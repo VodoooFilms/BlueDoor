@@ -352,7 +352,7 @@
       };
       const token = await invoke<string>("prepare_transcribe_blob", { config });
       const trans = await invoke<{ id: string; text: string; segments: { start: number; end: number; text: string; speaker?: number }[]; language: string; duration: number }>("transcribe_blob", new Uint8Array(arrayBuffer), {
-        headers: { "X-BlueDoor-Config": token },
+        headers: { "X-Bluedoor-Config": token },
       });
       const transcript: Transcript = {
         id: generateId(),

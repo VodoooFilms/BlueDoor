@@ -29,7 +29,7 @@ import kotlin.math.min
  * document text from the WebView: Rust calls it while importing or exporting a
  * document that already belongs to the native session.
  */
-object BlueDoorAndroid {
+object AndroidBridge {
   private const val MAX_FILE_BYTES = 10L * 1024 * 1024
   private const val MAX_TEXT_BYTES = 60 * 1024
   private const val MAX_PAGES = 60
@@ -56,6 +56,83 @@ object BlueDoorAndroid {
     } }
   }
 
+  private const val BATCH_TREE_REQUEST = 46578
+  private val treeLock = Any()
+  private var treeLatch: java.util.concurrent.CountDownLatch? = null
+  @Volatile private var treeResult: String = ""
+
+  /** A worker waits for an explicit SAF grant; never block the UI thread. */
+  @JvmStatic fun batchChooseTree(mode: String): String {
+    val current = activity?.get() ?: throw IOException("Actividad no disponible.")
+    val latch = synchronized(treeLock) {
+      if (treeLatch != null) throw IOException("Ya hay un selector abierto.")
+      java.util.concurrent.CountDownLatch(1).also { treeLatch = it; treeResult = "" }
+    }
+    current.runOnUiThread {
+      try {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+          addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+          if (mode == "write") addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }
+        current.startActivityForResult(intent, BATCH_TREE_REQUEST)
+      } catch (_: Exception) { synchronized(treeLock) { treeLatch?.countDown() } }
+    }
+    try {
+      if (!latch.await(5, TimeUnit.MINUTES)) throw IOException("El selector de carpeta se cerró.")
+      return treeResult
+    } finally { synchronized(treeLock) { treeLatch = null } }
+  }
+  fun batchTreeResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+    if (requestCode != BATCH_TREE_REQUEST) return false
+    synchronized(treeLock) {
+      treeResult = if (resultCode == android.app.Activity.RESULT_OK) data?.data?.toString() ?: "" else ""
+      treeLatch?.countDown()
+    }
+    return true
+  }
+  @JvmStatic fun batchListTree(tree: String): String {
+    val uri = Uri.parse(tree)
+    val root = android.provider.DocumentsContract.getTreeDocumentId(uri)
+    val children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(uri, root)
+    val result = org.json.JSONArray()
+    val columns = arrayOf(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID, android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+      android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE, android.provider.DocumentsContract.Document.COLUMN_SIZE)
+    context().contentResolver.query(children, columns, null, null, null)?.use { cursor ->
+      var scanned = 0
+      while (cursor.moveToNext()) {
+        if (++scanned > 2000) throw IOException("La carpeta tiene demasiados archivos.")
+        if (cursor.getString(2) == android.provider.DocumentsContract.Document.MIME_TYPE_DIR) continue
+        val name = cursor.getString(1) ?: continue
+        val extension = name.substringAfterLast('.', "").lowercase(java.util.Locale.ROOT)
+        if (extension !in setOf("txt", "md", "docx", "pdf", "png", "jpg", "jpeg", "tif", "tiff", "heic")) continue
+        result.put(org.json.JSONObject().put("name", name)
+          .put("uri", android.provider.DocumentsContract.buildDocumentUriUsingTree(uri, cursor.getString(0)).toString())
+          .put("size", if (cursor.isNull(3)) MAX_FILE_BYTES + 1 else cursor.getLong(3)))
+        if (result.length() > 20) break
+      }
+    } ?: throw IOException("No se pudo leer la carpeta.")
+    return result.toString()
+  }
+  @JvmStatic fun batchSource(ignored: String): String = sourceUri?.toString() ?: ""
+  @JvmStatic fun batchWriteTree(payload: String) {
+    val data = org.json.JSONObject(payload)
+    val tree = Uri.parse(data.getString("tree"))
+    val parent = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, android.provider.DocumentsContract.getTreeDocumentId(tree))
+    val name = data.getString("name")
+    if (!name.matches(Regex("Protected-[0-9]+-[a-f0-9]{8}\\.pdf"))) throw IOException("Nombre de exportación no válido.")
+    val destination = android.provider.DocumentsContract.createDocument(context().contentResolver, parent, "application/pdf", name)
+      ?: throw IOException("No se pudo crear el PDF.")
+    try {
+      val file = File(data.getString("path"))
+      if (file.canonicalFile.parentFile != context().cacheDir.canonicalFile) throw IOException("Ruta no válida.")
+      val output = context().contentResolver.openOutputStream(destination, "w") ?: throw IOException("No se pudo guardar el PDF.")
+      output.use { sink -> file.inputStream().use { it.copyTo(sink) } }
+    } catch (error: Exception) {
+      try { android.provider.DocumentsContract.deleteDocument(context().contentResolver, destination) } catch (_: Exception) {}
+      throw error
+    }
+  }
+
   private val importCancelled = java.util.concurrent.atomic.AtomicBoolean(false)
   @Volatile var sourceUri: Uri? = null
   @Volatile private var appContext: Context? = null
@@ -65,7 +142,7 @@ object BlueDoorAndroid {
   }
 
   private fun context(): Context =
-    appContext ?: throw IllegalStateException("BlueDoor aún no se ha inicializado.")
+    appContext ?: throw IllegalStateException("Bluedoor aún no se ha inicializado.")
 
   /** Copies a system picker URI into the private cache and returns its path. */
   @JvmStatic
@@ -284,7 +361,9 @@ object BlueDoorAndroid {
     val image = InputImage.fromBitmap(bitmap, 0)
     val result = Tasks.await(recognizer.process(image), 60, TimeUnit.SECONDS)
     checkImport()
-    return result.text
+    return result.textBlocks.joinToString("\n\n") { block ->
+      block.lines.joinToString("\n") { line -> line.text }
+    }
   }
 
   private fun displayName(context: Context, uri: Uri): String? {

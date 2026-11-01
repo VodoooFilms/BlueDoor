@@ -5,6 +5,7 @@ mod audio;
 #[cfg(target_os = "android")]
 #[path = "audio_stub.rs"]
 mod audio;
+mod batch;
 mod diagnostics;
 #[cfg(not(target_os = "android"))]
 mod diarization;
@@ -79,6 +80,7 @@ pub fn run() {
         .manage(app_state)
         .manage(llm::LlmState::default())
         .manage(privacy::PrivacyState::default())
+        .manage(batch::BatchState::default())
         .manage(vault::VaultState::default())
         .setup(|app| {
             #[cfg(target_os = "android")]
@@ -127,11 +129,22 @@ pub fn run() {
             #[cfg(target_os = "android")]
             android::cancel_private_import,
             platform::open_chatgpt_home,
+            platform::open_documentation_repository,
+            platform::open_bluedoor_support,
+            batch::aliases::get_private_batch_aliases,
+            batch::aliases::change_private_batch_aliases,
+            batch::choose_private_batch,
+            batch::get_private_batch,
+            batch::start_private_batch,
+            batch::process_private_batch_item,
+            batch::select_private_batch_item,
+            batch::cancel_private_batch_pending,
+            batch::close_private_batch,
+            batch::export_private_batch,
             documents::import_private_document,
             documents::import_private_text,
             layout::preview_private_layout,
             layout::save_private_layout_text,
-            layout::save_private_manual_cover,
             layout::review_private_layout,
             layout::export_private_layout,
             privacy::get_privacy_session,
@@ -195,5 +208,5 @@ pub fn run() {
             vault::vault_migrate_transcripts,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running BlueDoor");
+        .expect("error while running Bluedoor");
 }

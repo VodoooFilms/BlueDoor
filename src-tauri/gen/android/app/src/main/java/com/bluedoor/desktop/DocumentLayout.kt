@@ -48,24 +48,28 @@ object DocumentLayout {
     val pages = JSONArray()
     fun append(value: String) { text.append(value); bytes += value.toByteArray(Charsets.UTF_8).size }
     fun page(bitmap: Bitmap, width: Double, height: Double) {
-      BlueDoorAndroid.checkImport()
+      AndroidBridge.checkImport()
       val scale = bitmap.width / width
       val scaleY = bitmap.height / height
       val input = InputImage.fromBitmap(bitmap, 0)
       val result = Tasks.await(recognizer.process(input), 60, TimeUnit.SECONDS)
       val glyphs = JSONArray()
-      for (block in result.textBlocks) for (line in block.lines) {
-        for (element in line.elements) {
-          val box = element.boundingBox ?: throw IOException("Texto sin coordenadas; no se puede proteger parcialmente.")
-          val clipped = Rect(max(0, box.left), max(0, box.top), min(bitmap.width, box.right), min(bitmap.height, box.bottom))
-          if (clipped.isEmpty) throw IOException("Texto fuera de la página.")
-          val start = bytes
-          append(element.text)
-          glyphs.put(JSONObject().put("start", start).put("end", bytes).put("line", lineNumber)
-            .put("rect", rect(clipped, scale, scaleY)).put("fontSize", max(1.0, clipped.height() / scaleY * 0.8))
-            .put("fontName", "sans-serif").put("color", JSONArray(listOf(0, 0, 0))).put("confidence", 1.0))
-          append(" ")
+      for (block in result.textBlocks) {
+        for (line in block.lines) {
+          for (element in line.elements) {
+            val box = element.boundingBox ?: throw IOException("Texto sin coordenadas; no se puede proteger parcialmente.")
+            val clipped = Rect(max(0, box.left), max(0, box.top), min(bitmap.width, box.right), min(bitmap.height, box.bottom))
+            if (clipped.isEmpty) throw IOException("Texto fuera de la página.")
+            val start = bytes
+            append(element.text)
+            glyphs.put(JSONObject().put("start", start).put("end", bytes).put("line", lineNumber)
+              .put("rect", rect(clipped, scale, scaleY)).put("fontSize", max(1.0, clipped.height() / scaleY * 0.8))
+              .put("fontName", "sans-serif").put("color", JSONArray(listOf(0, 0, 0))).put("confidence", 1.0))
+            append(" ")
+          }
+          append("\n"); lineNumber++
         }
+        // Blank lines are semantic boundaries for name completion.
         append("\n"); lineNumber++
       }
       append("\n")
@@ -81,7 +85,7 @@ object DocumentLayout {
       if (imageBytes > 80 * 1024 * 1024) throw IOException("El documento supera el límite de vista local; divídelo.")
       pages.put(JSONObject().put("width", width).put("height", height).put("imageBase64", image)
         .put("glyphs", glyphs).put("source", "ocr").put("qrRegions", qr))
-      BlueDoorAndroid.checkImport()
+      AndroidBridge.checkImport()
     }
     try {
       if (file.extension.lowercase() == "pdf") {
@@ -100,7 +104,7 @@ object DocumentLayout {
           }
         }
       } else {
-        val bitmap = BlueDoorAndroid.decodeImage(file)
+        val bitmap = AndroidBridge.decodeImage(file)
         val (pageWidth, pageHeight) = pageBox(bitmap.width, bitmap.height)
         try { page(bitmap, pageWidth, pageHeight) } finally { bitmap.recycle() }
       }
@@ -220,7 +224,7 @@ object DocumentLayout {
           val pageAreas = (0 until areas.length())
             .map { areas.getJSONObject(it) }
             .filter { it.getInt("page") == i }
-            .sortedWith(compareBy({ box(it.getJSONArray("rect")).top }, { box(it.getJSONArray("rect")).left }))
+            .sortedWith(compareBy({ box(it.getJSONArray("rect")).left }, { box(it.getJSONArray("rect")).top }))
           // Erase every area first. Painting a white rectangle after its
           // neighbour's alias was written would cut that alias in half.
           for (area in pageAreas) {
@@ -228,24 +232,29 @@ object DocumentLayout {
             canvas.drawRect(erased, white)
             verifyErased(bitmap, erased, (bitmap.width / width).toFloat(), (bitmap.height / height).toFloat())
           }
-          var lastAliasRight = 0f
-          var lastAliasTop = -1f
+          val placedLabels = mutableListOf<RectF>()
           for (area in pageAreas) {
+            // A wrapped entity can have erase-only continuation regions.
+            if (area.getString("alias").isEmpty()) continue
             if (!fits(area)) {
               if (export) throw IOException("Un alias no cabe; acórtalo antes de exportar.")
               continue
             }
             val r = box(area.getJSONArray("rect"))
             val p = paint(area)
-            val sameLine = lastAliasTop >= 0f && abs(r.top - lastAliasTop) < r.height() * 0.6f
-            // Keep a visible gap between adjacent aliases so two values never
-            // read as a single token ("PERSON_02ID_01").
-            val left = if (sameLine && lastAliasRight + 1.5f > r.left) lastAliasRight + 1.5f else r.left
-            if (left + p.measureText(area.getString("alias")) > r.right + 0.01f)
+            val baseline = r.top + (r.height() - p.descent() - p.ascent()) / 2
+            val top = baseline + p.ascent()
+            val bottom = baseline + p.descent()
+            // OCR boxes have slightly different tops even on one line. Walk
+            // left-to-right and compare actual drawn text, not the last OCR box.
+            val previousRight = placedLabels.filter { it.top < bottom && it.bottom > top }
+              .maxOfOrNull { it.right }
+            val left = max(r.left, previousRight?.plus(1.5f) ?: r.left)
+            val right = left + p.measureText(area.getString("alias"))
+            if (right > r.right + 0.01f)
               throw IOException("Los alias contiguos no caben separados; acórtalos antes de exportar.")
-            canvas.drawText(area.getString("alias"), left, r.top + (r.height() - p.descent() - p.ascent()) / 2, p)
-            lastAliasRight = left + p.measureText(area.getString("alias"))
-            lastAliasTop = r.top
+            canvas.drawText(area.getString("alias"), left, baseline, p)
+            placedLabels.add(RectF(left, top, right, bottom))
           }
           for (o in 0 until overlays.length()) {
             val overlay = overlays.getJSONObject(o); if (overlay.getInt("page") != i) continue

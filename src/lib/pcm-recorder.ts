@@ -47,7 +47,7 @@ export class PcmRecorder {
       return recorder;
     } catch {
       await context.close();
-      throw new Error("No se pudo iniciar la grabación. Si persiste, reinstala BlueDoor.");
+      throw new Error("No se pudo iniciar la grabación. Si persiste, reinstala Bluedoor.");
     }
   }
 

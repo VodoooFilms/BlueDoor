@@ -37,7 +37,7 @@ try {
         return 1;
       }
       if(cmd==='plugin:event|unlisten')return;
-      if(cmd==='list_models')return {whisper:[{id:'small',path:'/mock/stt',installed:true}],parakeet:[],diarization:[],privacy:[{id:"qwen3-fast",name:"Qwen3-1.7B Q4_K_M",size:"1.36 GB",installed:true}]};
+      if(cmd==='list_models')return {whisper:[{id:'small',path:'/mock/stt',installed:true}],parakeet:[],diarization:[],privacy:[{id:"qwen3-fast",name:"Qwen3-1.7B Q4_K_M",size:"1.36 GB",installed:!window.__missingPrivacyModel}]};
       if(cmd==='diarization_available')return false;
       if(cmd==='get_privacy_session')return session;
       if(cmd==='get_private_extraction'){assertRevision(args);return extracted;}
@@ -108,7 +108,7 @@ try {
     }};
   }, mobile);
   await page.goto('http://localhost:1420');
-  await page.locator('.welcome[role="dialog"] .close').click();
+  await page.locator('.welcome[role="dialog"]').waitFor({state:'detached'});
   await page.getByRole('heading',{name:ui('Lo privado permanece aquí.'),exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).count(),0,'no protection without a document');
   assert.equal(await page.getByRole('button',{name:ui('Mapa privado'),exact:true}).count(),0);
@@ -138,6 +138,20 @@ try {
   assert((await page.locator('.original-page').innerText()).includes('María Pérez'));
   assert.equal(await page.getByTestId('private-initial-extraction').count(),0);
   if(mobile && language === 'es') await page.screenshot({path:'artifacts/android-ui-documento.png',animations:'disabled'});
+  // A deleted model routes to download without sending the document to analysis.
+  await page.evaluate(() => { window.__missingPrivacyModel = true; });
+  await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).click();
+  await page.getByRole('status').filter({hasText:language === 'es' ? 'Descarga un modelo local AI primero' : 'Download a local AI model first'}).waitFor();
+  assert.equal(await page.evaluate(() => window.__privacyCalls.some(c => c.cmd === 'analyze_private_document')), false);
+  assert.equal(await page.evaluate(() => localStorage.getItem('bluedoor-privacy-model')), mobile ? 'gliner-pii-small-int8' : 'qwen3-fast');
+  await page.evaluate(() => { window.__missingPrivacyModel = false; });
+  await page.locator('.back-btn').click();
+  await page.locator('.original-page').waitFor();
+  if (process.env.BLUEDOOR_TEST_MISSING_MODEL_ONLY === '1') {
+    console.log('Deleted privacy model redirects to default download and preserves the document');
+    await browser.close();
+    process.exit(0);
+  }
   const before=await page.locator('.workspace-header').boundingBox();
   await page.getByRole('button',{name:ui('Proteger documento'),exact:true}).click();
   await page.getByRole('progressbar',{name:ui('Procesando documento')}).waitFor();
@@ -154,6 +168,16 @@ try {
     if (language === 'es') await page.screenshot({ path: 'artifacts/android-analysis-progress.png', animations: 'disabled' });
   }
   const {id,revision}=await page.evaluate(()=>window.__analysisRequest);
+  for (const [step, es, en] of [
+    ['model_verify', 'Comprobando integridad del modelo local…', 'Checking local model integrity…'],
+    ['model_load', 'Cargando modelo en memoria…', 'Loading model into memory…'],
+    ['ner:1/2', 'Detectando entidades · fragmento 1 de 2', 'Detecting entities · fragment 1 of 2'],
+    ['reading:1/2:0', 'Preparando entrada · fragmento 1 de 2', 'Preparing input · fragment 1 of 2'],
+    ['prefill:1/2:64', 'Preparando fragmento 1 de 2 · 64 tokens de entrada', 'Preparing fragment 1 of 2 · 64 input tokens'],
+  ]) {
+    await page.evaluate(([id, revision, step]) => window.__emitAnalysisProgress([id, revision, step]), [id, revision, step]);
+    await page.locator('.processing-copy').filter({ hasText: language === 'en' ? en : es }).waitFor();
+  }
   const fragment=(n,total)=>ui('Leyendo con AI local · fragmento {0} de {1}').replace('{0}',n).replace('{1}',total);
   await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'reading:1/2:24']),[id,revision]);
   await page.getByRole('status').filter({hasText:fragment(1,2)}).waitFor();
@@ -162,6 +186,23 @@ try {
   await page.getByRole('status').filter({hasText:fragment(2,2)}).waitFor();
   await page.evaluate(([id,revision])=>window.__emitAnalysisProgress([id,revision,'sanitizing']),[id,revision]);
   await page.getByRole('status').filter({hasText:ui('Protegiendo el documento')}).waitFor();
+  if (process.env.BLUEDOOR_TEST_PROCESSING_ONLY === '1') {
+    const dialog = page.locator('.processing-dialog');
+    assert(await dialog.isVisible(), 'Protection displays a modal progress dialog');
+    await page.waitForFunction(() => parseInt(document.querySelector('.processing-elapsed')?.textContent ?? '', 10) > 0);
+    assert.match(await page.locator('.processing-elapsed').innerText(), /^\d{3,} s$/);
+    const counter = await page.locator('.processing-elapsed').boundingBox();
+    const cancel = await page.locator('.processing-actions button').boundingBox();
+    assert(counter.x > cancel.x + cancel.width, 'Millisecond counter sits to the right of Cancel');
+    assert.equal(await dialog.evaluate(el => el.matches(':modal')), true);
+    assert.equal(await dialog.evaluate(el => getComputedStyle(el, '::backdrop').backgroundColor), 'rgba(5, 29, 84, 0.65)');
+    await page.screenshot({path:`artifacts/privacy-processing-${language}.png`});
+    await page.evaluate(()=>window.__finishAnalysis());
+    await dialog.waitFor({state:'hidden'});
+    console.log('Protection reuses modal backdrop and closes when finished');
+    await browser.close();
+    process.exit(0);
+  }
   await page.evaluate(()=>window.__finishAnalysis());
   if (mobile) {
     await page.locator('.protected-preview').waitFor();
@@ -183,7 +224,7 @@ try {
   await map.click();
   if(mobile && language === 'es') await page.screenshot({path:'artifacts/android-ui-mapa.png',animations:'disabled'});
   await page.getByLabel('Alias 1',{exact:true}).fill('CLIENTE_01');
-  const document=page.getByRole('button',{name:ui('Documento'),exact:true});
+  const document=page.getByRole('button',{name:ui('Volver al documento'),exact:true});
   assert(await document.isDisabled(),'unapplied map blocks view switching');
   await page.locator('.map-page').getByRole('button',{name:ui('Guardar cambios'),exact:true}).click();
   await page.waitForFunction(()=>!document.querySelector('.workspace-views button:first-child').disabled);
@@ -231,8 +272,7 @@ try {
   assert.equal(await page.locator('.map-page .entity-row').count(),2,'restoring drafts recovers the saved map');
   await page.getByRole('button',{name:ui('Eliminar entidad 1'),exact:true}).click();
   await page.locator('.map-page').getByRole('button',{name:ui('Guardar cambios'),exact:true}).click();
-  await page.locator('.review-advisories summary').click();
-  await page.getByText(ui('El mapa no contiene ninguna persona. Los nombres no tienen un detector determinista: Qwen puede omitirlos y las reglas no los comprueban. Revísalos tú.'),{exact:true}).waitFor();
+  assert.equal(await page.locator('.review-advisories').count(),0);
   assert(requests.every(url=>url.startsWith('http://localhost:1420/')||url.startsWith('http://127.0.0.1:1420/')),'no external browser requests');
   console.log(language+': PASS privacy workflow: progress, drafts, aliases, reviewed revision/title export, residual leak blocking, empty-map refusal, reset and name advisory');
 } finally {await browser.close();}

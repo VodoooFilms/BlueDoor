@@ -396,7 +396,7 @@ pub(crate) fn load_font_family(
         let mut faces = Vec::with_capacity(4);
         for weight in 0..4 {
             let bytes = crate::platform::bundled_font(weight)
-                .ok_or("Falta una fuente del documento. Reinstala BlueDoor.")?;
+                .ok_or("Falta una fuente del documento. Reinstala Bluedoor.")?;
             faces.push(
                 genpdf::fonts::FontData::new(bytes.to_vec(), None)
                     .map_err(|e| format!("No se pudo cargar la fuente: {}", e))?,
@@ -405,7 +405,7 @@ pub(crate) fn load_font_family(
         let [regular, bold, italic, bold_italic]: [genpdf::fonts::FontData; 4] =
             faces
                 .try_into()
-                .map_err(|_| "Faltan fuentes del documento. Reinstala BlueDoor.")?;
+                .map_err(|_| "Faltan fuentes del documento. Reinstala Bluedoor.")?;
         return Ok(genpdf::fonts::FontFamily {
             regular,
             bold,
@@ -501,7 +501,7 @@ impl genpdf::PageDecorator for ReportDecorator {
                 .bold()
                 .with_font_size(9)
                 .with_color(genpdf::style::Color::Greyscale(70)),
-            "BlueDoor",
+            "Bluedoor",
         );
         // Titulo alineado a la derecha (recortado para que siempre quepa).
         let header_style = genpdf::style::Style::new()
@@ -548,7 +548,7 @@ impl genpdf::PageDecorator for ReportDecorator {
             &context.font_cache,
             genpdf::Position::new(left, page - 7.0),
             footer_style,
-            "Generado por BlueDoor — Local y privado",
+            "Generado por Bluedoor — Local y privado",
         );
         let page_label = format!("Página {}", self.page);
         let pw: f64 = footer_style

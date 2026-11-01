@@ -1,17 +1,17 @@
-# Belegal _ Local demo — estado para la primera venta
+# aplicación de origen — estado para la primera venta
 
 **Fecha:** 12 de septiembre de 2026  
-**Objetivo:** convertir una primera compra real de Belegal _ Local demo para Windows ARM64.
+**Objetivo:** convertir una primera compra real de aplicación de origen para Windows ARM64.
 
 ## Lo que ya está terminado y verificado
 
 - La edición Windows ARM64 `0.1.0` está publicada en GitHub Releases:
   <https://github.com/VodoooFilms/VoicetoPDF/releases/tag/v0.1.0-windows-arm64>
-- Instalador publicado: `Belegal _ Local demo_0.1.0_arm64-setup.exe` (17.65 MB).
+- Instalador publicado: `aplicación de origen_0.1.0_arm64-setup.exe` (17.65 MB).
 - SHA-256: `84185606140f3fbcb9e9ea224850f50a47cb441720138533fbaf3288db8866e0`.
 - El instalador fue probado en una instalación limpia de Windows 11 ARM64: se instalaron DLLs y runtime, y la aplicación abrió correctamente.
 - La página comercial está publicada en <https://www.prompthea.com/projects/voicetopdf>.
-- Belegal _ Local demo aparece como el primer producto del catálogo de Prompthea; utiliza el logo real y una captura completa de la aplicación.
+- aplicación de origen aparece como el primer producto del catálogo de Prompthea; utiliza el logo real y una captura completa de la aplicación.
 - Precio mostrado: **USD 19**.
 - El checkout PayPal está implementado en Prompthea y usa confirmación de orden en servidor antes de mostrar la descarga.
 - Se completó una compra **Sandbox** de punta a punta: botón de compra → PayPal Sandbox → confirmación → página de éxito → descarga correcta del `.exe`.
@@ -30,7 +30,7 @@ El instalador está públicamente disponible en GitHub Releases: todavía no hay
 
 No hace falta modificar el instalador ni la página. Solo hay que pasar PayPal de Sandbox a Live:
 
-1. En PayPal Developer, crear o abrir la aplicación **Live** de Belegal _ Local demo (Merchant).
+1. En PayPal Developer, crear o abrir la aplicación **Live** de aplicación de origen (Merchant).
 2. Crear el webhook Live con esta URL y el evento `PAYMENT.CAPTURE.COMPLETED`:
    `https://www.prompthea.com/api/paypal/voicetopdf/webhook`
 3. En las variables de producción de Vercel, reemplazar únicamente los valores de PayPal por los de Live:
@@ -45,5 +45,5 @@ No guardar ni copiar secretos de PayPal en Git, documentos públicos, capturas o
 
 ## Criterio de éxito del challenge
 
-Una venta real está concretada cuando PayPal Live muestra la captura de USD 19 en la cuenta vendedora y el comprador llega desde Prompthea a la descarga de Belegal _ Local demo. El misterio deja de ser misterio en ese momento.
+Una venta real está concretada cuando PayPal Live muestra la captura de USD 19 en la cuenta vendedora y el comprador llega desde Prompthea a la descarga de aplicación de origen. El misterio deja de ser misterio en ese momento.
 

@@ -1,4 +1,4 @@
-# Reporte de cambios — Belegal _ Local demo
+# Reporte de cambios — aplicación de origen
 
 **Fecha:** 2026-09-08 17:30 (hora local)
 **Estado:** cambios en el árbol de trabajo (sin commit, sin push). Pendientes de prueba local por el usuario.
@@ -58,7 +58,7 @@ Lote de puesta a punto (UX/lógica/flujo) aprobado tras una auditoría. 8 correc
 
 - El motor LLM ahora responde a lo que elijas en Modelos → Qwen. Si borras el Qwen activo, cae al siguiente instalado.
 - Al reabrir una transcripción corregida se restaura el texto corregido (botón en "Grabado"); los timestamps siguen mostrando los segments originales.
-- Si tras el rebuild el micrófono no funciona: `tccutil reset Microphone com.belegal.localdemo`.
+- Si tras el rebuild el micrófono no funciona: `tccutil reset Microphone com.proyecto-origen.localdemo`.
 - Sin cambios de build/empaquetado: aplican las reglas de dylibs/rpath/firma de siempre.
 - Recuerda: cuando corra `cargo build` que regenere el binario hay que re-aplicar LC_RPATH (`scripts/build-install.sh` o `scripts/build-dmg.sh` lo hacen solos).
 ---
@@ -109,24 +109,24 @@ Lote de puesta a punto (UX/lógica/flujo) aprobado tras una auditoría. 8 correc
 
 **Autor:** big pickle (asistente de desarrollo)
 **Fecha:** 2026-09-09
-**Estado:** todo committeado y pusheado a `main` (`3ed02a8`, `ecc7ee8`, `244ec63`); app reinstalada localmente como `Belegal _ Local demo.app` vía `scripts/build-install.sh`.
+**Estado:** todo committeado y pusheado a `main` (`3ed02a8`, `ecc7ee8`, `244ec63`); app reinstalada localmente como `aplicación de origen.app` vía `scripts/build-install.sh`.
 
 ## 1. Icono de dock corregido (fin del "doble contenedor")
-- El `belegal-local-demo_icon.png` anterior mostraba un doble contenedor (marco doble/borde blanco) al renderizarse en el dock.
+- El `origin-app_icon.png` anterior mostraba un doble contenedor (marco doble/borde blanco) al renderizarse en el dock.
 - Se localizó el logo real del usuario en `~/Desktop/V_icon.png` (V violeta sobre transparencia, 1254×1254).
 - Nuevo máster 1024×1024 **a sangre completa**: fondo gris oscuro opaco `#2d2d32` + V violeta centrada, **sin transparencia en las esquinas** → macOS no le añade su propio marco → desaparece el efecto doble contenedor.
 - Regenerada toda la familia de iconos con `pnpm tauri icon` (`src-tauri/icons/*`, `icon.icns`, `icon.ico`, carpetas android/ e ios/).
-- Verificado: 0 píxeles blancos, esquinas totalmente opacas, V dentro del tile. Preview en `~/Desktop/belegal-local-demo_dock_icon.png`.
-- Se retiró del Desktop un archivo `belegal-local-demo_icon.png` generado por error del asistente; el logo real del usuario (`V_icon.png`) quedó intacto. Disculpas por el contratiempo previo.
+- Verificado: 0 píxeles blancos, esquinas totalmente opacas, V dentro del tile. Preview en `~/Desktop/origin-app_dock_icon.png`.
+- Se retiró del Desktop un archivo `origin-app_icon.png` generado por error del asistente; el logo real del usuario (`V_icon.png`) quedó intacto. Disculpas por el contratiempo previo.
 
 ## 2. Reinstalación local
-- `scripts/build-install.sh` OK → empaquetado `Belegal _ Local demo.app`, dylibs + LC_RPATH + cuarentena + firma ad-hoc, instalado en `/Applications` y lanzado (`OK: Belegal _ Local demo running`).
+- `scripts/build-install.sh` OK → empaquetado `aplicación de origen.app`, dylibs + LC_RPATH + cuarentena + firma ad-hoc, instalado en `/Applications` y lanzado (`OK: aplicación de origen running`).
 
-## 3. Renombrado de marca: VoiceToPDF → Belegal _ Local demo (T minúscula)
-Cambiado en app, build y documentación; se conservan intactos los identificadores de máquina (`com.belegal.localdemo`, binario/crate `belegal-local-demo`, ficheros de datos):
+## 3. Renombrado de marca: VoiceToPDF → aplicación de origen (T minúscula)
+Cambiado en app, build y documentación; se conservan intactos los identificadores de máquina (`com.proyecto-origen.localdemo`, binario/crate `origin-app`, ficheros de datos):
 - **App**: masthead en `src/App.svelte` (texto + comentario), `<title>` en `index.html`, título de ventana y `productName` en `tauri.conf.json`.
 - **Backend/PDF**: cabecera y pie del PDF (`download`), ejemplo de marca en el prompt del LLM (`llm.rs`), mensaje de arranque (`lib.rs`), `Info.plist` (descripciones de uso de micrófono), `authors` en `Cargo.toml`, capabilities (`default.json` + esquema generado).
-- **Build**: scripts buscando `Belegal _ Local demo.app` (target/release o target/<triple>), instalación en `/Applications/Belegal _ Local demo.app`, DMG → `Belegal _ Local demo_${VER}_aarch64.dmg` y volname `Belegal _ Local demo`.
+- **Build**: scripts buscando `aplicación de origen.app` (target/release o target/<triple>), instalación en `/Applications/aplicación de origen.app`, DMG → `aplicación de origen_${VER}_aarch64.dmg` y volname `aplicación de origen`.
 - **Docs**: README.md, PRIVACY.md, AGENTS.md y este reporte.
 - Verificación: `cargo check` OK y `svelte-check` = 0 errores / 0 warnings; `rg 'VoiceToPDF'` = 0 coincidencias.
 
@@ -137,9 +137,9 @@ Cambiado en app, build y documentación; se conservan intactos los identificador
 
 ## Commits de la sesión
 - `3ed02a8` — icono regenerado desde V_icon (gris oscuro a sangre completa, sin contenedor).
-- `ecc7ee8` — renombrado de marca VoiceToPDF → Belegal _ Local demo (16 ficheros).
+- `ecc7ee8` — renombrado de marca VoiceToPDF → aplicación de origen (16 ficheros).
 - `244ec63` — README bilingüe (README.es.md + selector).
 
 ## Pendiente
 - Revisar el repo en GitHub (README bilingüe visible).
-- Recordatorio: tras el cambio de `productName`, la app instalada ahora es `Belegal _ Local demo.app` (la antigua `VoiceToPDF.app` quedó fuera de /Applications al reinstalar).
+- Recordatorio: tras el cambio de `productName`, la app instalada ahora es `aplicación de origen.app` (la antigua `VoiceToPDF.app` quedó fuera de /Applications al reinstalar).

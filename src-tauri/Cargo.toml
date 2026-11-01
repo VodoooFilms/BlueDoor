@@ -1,8 +1,8 @@
 [package]
 name = "bluedoor"
-version = "0.5.5"
-description = "Local & Private BlueDoor Transcription"
-authors = ["BlueDoor"]
+version = "0.5.7"
+description = "Local & Private Bluedoor Transcription"
+authors = ["Bluedoor"]
 edition = "2021"
 license = "MIT"
 

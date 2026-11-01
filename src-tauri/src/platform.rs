@@ -17,6 +17,34 @@ pub(crate) fn open_chatgpt_home(app_handle: tauri::AppHandle) -> Result<(), Stri
         .map_err(|_| "No se pudo abrir el navegador. Vuelve a intentarlo.".to_string())
 }
 
+/// Fixed project link only; no document content or renderer-supplied URL leaves the app.
+#[tauri::command]
+pub(crate) fn open_documentation_repository(app_handle: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app_handle
+        .opener()
+        .open_url("https://github.com/VodoooFilms/Bluedoor", None::<&str>)
+        .map_err(|_| "No se pudo abrir el navegador. Vuelve a intentarlo.".to_string())
+}
+
+/// Open the fixed support page. Only the UI language is included, never documents or paths.
+#[tauri::command]
+pub(crate) fn open_bluedoor_support(
+    app_handle: tauri::AppHandle,
+    lang: String,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = match lang.as_str() {
+        "es" => "https://www.prompthea.com/support/bluedoor?lang=es",
+        "en" => "https://www.prompthea.com/support/bluedoor?lang=en",
+        _ => return Err("Idioma no disponible.".to_string()),
+    };
+    app_handle
+        .opener()
+        .open_url(url, None::<&str>)
+        .map_err(|_| "No se pudo abrir el navegador. Vuelve a intentarlo.".to_string())
+}
+
 /// Directorio de modelos para tests/sandbox: en macOS se mantiene la ruta
 /// legada de App Support usada por los scripts de verificación; en Windows se
 /// usa `%APPDATA%/com.bluedoor.desktop/models` (el app_data_dir real).
@@ -74,7 +102,7 @@ pub(crate) fn decoder_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, Str
         .resource_dir()
         .map(|dir| dir.join("runtime").join(decoder_file_name()))
         .map_err(|_| {
-            "No se pudo encontrar un componente de la aplicación. Reinstala BlueDoor.".to_string()
+            "No se pudo encontrar un componente de la aplicación. Reinstala Bluedoor.".to_string()
         })
 }
 
@@ -163,7 +191,7 @@ pub(crate) fn share_export(path: String, app: tauri::AppHandle) -> Result<(), St
         if candidate.parent() != Some(directory.as_path())
             || candidate.extension().and_then(|s| s.to_str()) != Some("pdf")
         {
-            return Err("Solo se pueden compartir los PDF exportados por BlueDoor.".into());
+            return Err("Solo se pueden compartir los PDF exportados por Bluedoor.".into());
         }
         crate::android::share_file(&candidate)
     }
@@ -243,7 +271,7 @@ fn load_one_backend(file: &Path) -> Result<(), String> {
     #[cfg(not(target_os = "macos"))]
     let backend = unsafe { llama_cpp_sys_2::ggml_backend_load(path.as_ptr()) };
     if backend.is_null() {
-        return Err("No se pudo cargar un componente de IA. Reinstala BlueDoor.".into());
+        return Err("No se pudo cargar un componente de IA. Reinstala Bluedoor.".into());
     }
     Ok(())
 }
@@ -290,11 +318,11 @@ fn load_x64_cpu(directory: &Path) -> Result<(), String> {
             FreeLibrary(module);
         }
     }
-    let path = best.ok_or("Falta un backend de CPU compatible. Reinstala BlueDoor.")?;
+    let path = best.ok_or("Falta un backend de CPU compatible. Reinstala Bluedoor.")?;
     let path = std::ffi::CString::new(path.to_string_lossy().as_bytes())
         .map_err(|_| "Ruta de aplicación no válida")?;
     if unsafe { llama_cpp_sys_2::ggml_backend_load(path.as_ptr()) }.is_null() {
-        return Err("No se pudo cargar el backend de CPU de BlueDoor.".into());
+        return Err("No se pudo cargar el backend de CPU de Bluedoor.".into());
     }
     Ok(())
 }
@@ -319,7 +347,7 @@ pub(crate) fn load_owned_backends() -> Result<(), String> {
                 for name in ["libggml-cpu-apple_m1.so", "libggml-metal.so"] {
                     let file = directory.join(name);
                     if !file.is_file() {
-                        return Err("Falta un componente de IA de la aplicación. Reinstala BlueDoor; tus documentos se conservan.".into());
+                        return Err("Falta un componente de IA de la aplicación. Reinstala Bluedoor; tus documentos se conservan.".into());
                     }
                     load_one_backend(&file)?;
                 }
@@ -332,14 +360,14 @@ pub(crate) fn load_owned_backends() -> Result<(), String> {
                 // llama.cpp revisions (with/without a lib prefix), so discover
                 // the CPU module rather than hard-coding a release-only name.
                 let cpu = std::fs::read_dir(&directory)
-                    .map_err(|_| "Falta un componente de IA de la aplicación. Reinstala BlueDoor; tus documentos se conservan.".to_string())?
+                    .map_err(|_| "Falta un componente de IA de la aplicación. Reinstala Bluedoor; tus documentos se conservan.".to_string())?
                     .flatten()
                     .map(|entry| entry.path())
                     .find(|path| {
                         path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("dll"))
                             && path.file_name().is_some_and(|name| name.to_string_lossy().contains("ggml-cpu"))
                     })
-                    .ok_or("Falta el backend de CPU de la aplicación. Reinstala BlueDoor; tus documentos se conservan.")?;
+                    .ok_or("Falta el backend de CPU de la aplicación. Reinstala Bluedoor; tus documentos se conservan.")?;
                 load_one_backend(&cpu)?;
             }
             Ok(())

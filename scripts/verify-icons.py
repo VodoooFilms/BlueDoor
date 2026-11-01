@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that the macOS bundle uses the checked-in BlueDoor app icon."""
+"""Verify that the macOS bundle uses the checked-in Bluedoor app icon."""
 import hashlib
 import plistlib
 from pathlib import Path
@@ -63,5 +63,5 @@ def verify(app: Path) -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        raise SystemExit("Usage: scripts/verify-icons.py /path/to/BlueDoor.app")
+        raise SystemExit("Usage: scripts/verify-icons.py /path/to/Bluedoor.app")
     verify(Path(sys.argv[1]).resolve())

@@ -128,6 +128,7 @@ try {
   assert.equal(await partial.evaluate(() => window.setupCalls.includes('parakeet-tdt-0.6b-v3')), false);
   await partial.close();
 
+
   const existing = await scenario({ installed: ['small'] });
   assert.equal(await existing.getByRole('button', { name: startLabel, exact: true }).count(), 0);
   await existing.close();

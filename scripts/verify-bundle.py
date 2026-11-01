@@ -87,7 +87,7 @@ def verify(app):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2: sys.exit("Usage: verify-bundle.py /path/to/BlueDoor.app")
+    if len(sys.argv) != 2: sys.exit("Usage: verify-bundle.py /path/to/Bluedoor.app")
     failures = verify(Path(sys.argv[1]))
     if failures: sys.exit("Bundle verification FAILED:\n" + "\n".join(failures))
     print("Bundle verification PASS: arm64, resources, deployment target, local dependencies and file-only decoder")

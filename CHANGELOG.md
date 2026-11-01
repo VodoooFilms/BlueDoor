@@ -1,4 +1,4 @@
-# Cambios de BlueDoor
+# Cambios de Bluedoor
 
 ## 0.4.0 — 5 de octubre de 2026
 

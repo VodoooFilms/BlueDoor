@@ -7,8 +7,8 @@ source and scripts also support `x86_64-pc-windows-msvc`.
 ## Verified on Windows ARM64 (11 Sep 2026)
 
 - Release build `pnpm release:windows:arm64` produces NSIS and MSI installers:
-  - `src-tauri/target/windows-arm64/aarch64-pc-windows-msvc/release/bundle/nsis/BlueDoor_0.1.0_arm64-setup.exe`
-  - `src-tauri/target/windows-arm64/aarch64-pc-windows-msvc/release/bundle/msi/BlueDoor_0.1.0_arm64_en-US.msi`
+  - `src-tauri/target/windows-arm64/aarch64-pc-windows-msvc/release/bundle/nsis/Bluedoor_0.1.0_arm64-setup.exe`
+  - `src-tauri/target/windows-arm64/aarch64-pc-windows-msvc/release/bundle/msi/Bluedoor_0.1.0_arm64_en-US.msi`
 - `scripts/verify-windows-bundle.py` PASS: `bluedoor.exe`, `llama*.dll`,
   `ggml*.dll` and the dynamic `ggml-cpu*.dll` CPU backend sit next to the
   executable. An installer that loses the DLL closure is rejected.

@@ -46,7 +46,7 @@ class SourcePreviewActivity : Activity() {
     root.addView(image, LinearLayout.LayoutParams(-1, 0, 1f))
     setContentView(root)
     try {
-      val uri = BlueDoorAndroid.sourceUri ?: throw IllegalStateException("Fuente no disponible; importa otra vez.")
+      val uri = AndroidBridge.sourceUri ?: throw IllegalStateException("Fuente no disponible; importa otra vez.")
       if (contentResolver.getType(uri) == "application/pdf") {
         val descriptor = contentResolver.openFileDescriptor(uri, "r") ?: throw IllegalStateException("No se pudo abrir la fuente.")
         renderer = PdfRenderer(descriptor)
@@ -60,7 +60,7 @@ class SourcePreviewActivity : Activity() {
         bitmap = contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it, null, options) }
         if (bitmap == null) throw IllegalStateException("La vista fuente admite PDF e imágenes. Para DOCX/TXT revisa el texto extraído.")
         val orientation = runCatching { contentResolver.openInputStream(uri).use { input -> ExifInterface(input!!).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) } }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
-        bitmap = BlueDoorAndroid.orientBitmap(bitmap!!, orientation)
+        bitmap = AndroidBridge.orientBitmap(bitmap!!, orientation)
         image.setImageBitmap(bitmap)
         status.text = "Fuente original · vuelve para revisar el texto extraído"
       }

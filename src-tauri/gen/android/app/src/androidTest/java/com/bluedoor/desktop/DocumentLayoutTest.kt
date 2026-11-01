@@ -84,6 +84,36 @@ class DocumentLayoutTest {
     plan.put("mode", "--export")
     assertTrue(DocumentLayout.render(plan.toString()).startsWith("ERROR:"))
   }
+  @Test fun ocrTopJitterDoesNotTreatARightColumnAliasAsTheLeftNeighbour() {
+    val plan = fixture()
+    val first = plan.getJSONArray("redactions").getJSONObject(0)
+    first.put("rect", JSONArray(listOf(95, 127, 100, 35)))
+    val right = JSONObject(first.toString()).put("rect", JSONArray(listOf(220, 125, 100, 35))).put("alias", "P02").put("entityIndex", 1)
+    plan.getJSONArray("redactions").put(right)
+    // Batch snapshots cross a JSON/native boundary; reconstruct and reverse the
+    // source order to exercise the same page regardless of storage order.
+    val restored = JSONObject(plan.toString())
+    restored.put("redactions", JSONArray().put(JSONObject(right.toString())).put(JSONObject(first.toString())))
+    for (mode in listOf("--preview", "--export")) {
+      plan.put("mode", mode); restored.put("mode", mode)
+      val single = DocumentLayout.render(plan.toString())
+      val batch = DocumentLayout.render(restored.toString())
+      assertFalse("single: $single", single.startsWith("ERROR:"))
+      assertFalse("batch: $batch", batch.startsWith("ERROR:"))
+      if (mode == "--preview") assertEquals(single, batch)
+    }
+  }
+  @Test fun eraseOnlySegmentsNeverParticipateInAliasSpacing() {
+    val plan = fixture()
+    val first = plan.getJSONArray("redactions").getJSONObject(0)
+    val continuation = JSONObject(first.toString()).put("rect", JSONArray(listOf(100, 125, 2, 35))).put("alias", "")
+    plan.getJSONArray("redactions").put(continuation)
+    for (mode in listOf("--preview", "--export")) {
+      plan.put("mode", mode)
+      val result = DocumentLayout.render(plan.toString())
+      assertFalse(result, result.startsWith("ERROR:"))
+    }
+  }
   @Test fun oversizedAliasesBlockExportAndAreReportedBeforeReview() {
     val plan = fixture()
     plan.getJSONArray("redactions").getJSONObject(0).put("alias", "PERSONA_DEMASIADO_LARGA")
@@ -144,7 +174,6 @@ class DocumentLayoutTest {
       // Synthetic source: Nombre : Carlos Andrés Mendoza \n VALDEZ.
       // Words 2..5 are one PERSON even across the physical newline.
       val score = result.getJSONArray("logits").getDouble((2*12+3)*8)
-      println("ORT VERSION: " + ai.onnxruntime.OrtEnvironment.getVersion())
       assertTrue("Wrapped full-name confidence must exceed 0.5; logit=$score",score>0.0)
     } finally { GlinerRuntime.unload() }
   }
@@ -155,12 +184,30 @@ class DocumentLayoutTest {
       android.content.pm.PackageManager.GET_META_DATA)
     assertFalse(info.metaData?.containsKey("backend:com.google.android.datatransport.cct.CctBackendFactory") == true)
   }
+  // Explicit local opt-in only; input and output remain in emulator cache.
+  @Test fun inspectLocalOcrFixture() {
+    val args = InstrumentationRegistry.getArguments()
+    val path = args.getString("localOcrPath")
+    org.junit.Assume.assumeNotNull(path)
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val layout = AndroidBridge.extractLayout(path!!)
+    assertFalse(layout.startsWith("ERROR:"))
+    File(context.cacheDir, "qa-local-layout.json").writeText(layout)
+  }
+  @Test fun renderLocalRedactionPlan() {
+    val path = InstrumentationRegistry.getArguments().getString("localRenderPlan")
+    org.junit.Assume.assumeNotNull(path)
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val output = DocumentLayout.render(File(path!!).readText())
+    assertFalse(output.startsWith("ERROR:"))
+    File(context.cacheDir, "qa-local-preview.json").writeText(output)
+  }
   @Test fun localOcrReturnsUtf8OffsetsAndGeometry() {
     val plan = fixture(); val source = bitmap(plan.getJSONArray("pages").getJSONObject(0))
     val file = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "layout-ocr.png")
     try {
       file.outputStream().use { source.compress(Bitmap.CompressFormat.PNG, 100, it) }
-      val layout = JSONObject(BlueDoorAndroid.extractLayout(file.absolutePath))
+      val layout = JSONObject(AndroidBridge.extractLayout(file.absolutePath))
       assertTrue(layout.getString("text").contains("Ana"))
       val page = layout.getJSONArray("pages").getJSONObject(0)
       assertEquals(841.89, page.getDouble("height"), 0.01); assertEquals(400.0 / 600.0, page.getDouble("width") / page.getDouble("height"), 0.001)

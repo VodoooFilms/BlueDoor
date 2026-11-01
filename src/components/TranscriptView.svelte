@@ -701,6 +701,7 @@
     </div>
   {/if}
 
+  {#if !pageSurface || surfaceActive}
   <div class="editor-tools">
   <div class="editor-toolbar" aria-label={t.alignLabel}>
     <div class="font-zoom-controls">
@@ -833,6 +834,7 @@
 
   </fieldset>
   </div>
+  {/if}
   <div class="viewer-body">
     {#if pageSurface}{@render pageSurface(richSurface)}{:else}
     {@render richSurface("")}

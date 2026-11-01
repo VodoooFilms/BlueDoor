@@ -137,12 +137,35 @@ try {
   });
 
   await page.goto('http://localhost:1420');
-  await page.locator('.welcome[role="dialog"] .close').click();
+  const welcome = page.locator('.welcome[role="dialog"] .close');
+  if (await welcome.count()) await welcome.click();
   await page.locator('.blue-import-screen').waitFor();
   const storage = await page.evaluate(() => JSON.stringify(localStorage));
   await page.getByRole('button', { name: 'Vault', exact: true }).click();
   const vault = page.locator('.vault');
   const dialog = page.getByRole('dialog');
+  async function checkPopupLanguages() {
+    await dialog.waitFor();
+    const spanish = await dialog.innerText();
+    const titles = {
+      'Un lugar para tus archivos.': 'A place for your files.',
+      'Una copia, por tranquilidad.': 'A backup, for peace of mind.',
+      '¿Eliminar esta entrada?': 'Delete this entry?',
+      'Recupera tu acceso.': 'Recover your access.',
+      'Tus transcripciones, al Vault.': 'Your transcripts, in Vault.',
+      'Vuelve a tu Vault.': 'Restore your Vault.',
+      'Una llave en tu equipo.': 'A key on your device.',
+    };
+    const title = await dialog.locator('h2').innerText();
+    await page.evaluate(() => document.querySelector('#languageToggle').click());
+    await dialog.getByRole('heading', { name: titles[title], exact: true }).waitFor();
+    await dialog.getByRole('button', { name: 'Close window', exact: true }).waitFor();
+    assert.doesNotMatch(await dialog.innerText(), /Cancelar|Procesando|Nada sale|Contraseña|Frase de recuperación|Sustituir|Cifrar cada/);
+    await page.evaluate(() => document.querySelector('#languageToggle').click());
+    await dialog.getByRole('heading', { name: title, exact: true }).waitFor();
+    assert.equal(await dialog.innerText(), spanish, 'switching languages preserves all dialog content');
+  }
+
 
   // 1. Primer arranque: crear el Vault.
   await vault.getByRole('heading', { name: 'Una puerta solo tuya.' }).waitFor();
@@ -173,6 +196,7 @@ try {
   // 3. Importar dos archivos reales (el diálogo nativo lo simula el IPC).
   await vault.getByRole('button', { name: 'Añadir primera entrada' }).click();
   await dialog.waitFor();
+  await checkPopupLanguages();
   await page.screenshot({ path: 'artifacts/vault/03-import.png' });
   await dialog.getByRole('button', { name: 'Elegir archivo' }).click();
   await vault.getByText('«Contrato de servicios.pdf» ya está cifrado en el Vault.').waitFor();
@@ -208,6 +232,7 @@ try {
   assert.equal(exports[0].id, '66666666-7777-4888-8999-aaaaaaaaaaaa');
   await vault.getByRole('button', { name: 'Eliminar del Vault' }).click();
   await dialog.waitFor();
+  await checkPopupLanguages();
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.activeElement?.textContent?.includes('Eliminar del Vault'));
   await vault.getByRole('button', { name: 'Eliminar del Vault' }).click();
@@ -274,6 +299,48 @@ try {
   await dialog.getByLabel('Frase de recuperación').fill(phrase);
   await dialog.getByRole('button', { name: 'Comprobar' }).click();
   await vault.getByText('La frase de recuperación es válida para este Vault.').waitFor();
+
+  // Todos los paneles deben permitir llegar a sus acciones y cerrarse en móvil.
+  for (const [width, height] of [[320, 568], [390, 844], [844, 390]]) {
+    await page.setViewportSize({ width, height });
+    for (const name of ['Crear copia', 'Restaurar una copia', 'Usar la frase ahora', 'Qué protege el Vault', 'Trasladar']) {
+      await vault.getByRole('button', { name, exact: true }).click();
+      await dialog.waitFor();
+      await checkPopupLanguages();
+      for (const button of await dialog.locator('.modal-footer button').all()) {
+        await button.scrollIntoViewIfNeeded();
+        const box = await button.boundingBox();
+        assert(box && box.x >= 0 && box.x + box.width <= width + 1 && box.y >= 0 && box.y + box.height <= height + 1,
+          `${name}: footer action fits at ${width}x${height}`);
+      }
+      await dialog.locator('.modal-footer button').first().click();
+      assert.equal(await dialog.count(), 0, `${name}: closes from footer`);
+      await vault.getByRole('button', { name, exact: true }).click();
+      await dialog.getByRole('button', { name: 'Cerrar ventana', exact: true }).click();
+      assert.equal(await dialog.count(), 0, `${name}: closes from header`);
+    }
+  }
+  for (const [width, height] of [[320, 568], [844, 390]]) {
+    await page.setViewportSize({ width, height });
+    await vault.getByRole('button', { name: 'Todo el Vault', exact: true }).click();
+    for (const name of ['Añadir al Vault', 'Eliminar del Vault']) {
+      if (name === 'Eliminar del Vault') {
+        await vault.getByRole('button', { name: 'Ver detalle de Contrato de servicios.pdf', exact: true }).click();
+      }
+      await vault.getByRole('button', { name, exact: true }).click();
+      await dialog.waitFor();
+      await checkPopupLanguages();
+      for (const button of await dialog.locator('.modal-footer button').all()) {
+        await button.scrollIntoViewIfNeeded();
+        const box = await button.boundingBox();
+        assert(box && box.x >= 0 && box.x + box.width <= width + 1 && box.y >= 0 && box.y + box.height <= height + 1,
+          `${name}: footer action fits at ${width}x${height}`);
+      }
+      await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+      assert.equal(await dialog.count(), 0, `${name}: cancellation closes panel`);
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 828 });
 
   // 10. Sin secretos ni datos en el almacenamiento web.
   const finalStorage = await page.evaluate(() => JSON.stringify(localStorage));

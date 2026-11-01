@@ -29,12 +29,12 @@ output_dir=src-tauri/gen/android/app/build/outputs/apk/universal/release
 mkdir -p installers
 if [[ "$mode" == unsigned ]]; then
   source_apk="$output_dir/app-universal-release-unsigned.apk"
-  output_apk=installers/BlueDoor-android-arm64-unsigned.apk
+  output_apk=installers/Bluedoor-android-arm64-unsigned.apk
   test -f "$source_apk"
   "$sdk_tools/zipalign" -f -P 16 4 "$source_apk" "$output_apk"
 else
   source_apk="$output_dir/app-universal-release.apk"
-  output_apk=installers/BlueDoor-android-arm64-release.apk
+  output_apk=installers/Bluedoor-android-arm64-release.apk
   test -f "$source_apk"
   certificate=$("$sdk_tools/apksigner" verify --verbose --print-certs "$source_apk")
   if printf '%s' "$certificate" | grep -Eiq 'android debug|local preview|androiddebugkey'; then

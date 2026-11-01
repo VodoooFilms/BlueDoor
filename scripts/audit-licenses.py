@@ -55,7 +55,7 @@ def audit():
         "status": "FAIL" if blockers else "PASS",
         "scope": "arm64 macOS runtime plus models downloadable from the current catalog",
         "classifications": {
-            "allowed": ["BlueDoor application code (MIT)"],
+            "allowed": ["Bluedoor application code (MIT)"],
             "allowed_with_obligations": [
                 "FFmpeg 8.1.2 (LGPL-2.1-or-later; source and build recipe included)",
                 "Whisper model weights and whisper.cpp (MIT)",

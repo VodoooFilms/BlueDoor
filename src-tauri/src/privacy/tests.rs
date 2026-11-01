@@ -2171,11 +2171,16 @@ fn compound_names_cover_middle_words_and_ocr_surnames_from_partial_detections() 
         }
         // No completion advisory is needed when a deterministic field rule
         // already found the complete value before the model's partial span.
-        let field_already_complete = deterministic_detections(text).iter()
+        let field_already_complete = deterministic_detections(text)
+            .iter()
             .any(|d| d.kind == Kind::Person && d.text == full);
         if !field_already_complete {
-            assert!(privacy_advisories(&entities).iter()
-                .any(|a| a.contains("nombres parciales")), "{text}: {entities:?}");
+            assert!(
+                privacy_advisories(&entities)
+                    .iter()
+                    .any(|a| a.contains("nombres parciales")),
+                "{text}: {entities:?}"
+            );
         }
     }
 }
@@ -2289,6 +2294,16 @@ fn surname_field_rules_do_not_guess_from_prose_or_cross_rows() {
 fn wrapped_names_cover_surname_continuations_without_a_document_template() {
     for (text, seed, full) in [
         (
+            "Beneficiario: Juan Carlos\nPérez\nAndrade\nTotal: USD 20",
+            "Juan Carlos",
+            "Juan Carlos\nPérez\nAndrade",
+        ),
+        (
+            "Ana Sofía\nRamírez\nCedeño\n\nOtra sección",
+            "Ana Sofía",
+            "Ana Sofía\nRamírez\nCedeño",
+        ),
+        (
             "Carlos Andrés Mendoza\nVALDEZ\nTotal: USD 20",
             "Carlos Andrés Mendoza",
             "Carlos Andrés Mendoza\nVALDEZ",
@@ -2376,4 +2391,73 @@ fn wrapped_name_completion_respects_blank_lines_fields_and_other_people() {
     )
     .unwrap();
     assert!(!entities.iter().any(|e| e.original.contains('\n')));
+}
+
+#[test]
+fn three_line_names_stop_before_fields_blank_lines_and_separate_people() {
+    for tail in [
+        "\nAndrade",
+        "Beneficiario: Ana Vera",
+        "Ana\tVera",
+        "comparece ante la autoridad.",
+    ] {
+        let text = format!("Juan Carlos\nPérez\n{tail}");
+        let entities = merge_detection_sources(
+            &text,
+            vec![Detection {
+                kind: Kind::Person,
+                text: "Juan Carlos".into(),
+            }],
+            vec![],
+        )
+        .unwrap();
+        assert!(entities.iter().any(|e| e.original == "Juan Carlos\nPérez"));
+        assert!(
+            !entities.iter().any(|e| e.original.contains(tail)),
+            "unsafe continuation: {entities:?}"
+        );
+    }
+    let text = "Juan Carlos\nPérez\nAna Vera";
+    let entities = merge_detection_sources(
+        text,
+        vec![
+            Detection {
+                kind: Kind::Person,
+                text: "Juan Carlos".into(),
+            },
+            Detection {
+                kind: Kind::Person,
+                text: "Ana Vera".into(),
+            },
+        ],
+        vec![],
+    )
+    .unwrap();
+    assert!(!entities.iter().any(|e| e.original.contains("Pérez\nAna")));
+}
+
+#[test]
+fn crossing_entity_matches_never_expose_the_uncovered_tail() {
+    let text = "REFERENCIA Norte\nCARLOS ANDRÉS MENDOZA \nRÍOS\nFin";
+    let entities = vec![
+        Entity {
+            kind: Kind::Address,
+            original: "REFERENCIA Norte\nCARLOS".into(),
+            alias: "ADDRESS_01".into(),
+            source: "test".into(),
+        },
+        Entity {
+            kind: Kind::Person,
+            original: "CARLOS ANDRÉS MENDOZA \nRÍOS".into(),
+            alias: "PERSON_01".into(),
+            source: "test".into(),
+        },
+    ];
+    let protected = sanitize(text, &entities).unwrap();
+    assert_eq!(protected, "ADDRESS_01PERSON_01\nFin");
+    for value in ["CARLOS", "ANDRÉS", "MENDOZA", "RÍOS"] {
+        assert!(!protected.contains(value));
+    }
+    let reversed = entities.into_iter().rev().collect::<Vec<_>>();
+    assert_eq!(sanitize(text, &reversed).unwrap(), protected);
 }

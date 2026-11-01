@@ -101,8 +101,8 @@ impl Drop for AnalysisLease {
 pub(crate) fn begin_analysis() -> Result<AnalysisLease, String> {
     ACTIVE
         .compare_exchange(
-            false,
             true,
+            false,
             std::sync::atomic::Ordering::SeqCst,
             std::sync::atomic::Ordering::SeqCst,
         )
@@ -134,7 +134,7 @@ pub(crate) fn check_cancelled() -> Result<(), String> {
         return Err("El análisis superó 3 minutos. No se aprobó ningún resultado. Prueba con un documento más corto o con GLiNER; puedes volver a intentarlo.".into());
     }
     if CANCEL_REASON.load(std::sync::atomic::Ordering::SeqCst) == 2 {
-        Err("El análisis se interrumpió porque BlueDoor pasó al fondo o se bloqueó la pantalla. Vuelve al documento y pulsa Proteger para reintentarlo.".into())
+        Err("El análisis se interrumpió porque Bluedoor pasó al fondo o se bloqueó la pantalla. Vuelve al documento y pulsa Proteger para reintentarlo.".into())
     } else if CANCEL_REASON.load(std::sync::atomic::Ordering::SeqCst) != 0 {
         Err("Análisis cancelado. La revisión sigue bloqueada.".into())
     } else {
@@ -197,7 +197,7 @@ impl EntityExtractor for LlmEngine {
         document: &str,
         progress: &mut dyn FnMut(usize),
     ) -> Result<Vec<crate::privacy::Detection>, String> {
-        let prompt = privacy_prompt(document);
+        let prompt = self.privacy_prompt(document);
         self.extract_prompt(&prompt, progress)
     }
     fn extract_exact(
@@ -205,7 +205,7 @@ impl EntityExtractor for LlmEngine {
         document: &str,
         progress: &mut dyn FnMut(usize),
     ) -> Result<Vec<crate::privacy::Detection>, String> {
-        let prompt = privacy_prompt(document).replacen("Extract EVERY private entity", "An earlier extraction did not copy the source exactly. Do not correct spelling, accents or broken OCR. Copy only visible text spans verbatim, including truncated names and masked accounts. Never expand a fragment into a complete name. Extract EVERY private entity", 1);
+        let prompt = self.privacy_prompt(document).replacen("Extract EVERY private entity", "An earlier extraction did not copy the source exactly. Do not correct spelling, accents or broken OCR. Copy only visible text spans verbatim, including truncated names and masked accounts. Never expand a fragment into a complete name. Extract EVERY private entity", 1);
         self.extract_prompt(&prompt, progress)
     }
 }
@@ -239,6 +239,10 @@ fn untrusted_document(document: &str) -> String {
     neutralize_roles(document)
         .replace("<|", "< | ")
         .replace("|>", " | >")
+        .replace("<start_of_turn>", "[start_of_turn]")
+        .replace("<end_of_turn>", "[end_of_turn]")
+        .replace("<bos>", "[bos]")
+        .replace("<eos>", "[eos]")
 }
 
 /// PDF layout spacing is not semantic content. Keep real line boundaries and
@@ -390,6 +394,10 @@ pub struct LlmEngine {
 }
 
 impl LlmEngine {
+    fn privacy_prompt(&self, document: &str) -> String {
+        privacy_prompt(document)
+    }
+
     /// Successful block results are reused for the lifetime of this model.
     /// The key includes the complete prompt and normalized source; a different
     /// model owns a different cache. Overflow is remembered only as a split
@@ -492,7 +500,7 @@ impl LlmEngine {
 
     #[cfg(test)]
     pub(crate) fn privacy_prompt_for_test(&self, document: &str) -> String {
-        privacy_prompt(document)
+        self.privacy_prompt(document)
     }
 
     #[cfg(test)]
@@ -517,7 +525,7 @@ impl LlmEngine {
     /// character counts.
     #[cfg(test)]
     pub(crate) fn prompt_tokens(&self, document: &str) -> Result<usize, String> {
-        let prompt = privacy_prompt(document);
+        let prompt = self.privacy_prompt(document);
         let bos = if self.qwen3 {
             AddBos::Never
         } else {

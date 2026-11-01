@@ -1,4 +1,4 @@
-# BlueDoor Android — informe de uso y próxima etapa
+# Bluedoor Android — informe de uso y próxima etapa
 
 **Fecha:** 29 de octubre de 2026.
 
@@ -14,7 +14,7 @@
 
 La prueba del usuario en el teléfono confirma que ambos motores funcionan. GLiNER resulta la opción más práctica para el uso móvil por su rapidez; Qwen sigue disponible, con una demora observada de aproximadamente dos minutos por página.
 
-La siguiente prioridad es recuperar el flujo visual de documentos de BlueDoor de escritorio: proteger y editar sobre una representación fiel del PDF, manteniendo su composición gráfica y permitiendo cubrir zonas como códigos QR. El pulido de la interfaz móvil debe acompañar ese trabajo, especialmente la distribución de las herramientas del editor y la claridad de la exportación.
+La siguiente prioridad es recuperar el flujo visual de documentos de Bluedoor de escritorio: proteger y editar sobre una representación fiel del PDF, manteniendo su composición gráfica y permitiendo cubrir zonas como códigos QR. El pulido de la interfaz móvil debe acompañar ese trabajo, especialmente la distribución de las herramientas del editor y la claridad de la exportación.
 
 ## 2. Resultados comunicados desde el teléfono
 
@@ -54,7 +54,7 @@ El código confirma esta separación: en `documents.rs` la extracción de la est
 - Mantener coherencia entre la vista protegida, los cambios guardados, la revisión aprobada y el PDF exportado.
 - Conservar el original como fuente local sin modificarlo.
 
-**Distinción necesaria:** editar textos dentro de BlueDoor no implica que el PDF exportado tenga que conservar objetos de texto editables. La estrategia de salida deberá preservar la apariencia y eliminar los datos protegidos de forma efectiva.
+**Distinción necesaria:** editar textos dentro de Bluedoor no implica que el PDF exportado tenga que conservar objetos de texto editables. La estrategia de salida deberá preservar la apariencia y eliminar los datos protegidos de forma efectiva.
 
 ### Protección de regiones y QR
 

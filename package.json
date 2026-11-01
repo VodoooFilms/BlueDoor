@@ -1,7 +1,7 @@
 {
   "name": "bluedoor",
   "private": true,
-  "version": "0.5.5",
+  "version": "0.5.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,6 +16,7 @@
     "prepare:runtime": "python3 scripts/build-ffmpeg.py && python3 scripts/collect-notices.py",
     "demo:mac": "python3 scripts/build-local-demo.py",
     "test:privacy:ui": "node tests/run-ui.mjs --privacy",
+    "test:batch:ui": "node tests/run-ui.mjs --batch",
     "check": "pnpm typecheck && pnpm build",
     "test:ui": "node tests/run-ui.mjs",
     "test:native": "cargo test --manifest-path src-tauri/Cargo.toml --lib",

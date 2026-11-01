@@ -539,7 +539,7 @@ pub(crate) fn cleanup_leftovers(models_dir: &Path) {
 
 fn convert_to_wav_and_load(path: &Path, decoder: &Path) -> Result<Vec<f32>, String> {
     if !decoder.is_file() {
-        return Err("Falta un componente de audio de la aplicación. Reinstala BlueDoor; tus documentos se conservan.".into());
+        return Err("Falta un componente de audio de la aplicación. Reinstala Bluedoor; tus documentos se conservan.".into());
     }
     // Private, exclusive temporary directory; RAII also cleans failures.
     let temp = tempfile::Builder::new()
@@ -589,7 +589,7 @@ fn convert_to_wav_and_load(path: &Path, decoder: &Path) -> Result<Vec<f32>, Stri
         command.creation_flags(0x0800_0000);
     }
     let output = command.output().map_err(|_| {
-        "No se pudo iniciar un componente de audio. Reinstala BlueDoor.".to_string()
+        "No se pudo iniciar un componente de audio. Reinstala Bluedoor.".to_string()
     })?;
     if !output.status.success() {
         return Err("No se pudo leer el audio. El archivo puede estar dañado, no contener audio o usar un formato no compatible. Comprueba también el espacio disponible.".into());

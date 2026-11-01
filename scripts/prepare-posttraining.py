@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 RUN = ROOT / "artifacts/posttraining"
 OUT = RUN / "data"
 OUT.mkdir(exist_ok=True)
-SEED = "belegal-pii-v1-20261003"
+SEED = "bluedoor-pii-v1-20261003"
 MAX_TOKENS = 2048
 template = (RUN / "prompt-template.txt").read_text()
 assert template.count("{{DOCUMENT}}") == 1

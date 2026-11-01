@@ -1,4 +1,5 @@
-/* BlueDoor: the chrome is blue; document paper keeps its own ink and colour. */
+:root { --modal-backdrop:#051d54a6; --modal-blur:5px; --modal-surface:#1745a5; --modal-border:#a7caff66; --modal-shadow:0 28px 90px #00194766; }
+/* Bluedoor: the chrome is blue; document paper keeps its own ink and colour. */
 :root body .shell { padding:0; background:var(--background); }
 :root .shell .masthead { min-height:110px; padding:18px 40px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:#fff; gap:24px; }
 :root .masthead .brand { font-family:var(--font-heading); font-size:36px; font-weight:720; letter-spacing:-1.3px; gap:15px; margin:0; padding:0; color:#fff; }
@@ -175,3 +176,42 @@
 }
 
 :root .shell .editor-toolbar .format-controls { flex-shrink:0; }
+
+:root .shell .privacy-workflow .processing-dialog .processing-slot { position:static; inset:auto; height:auto; padding:0; display:grid; gap:16px; pointer-events:auto; background:transparent; border:0; box-shadow:none; }
+
+/* Document actions share a full row and the same geometry. */
+:root .shell .document-actions > button { display:inline-flex; align-items:center; justify-content:center; gap:10px; padding:12px 20px; min-height:48px; border-radius:8px; box-sizing:border-box; white-space:nowrap; }
+:root .shell .workspace-header .workspace-identity .workspace-title { flex:1; min-width:0; max-width:none; margin:0; }
+:root .shell .blue-import-screen.welcome { padding-top:32px; }
+@media(max-width:600px), (max-height:600px) and (pointer:coarse) {
+  :root .shell .workspace-header .workspace-identity { flex:1 1 100%; }
+  :root .shell .document-actions > button { padding:12px; gap:8px; min-height:48px; }
+  :root .shell .blue-import-screen.welcome { padding-top:36px; }
+}
+
+:root .shell .models .right-actions > .download-progress { width:240px; }
+:root .shell .models .download-progress .download-size { flex:none; white-space:nowrap; text-align:left; }
+
+/* Edit: full-width map, then two equal export actions. */
+:root .shell .edit-action-grid { display:grid; width:100%; flex:1 0 100%; gap:12px; }
+:root .shell .edit-action-grid .workspace-views { width:100%; margin:0; }
+:root .shell .edit-action-grid .review-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; gap:12px; }
+:root .shell .edit-action-grid .workspace-views > button,
+:root .shell .edit-action-grid .review-actions > button { display:flex; align-items:center; justify-content:center; box-sizing:border-box; width:100%; min-width:0; height:48px; min-height:48px; margin:0; padding:10px 12px; gap:8px; border-radius:9px; font-size:13px; line-height:1.3; }
+:root .shell .edit-action-grid button svg,
+:root .shell .edit-action-grid button img { width:20px; height:20px; flex:none; }
+
+/* Shared document action geometry, based on Approve review. */
+:root .shell .privacy-workflow { --document-action-height:48px; --document-action-gap:12px; gap:var(--document-action-gap); }
+:root .shell .privacy-workflow button.primary,
+:root .shell .privacy-workflow button.secondary { box-sizing:border-box; min-height:var(--document-action-height); padding-block:10px; border-radius:9px; }
+:root .shell .privacy-workflow .document-actions,
+:root .shell .privacy-workflow .map-actions,
+:root .shell .privacy-workflow .add-entity { gap:var(--document-action-gap); }
+
+:root .shell .models .download-progress { gap:8px; }
+:root .shell .models .download-progress > span:last-child { flex:0 0 4ch; white-space:nowrap; text-align:right; }
+:root .shell .privacy-workflow .map-actions > button { width:100%; min-width:0; height:48px; min-height:48px; padding:6px 8px; margin:0; gap:8px; white-space:normal; line-height:1.25; }
+:root .shell .privacy-workflow .map-actions .compact-action-label { display:inline; }
+
+:root .shell .privacy-workflow .map-select select { appearance:none; -webkit-appearance:none; width:100%; padding-right:44px; }

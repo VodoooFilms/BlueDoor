@@ -1,7 +1,7 @@
-# BlueDoor
+# Bluedoor
 
 <p align="center">
-  <img src="assets/branding/bluedoor-app-icon.svg" alt="BlueDoor: icono de puerta blanca dentro de un recuadro azul" width="160" />
+  <img src="assets/branding/bluedoor-app-icon.svg" alt="Bluedoor: icono de puerta blanca dentro de un recuadro azul" width="160" />
 </p>
 
 **Una capa de preparación local para el trabajo legal con IA.**
@@ -9,12 +9,19 @@
 Aplicación de escritorio para preparar documentos legales y transcripciones en tu propio equipo: análisis local de información sensible, alias revisables, edición enriquecida, exportación PDF y un Vault cifrado para lo que quieres conservar.
 
 <p align="center">
-  <img src="assets/branding/bluedoor-workspace.png" alt="BlueDoor: pantalla de importación de documentos, navegación de audio y edición, con procesamiento local" width="1200" />
+  <img src="assets/branding/bluedoor-workspace.png" alt="Bluedoor: pantalla de importación de documentos, navegación de audio y edición, con procesamiento local" width="1200" />
 </p>
 
-Proyecto independiente de escritorio, con datos y preferencias propios. Repositorio de desarrollo: [VodoooFilms/BlueDoor](https://github.com/VodoooFilms/BlueDoor). Presentación del producto: [BlueDoor en Prompthea](https://www.prompthea.com/projects/bluedoor).
+Proyecto independiente de escritorio, con datos y preferencias propios. Repositorio de desarrollo: [VodoooFilms/Bluedoor](https://github.com/VodoooFilms/Bluedoor). Presentación del producto: [Bluedoor en Prompthea](https://www.prompthea.com/projects/bluedoor).
 
-La interfaz sigue la referencia BlueDoor: fondo azul intenso, marca de puerta y navegación blancas, ilustraciones SVG azul claro al 80 % y botones principales blancos con texto azul. Las pantallas de documentos, audio, ajustes, modelos, edición y mapa privado comparten la misma identidad. Los documentos conservan su contenido y formato, con hoja blanca y tinta legible.
+La interfaz sigue la referencia Bluedoor: fondo azul intenso, marca de puerta y navegación blancas, ilustraciones SVG azul claro al 80 % y botones principales blancos con texto azul. Las pantallas de documentos, audio, ajustes, modelos, edición y mapa privado comparten la misma identidad. Los documentos conservan su contenido y formato, con hoja blanca y tinta legible.
+
+## Android preview 0.5.7
+
+[Descargar el APK ARM64 y su checksum](https://github.com/VodoooFilms/BlueDoor/releases/tag/v0.5.7-android-preview).
+Compilación preliminar con firma local de prueba; no es una publicación en Google Play.
+Incluye Qwen y GLiNER como opciones locales. Los modelos se descargan desde la aplicación.
+El análisis requiere revisión humana y no garantiza una anonimización completa.
 
 ## Desarrollo
 
@@ -41,16 +48,16 @@ pnpm test:vault:ui
 
 ## Compilación macOS
 
-`pnpm release:mac:dev` crea una compilación de desarrollo con firma ad hoc. `pnpm release:mac` requiere identidad de distribución y notarización configuradas. Se generó e instaló la compilación local de desarrollo 0.4.0 en `/Applications/BlueDoor.app`; no se publicó. La instalación independiente requiere descargar sus modelos desde Ajustes.
+`pnpm release:mac:dev` crea una compilación de desarrollo con firma ad hoc. `pnpm release:mac` requiere identidad de distribución y notarización configuradas. Se generó e instaló la compilación local de desarrollo 0.4.0 en `/Applications/Bluedoor.app`; no se publicó. La instalación independiente requiere descargar sus modelos desde Ajustes.
 
 ## Identidad y datos
 
-- Aplicación: **BlueDoor**, identificador `com.bluedoor.desktop`.
+- Aplicación: **Bluedoor**, identificador `com.bluedoor.desktop`.
 - Idioma inicial: inglés; Ajustes permite cambiar a español y conserva la elección.
 - Historial y modelos: directorio de datos propio de Tauri; en macOS `~/Library/Application Support/com.bluedoor.desktop/`.
-- Las preferencias y la primera bienvenida usan claves propias. No se copian documentos, historial ni modelos personales de Belegal o Local Legal.
+- Las preferencias y la primera bienvenida usan claves propias. No se copian documentos, historial ni modelos personales de otras aplicaciones.
 - El Vault cifra documentos, transcripciones y originales en reposo con una contraseña y una frase de recuperación. Su modelo de amenaza y sus límites están en [docs/VAULT_2026-10-23.md](docs/VAULT_2026-10-23.md).
-- Se conservan los identificadores y hashes de los modelos existentes (incluido `belegal-pii-v1`) para no alterar la compatibilidad de sus artefactos.
+- Los modelos publicados conservan sus identificadores y hashes. El modelo experimental propio se denomina `bluedoor-pii-v1`, con archivo `bluedoor-pii-v1-q4.gguf`.
 - Marca SVG e iconos editables en `src/assets/` y `assets/branding/`.
 
 Los documentos en `docs/archive/` y `docs/milestones/` son antecedentes históricos de la base. La licencia y los avisos originales se conservan. Véanse [PRIVACY.md](PRIVACY.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) y [docs/BLUEDOOR_FORK.md](docs/BLUEDOOR_FORK.md).

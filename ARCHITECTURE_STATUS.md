@@ -2,7 +2,7 @@
 
 > **Estado vigente — 6 Oct 2026 (corte `main`, commit `af0b894` + limpieza):** el producto actual es Tauri 2 + Svelte 5 con dos flujos principales además de la transcripción por audio: **Private Legal** (`privacy.rs`: sesión privada, análisis con Qwen opcional, mapa de alias y puerta de exportación que falla cerrado) y **layout conservable** (`layout.rs` + complemento Swift `ocr/bluedoor-layout.swift`: vista previa y exportación con redacción de píxeles, borrado de QR y verificación TOCTOU antes de escribir). La importación de documentos privados se hace únicamente vía `import_private_document` con drop zone nativo (drag & drop y diálogo; validaciones de tipo/tamaño/zip-bomb en Rust); el comando IPC `paste_private_document` fue **eliminado** por estar muerto (sin llamadores en la UI). Mapa de componentes vigente en [docs/CODEMAP.md](docs/CODEMAP.md). Lo que sigue debajo describe el fork original (25 Sep 2026) y solo es válido para las rutas de audio/Whisper/historial/PDF que no han cambiado.
 
-# BlueDoor — estado y arquitectura para un agente
+# Bluedoor — estado y arquitectura para un agente
 
 **Corte:** 25 de septiembre de 2026. **Rama:** `feature/osx-nemotron-share`, integrada en `main`. Este reporte describe el código de esta rama, no necesariamente el instalador comercial publicado. Consultar `git status` y `git log -1` antes de actuar.
 

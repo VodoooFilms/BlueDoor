@@ -15,7 +15,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = ROOT / "src-tauri/target/portable"
 REL = TARGET / "aarch64-apple-darwin/release"
-APP = REL / "bundle/macos/BlueDoor.app"
+APP = REL / "bundle/macos/Bluedoor.app"
 LOGS = REL / "bundle/notarization"
 DEVELOPMENT = os.environ.get("BLUEDOOR_RELEASE_MODE") == "development"
 
@@ -237,10 +237,10 @@ def create_dmg(output: Path):
         output.unlink()
     with tempfile.TemporaryDirectory(prefix="bluedoor-dmg-") as stage:
         stage_path = Path(stage)
-        run(["ditto", APP, stage_path / "BlueDoor.app"])
+        run(["ditto", APP, stage_path / "Bluedoor.app"])
         (stage_path / "Applications").symlink_to("/Applications")
         run([
-            "hdiutil", "create", "-volname", "BlueDoor",
+            "hdiutil", "create", "-volname", "Bluedoor",
             "-srcfolder", stage, "-ov", "-format", "UDZO", output,
         ])
 
@@ -258,7 +258,7 @@ def development_release(verifier, binary, version):
     sign_bundle(verifier, binary, "-", hardened_runtime=False)
     run([sys.executable, ROOT / "scripts/verify-bundle.py", APP])
     output = (
-        REL / "bundle/dmg" / f"BlueDoor_{version}_development_aarch64.dmg"
+        REL / "bundle/dmg" / f"Bluedoor_{version}_development_aarch64.dmg"
     )
     create_dmg(output)
     run(["hdiutil", "verify", output])
@@ -276,13 +276,13 @@ def commercial_release(verifier, binary, version):
     run([sys.executable, ROOT / "scripts/verify-icons.py", APP])
 
     with tempfile.TemporaryDirectory(prefix="bluedoor-notary-") as temporary:
-        archive = Path(temporary) / "BlueDoor.zip"
+        archive = Path(temporary) / "Bluedoor.zip"
         run(["ditto", "-c", "-k", "--keepParent", APP, archive])
         notary_submit(archive, "app", auth)
     run(["xcrun", "stapler", "staple", APP])
     run(["xcrun", "stapler", "validate", APP])
 
-    output = REL / "bundle/dmg" / f"BlueDoor_{version}_aarch64.dmg"
+    output = REL / "bundle/dmg" / f"Bluedoor_{version}_aarch64.dmg"
     create_dmg(output)
     run(["codesign", "--force", "--timestamp", "--sign", identity, output])
     notary_submit(output, "dmg", auth)
@@ -308,7 +308,7 @@ def main():
         raise SystemExit("Use pnpm release:mac or pnpm release:mac:dev")
     version = json.loads((ROOT / "package.json").read_text())["version"]
     if not DEVELOPMENT:
-        production = REL / "bundle/dmg" / f"BlueDoor_{version}_aarch64.dmg"
+        production = REL / "bundle/dmg" / f"Bluedoor_{version}_aarch64.dmg"
         for stale in (production, production.with_suffix(".dmg.sha256")):
             if stale.exists():
                 stale.unlink()

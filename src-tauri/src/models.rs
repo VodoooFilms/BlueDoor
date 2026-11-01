@@ -35,14 +35,21 @@ pub(crate) const QWEN_ID: &str = "qwen3-fast";
 pub(crate) const QWEN_FILE: &str = "ggml-qwen3-0.6b-instruct-q4.gguf";
 pub(crate) const QWEN_Q8_ID: &str = "qwen3-q8";
 pub(crate) const QWEN_Q8_FILE: &str = "ggml-qwen3-1.7b-instruct-q8.gguf";
-pub(crate) const QWEN_PII_ID: &str = "belegal-pii-v1";
-pub(crate) const QWEN_PII_FILE: &str = "belegal-pii-v1-q4.gguf";
-pub(crate) fn qwen_file(id: &str) -> Result<&'static str, String> {
+pub(crate) const QWEN_PII_ID: &str = "bluedoor-pii-v1";
+pub(crate) const QWEN_PII_FILE: &str = "bluedoor-pii-v1-q4.gguf";
+/// Only Qwen's existing Android pipeline uses the auxiliary multilingual NER
+/// pass.
+#[cfg(any(target_os = "android", test))]
+pub(crate) fn requires_mobile_ner(id: &str) -> bool {
+    matches!(id, QWEN_ID | QWEN_Q8_ID | QWEN_PII_ID)
+}
+
+pub(crate) fn privacy_llm_file(id: &str) -> Result<&'static str, String> {
     match id {
         QWEN_ID => Ok(QWEN_FILE),
         QWEN_Q8_ID => Ok(QWEN_Q8_FILE),
         QWEN_PII_ID if model_assets().contains_key(QWEN_PII_ID) => Ok(QWEN_PII_FILE),
-        _ => Err("Peso Qwen desconocido".into()),
+        _ => Err("Modelo de privacidad desconocido".into()),
     }
 }
 
@@ -186,7 +193,7 @@ pub(crate) fn list_models(app_handle: tauri::AppHandle) -> ModelsList {
         let path = models_dir(&app_handle).join(QWEN_PII_FILE);
         privacy.push(ModelEntry {
             id: QWEN_PII_ID.into(),
-            name: "BlueDoor PII v1 · postentrenado".into(),
+            name: "Bluedoor PII v1 · postentrenado".into(),
             size: format!("{:.2} GB", asset.size as f64 / 1_000_000_000.0),
             installed: model_appears_installed(&path),
             path: path.to_string_lossy().into(),
@@ -194,13 +201,13 @@ pub(crate) fn list_models(app_handle: tauri::AppHandle) -> ModelsList {
     }
     #[cfg(target_os = "android")]
     {
-        // Android catalog excludes audio weights and desktop-only Q8 models.
+        // Android excludes audio weights and the larger Qwen Q8 option.
         whisper.clear();
-        privacy.retain(|entry| entry.id == QWEN_ID);
+        privacy.retain(|entry| matches!(entry.id.as_str(), QWEN_ID));
         let path = models_dir(&app_handle).join(GLINER_FILE);
         privacy.push(ModelEntry {
             id: GLINER_ID.into(),
-            name: "GLiNER PII Small v1.0 · INT8 (experimental)".into(),
+            name: "GLiNER PII Small v1.0 · INT8".into(),
             size: "82.7 MB + tokenizador 3.6 MB".into(),
             installed: model_appears_installed(&path)
                 && model_appears_installed(&models_dir(&app_handle).join(GLINER_TOKENIZER_FILE)),
@@ -580,6 +587,22 @@ mod portability_tests {
     }
 
     #[test]
+    fn mobile_ner_dependencies_follow_model_family() {
+        for id in [GLINER_ID, GLINER_MULTI_ID] {
+            assert!(
+                !requires_mobile_ner(id),
+                "unexpected auxiliary model for {id}"
+            );
+        }
+        for id in [QWEN_ID, QWEN_Q8_ID, QWEN_PII_ID] {
+            assert!(
+                requires_mobile_ner(id),
+                "existing Qwen NER pass must remain"
+            );
+        }
+    }
+
+    #[test]
     fn catalog_has_pinned_integrity_metadata() {
         for (_, _, _, file) in WHISPER_MODELS {
             let a = asset_for_path(std::path::Path::new(file)).unwrap();
@@ -621,7 +644,7 @@ mod portability_tests {
             assert_eq!(trained.sha256.len(), 64);
             assert!(trained.sha256.bytes().all(|b| b.is_ascii_hexdigit()));
             assert!(trained.size > 1_000_000);
-            assert_eq!(qwen_file(QWEN_PII_ID).unwrap(), QWEN_PII_FILE);
+            assert_eq!(privacy_llm_file(QWEN_PII_ID).unwrap(), QWEN_PII_FILE);
         }
         let nemotron = asset_for_path(std::path::Path::new(NEMOTRON_FILE)).unwrap();
         assert_eq!(
@@ -669,7 +692,7 @@ pub(crate) async fn download_privacy_model(
                 .into(),
         );
     }
-    let destination = models_dir(&app_handle).join(qwen_file(&id)?);
+    let destination = models_dir(&app_handle).join(privacy_llm_file(&id)?);
     tauri::async_runtime::spawn_blocking(move || {
         download_file(&app_handle, &destination, &id)?;
         Ok(destination.to_string_lossy().to_string())
@@ -698,7 +721,7 @@ pub(crate) fn delete_privacy_model(id: String, app_handle: tauri::AppHandle) -> 
         }
         return Ok(());
     }
-    let path = models_dir(&app_handle).join(qwen_file(&id)?);
+    let path = models_dir(&app_handle).join(privacy_llm_file(&id)?);
     if path.exists() {
         std::fs::remove_file(&path).map_err(|e| format!("No se pudo eliminar Qwen3: {e}"))?;
     }

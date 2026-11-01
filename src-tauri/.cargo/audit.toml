@@ -1,4 +1,4 @@
-# Política de auditoría de dependencias de BlueDoor.
+# Política de auditoría de dependencias de Bluedoor.
 #
 # Solo se ignoran avisos con exposición demostrada y fecha de revisión. Cada
 # excepción debe estar justificada en un documento de `docs/` y volver a

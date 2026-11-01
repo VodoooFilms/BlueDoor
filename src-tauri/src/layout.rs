@@ -277,17 +277,7 @@ pub(crate) fn redactions(
     document: &DocumentLayout,
     entities: &[Entity],
 ) -> Result<Vec<Redaction>, String> {
-    // Validation and longest-first precedence must match sanitize().
-    crate::privacy::sanitize(&document.text, entities)?;
-    let mut matches = vec![];
-    for (index, entity) in entities.iter().enumerate() {
-        for found in crate::privacy::matching_pattern(&entity.original)?.find_iter(&document.text) {
-            if crate::privacy::boundary(&document.text, found.start(), found.end()) {
-                matches.push((found.start(), found.end(), index));
-            }
-        }
-    }
-    matches.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+    let matches = crate::privacy::coverage_matches(&document.text, entities)?;
     let mut cursor = 0;
     let mut result = Vec::new();
     for (start, end, index) in matches {
@@ -486,6 +476,20 @@ fn render_overlays(
         }
         Ok(output.stdout)
     }
+}
+
+pub(crate) fn rebase_batch_aliases(
+    document: &mut DocumentLayout,
+    old: &[Entity],
+    new: &[Entity],
+) -> Result<(), String> {
+    editor::rebase_aliases(document, old, new)
+}
+pub(crate) fn batch_compiled_text(
+    document: &DocumentLayout,
+    entities: &[Entity],
+) -> Result<String, String> {
+    editor::compiled(document, entities).map(|(_, _, text)| text)
 }
 
 #[tauri::command]
@@ -1291,142 +1295,7 @@ pub(crate) async fn review_private_layout(
     .map_err(|_| "La revisión se interrumpió.")?
 }
 
-fn add_manual_region(
-    document: &mut DocumentLayout,
-    page: usize,
-    rect: [f64; 4],
-) -> Result<(), String> {
-    let p = document.pages.get_mut(page).ok_or("Página no válida.")?;
-    let [x, y, w, h] = rect;
-    if rect.iter().any(|v| !v.is_finite())
-        || x < 0.0
-        || y < 0.0
-        || w < 1.0
-        || h < 1.0
-        || x + w > p.width
-        || y + h > p.height
-        || p.manual_regions.len() >= 200
-    {
-        return Err(
-            "La cobertura debe quedar dentro de la página y tener un tamaño válido.".into(),
-        );
-    }
-    let mut bounds = rect;
-    // Cover entire intersecting OCR words, never leave a clipped word visible.
-    for g in &p.glyphs {
-        if intersects(rect, g.rect) {
-            let right = (bounds[0] + bounds[2]).max(g.rect[0] + g.rect[2]);
-            let bottom = (bounds[1] + bounds[3]).max(g.rect[1] + g.rect[3]);
-            bounds[0] = bounds[0].min(g.rect[0]);
-            bounds[1] = bounds[1].min(g.rect[1]);
-            bounds[2] = right - bounds[0];
-            bounds[3] = bottom - bounds[1];
-        }
-    }
-    p.manual_regions.push(bounds);
-    Ok(())
-}
+// Retain rendering of covered regions in previously saved documents.
 fn intersects(a: [f64; 4], b: [f64; 4]) -> bool {
     a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1]
-}
-#[tauri::command]
-pub(crate) async fn save_private_manual_cover(
-    app: tauri::AppHandle,
-    id: String,
-    revision: u64,
-    page: usize,
-    rect: Option<[f64; 4]>,
-) -> Result<Session, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        if !cfg!(target_os = "android") {
-            return Err("La cobertura manual está disponible en Android.".into());
-        }
-        let session = snapshot(&app, &id, revision)?;
-        if !session.analyzed {
-            return Err("Analiza el documento antes de cubrirlo.".into());
-        }
-        let (source, areas) = plan(&session)?;
-        let mut document = source.clone();
-        if let Some(rect) = rect {
-            add_manual_region(&mut document, page, rect)?;
-        } else {
-            document
-                .pages
-                .get_mut(page)
-                .ok_or("Página no válida.")?
-                .manual_regions
-                .pop()
-                .ok_or("No hay cobertura que deshacer en esta página.")?;
-        }
-        let (_, overlays, text) = editor::compiled(&document, &session.entities)?;
-        render_overlays(
-            &executable(&app)?,
-            &document,
-            &areas,
-            &overlays,
-            "--preview",
-        )?;
-        let state = app.state::<PrivacyState>();
-        let mut guard = state.0.lock().map_err(|_| "Sesión privada no disponible")?;
-        let current = guard
-            .as_mut()
-            .filter(|s| s.id == id && s.revision == revision)
-            .ok_or("La cobertura está desactualizada.")?;
-        let edited = !document.edits.is_empty()
-            || document.pages.iter().any(|p| !p.manual_regions.is_empty());
-        current.layout = Some(std::sync::Arc::new(document));
-        current.sanitized = text;
-        current.reviewed = false;
-        current.edited = edited;
-        current.warnings = crate::privacy::leak_warnings(&current.sanitized, &current.entities);
-        current.revision += 1;
-        Ok(current.clone())
-    })
-    .await
-    .map_err(|_| "La cobertura se interrumpió.")?
-}
-
-#[cfg(test)]
-mod manual_cover_tests {
-    use super::*;
-    fn document() -> DocumentLayout {
-        serde_json::from_value(serde_json::json!({"text":"Ana Perez\nSEGUNDO", "pages":[{"width":200,"height":200,"imageBase64":"", "source":"ocr", "glyphs":[
-            {"start":0,"end":9,"line":0,"rect":[10,10,70,12],"fontSize":10,"fontName":"sans-serif","color":[0,0,0],"confidence":1},
-            {"start":10,"end":17,"line":1,"rect":[10,30,60,12],"fontSize":10,"fontName":"sans-serif","color":[0,0,0],"confidence":1}
-        ]}]})).unwrap()
-    }
-    #[test]
-    fn covers_omitted_ocr_words_in_text_and_preserves_layout_plan() {
-        let mut document = document();
-        add_manual_region(&mut document, 0, [20., 32., 20., 4.]).unwrap();
-        assert_eq!(document.pages[0].manual_regions[0], [10., 30., 60., 12.]);
-        let (_, _, text) = editor::compiled(&document, &[]).unwrap();
-        assert!(text.contains("Ana Perez"));
-        assert!(!text.contains("SEGUNDO"));
-        let mut session = Session::new("scan.pdf".into(), document.text.clone()).unwrap();
-        session.layout = Some(std::sync::Arc::new(document));
-        session.edited = true;
-        session.analyzed = true;
-        assert!(
-            plan(&session).is_ok(),
-            "manual-only edits must remain previewable/exportable"
-        );
-    }
-    #[test]
-    fn invalid_rectangles_never_commit_and_non_ocr_areas_work() {
-        let mut document = document();
-        for (page, rect) in [
-            (1, [1., 1., 10., 10.]),
-            (0, [-1., 1., 10., 10.]),
-            (0, [1., 1., 0., 10.]),
-            (0, [190., 1., 20., 10.]),
-            (0, [1., f64::NAN, 10., 10.]),
-        ] {
-            assert!(add_manual_region(&mut document, page, rect).is_err());
-            assert!(document.pages[0].manual_regions.is_empty());
-        }
-        add_manual_region(&mut document, 0, [100., 100., 20., 20.]).unwrap();
-        assert_eq!(document.pages[0].manual_regions.len(), 1);
-        assert_eq!(editor::compiled(&document, &[]).unwrap().2, document.text);
-    }
 }

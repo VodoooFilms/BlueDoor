@@ -46,7 +46,21 @@ try {
     servers.push(server);
     await server.listen();
   }
-  if (process.argv.includes("--mobile-ux")) {
+  if (process.argv.includes("--batch")) {
+    for (const language of ["es", "en"]) {
+      await run("check-batch.mjs", language);
+      await run("check-batch.mjs", language, { BLUEDOOR_TEST_MOBILE: "1" });
+      await run("check-batch.mjs", language, { BLUEDOOR_TEST_MOBILE: "1", BLUEDOOR_TEST_BATCH_LAYOUT: "1" });
+      await run("check-batch-aliases.mjs", language);
+      await run("check-batch-aliases.mjs", language, { BLUEDOOR_TEST_MOBILE: "1" });
+    }
+  } else if (process.argv.includes("--model-setup")) {
+    await run("check-model-setup.mjs");
+  } else if (process.argv.includes("--first-model")) {
+    await run("check-first-model.mjs");
+  } else if (process.argv.includes("--documentation")) {
+    await run("check-documentation.mjs");
+  } else if (process.argv.includes("--mobile-ux")) {
     await run("check-mobile-ux.mjs");
   } else if (process.argv.includes("--android-models")) {
     await run("check-android-models.mjs");
@@ -68,7 +82,7 @@ try {
   } else {
     for (const language of ["es", "en"]) await run("check-private-ai.mjs", language);
     for (const test of [
-      "check-bluedoor.mjs", "check-feedback.mjs", "check-model-setup.mjs", "check-welcome.mjs", "check-editor.mjs",
+      "check-bluedoor.mjs", "check-documentation.mjs", "check-feedback.mjs", "check-model-setup.mjs", "check-welcome.mjs", "check-editor.mjs",
       "check-history.mjs", "check-conversation.mjs", "check-pcm.mjs",
     ]) await run(test);
   }

@@ -1,4 +1,4 @@
-BlueDoor permite revisar y proteger documentos privados con modelos locales.
+Bluedoor permite revisar y proteger documentos privados con modelos locales.
 Revisa el mapa de entidades antes de exportar. La descarga de modelos es
 voluntaria, con revisiones fijas y verificación SHA-256. Los documentos no se
 suben. Sin cuentas, publicidad, analítica ni informes remotos de fallos.

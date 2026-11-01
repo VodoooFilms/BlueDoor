@@ -1,4 +1,4 @@
-BlueDoor is a local workspace for reviewing and protecting private documents.
+Bluedoor is a local workspace for reviewing and protecting private documents.
 On-device models suggest sensitive spans; you review the map before export.
 Models are downloaded only when you request them, from pinned sources with
 SHA-256 verification. Documents are not uploaded. There are no application

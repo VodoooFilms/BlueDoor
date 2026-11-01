@@ -2,7 +2,7 @@
 param([Parameter(Mandatory)][string]$Release, [Parameter(Mandatory)][string]$Output)
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory -Force -Path $Output | Out-Null
-$Destination = Join-Path $env:TEMP 'BlueDoor x64 QA'
+$Destination = Join-Path $env:TEMP 'Bluedoor x64 QA'
 $Process = $null
 $Report = @{ installed = $false; windowVisible = $false; errors = @(); peakWorkingSetBytes = 0 }
 $Timer = [Diagnostics.Stopwatch]::StartNew()

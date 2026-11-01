@@ -1,13 +1,13 @@
-# BlueDoor Windows x64 CPU
+# Bluedoor Windows x64 CPU
 
-Estado al 27 de octubre de 2026: rama y PR publicadas con autorización; **instalador Windows x64 generado y aprobado por todos los gates de Actions**, incluida instalación, arranque, inferencia real Q4/Q8, privacidad del PDF y suite UI Chromium. Código verificado: `a13f902befd3808d7aaf6ace13fa8f56da14bf75`, basado en `ea9a9e5` de GitHub y sin el commit local `939ecaa` de la Bóveda. El usuario autorizó subir una rama y ejecutar Actions; no se creará una release ni se fusionará la PR automáticamente. El remoto existente pertenece a `VodoooFilms/BlueDoor`; no se modificó su configuración.
+Estado al 27 de octubre de 2026: rama y PR publicadas con autorización; **instalador Windows x64 generado y aprobado por todos los gates de Actions**, incluida instalación, arranque, inferencia real Q4/Q8, privacidad del PDF y suite UI Chromium. Código verificado: `a13f902befd3808d7aaf6ace13fa8f56da14bf75`, basado en `ea9a9e5` de GitHub y sin el commit local `939ecaa` de la Bóveda. El usuario autorizó subir una rama y ejecutar Actions; no se creará una release ni se fusionará la PR automáticamente. El remoto existente pertenece a `VodoooFilms/Bluedoor`; no se modificó su configuración.
 
 ## Entrega comprobada
 
-- [Instalador y SHA-256, artifact BlueDoor-Windows-x64-CPU-4](https://github.com/VodoooFilms/BlueDoor/actions/runs/40496004892/artifacts/12731830253).
-- [Reporte y evidencias sintéticas, artifact BlueDoor-Windows-x64-report-4](https://github.com/VodoooFilms/BlueDoor/actions/runs/40496004892/artifacts/12731915222).
-- [Workflow Windows aprobado](https://github.com/VodoooFilms/BlueDoor/actions/runs/40496004892) y [CI general aprobado](https://github.com/VodoooFilms/BlueDoor/actions/runs/40496004861).
-- Archivo: `BlueDoor_0.4.0_x64-setup.exe`, **23,617,351 bytes** (~23.6 MB), sin pesos de modelos.
+- [Instalador y SHA-256, artifact Bluedoor-Windows-x64-CPU-4](https://github.com/VodoooFilms/Bluedoor/actions/runs/40496004892/artifacts/12731830253).
+- [Reporte y evidencias sintéticas, artifact Bluedoor-Windows-x64-report-4](https://github.com/VodoooFilms/Bluedoor/actions/runs/40496004892/artifacts/12731915222).
+- [Workflow Windows aprobado](https://github.com/VodoooFilms/Bluedoor/actions/runs/40496004892) y [CI general aprobado](https://github.com/VodoooFilms/Bluedoor/actions/runs/40496004861).
+- Archivo: `Bluedoor_0.4.0_x64-setup.exe`, **23,617,351 bytes** (~23.6 MB), sin pesos de modelos.
 - SHA-256 del `.exe`: `1d5e0c06652c7af6d8973549b3bdd0284e67c87ea419e06b6709c4c1e581a040`. Se verificó también después de descargarlo al equipo local.
 - Copia local: `/Users/antoin/Documents/BlueDoor/installers/windows-x64-actions-40496004892/`, con `.exe`, `.sha256`, este reporte y evidencias. Los artifacts de Actions caducan tras 14 días; la copia local se conserva.
 
@@ -23,16 +23,16 @@ Estado al 27 de octubre de 2026: rama y PR publicadas con autorización; **insta
 | Runtime Windows | Se incluyen las DLL redistribuibles x64 de Visual C++ al lado del ejecutable. El instalador incluye el bootstrapper de WebView2; puede necesitar Internet para instalar WebView2 si falta. |
 | Modelos | Se mantienen catálogo, URLs, tamaños y hashes, sin pesos en recursos/instalador/artifacts. **El manifest actual registra Qwen3 1.7B Q4 y Q8; no contiene un peso Qwen3 4B.** No se añadió ni sustituyó ningún modelo. |
 | Seguridad | Mismos límites de importación, revisión y autorización de exportación. La selección de CPU solo examina DLL propias; no invoca el buscador global que consulta `GGML_BACKEND_PATH`. |
-| Datos | Mismo identificador BlueDoor y almacenamiento propio; sin migraciones nuevas. |
+| Datos | Mismo identificador Bluedoor y almacenamiento propio; sin migraciones nuevas. |
 
 La documentación oficial describe el [empaquetado NSIS de Tauri](https://v2.tauri.app/distribute/windows-installer/). El workflow usa la [ubicación expuesta por setup-msys2](https://github.com/msys2/setup-msys2#outputs), sin suponer la ruta de instalación del runner.
 
 ## Ejecución de GitHub Actions
 
-1. Subir estos cambios a una rama de **BlueDoor** (autorizado por el usuario). `AGENTS.md` exige instrucción del usuario antes de publicar; no se deben subir cambios a Belegal o Local Legal.
+1. Subir estos cambios a una rama de **Bluedoor** (autorizado por el usuario). `AGENTS.md` exige instrucción del usuario antes de publicar; no se deben subir cambios a proyecto-origen o Local Legal.
 2. Abrir una PR hacia la rama principal para disparar `.github/workflows/windows-x64.yml`. Alternativamente, una vez que el workflow esté en la rama por defecto, usar **Actions → Windows x64 CPU installer → Run workflow** y elegir la rama que se desea compilar.
 3. El job usa `windows-2022`, Rust 1.98.1, Node 22, pnpm 12.3.4 y los lockfiles. Compila MSVC x64, FFmpeg y llama.cpp; genera NSIS y comprueba el payload instalado. No crea releases ni publica automáticamente.
-4. Si pasan todos los gates, descargar `BlueDoor-Windows-x64-CPU-<run>`: contiene `*-setup.exe` y SHA-256. El reporte `BlueDoor-Windows-x64-report-<run>` se intenta guardar también ante errores. Retención: 14 días.
+4. Si pasan todos los gates, descargar `Bluedoor-Windows-x64-CPU-<run>`: contiene `*-setup.exe` y SHA-256. El reporte `Bluedoor-Windows-x64-report-<run>` se intenta guardar también ante errores. Retención: 14 días.
 
 El código y las dependencias están fijados por lockfiles/checksums; la imagen mantenida por GitHub, las acciones y sus herramientas pueden actualizarse. El reporte registra versiones y host; no se promete identidad binaria entre runners de fechas distintas. La ejecución 4 completó todas las comprobaciones; los fallos de preparación encontrados y sus correcciones quedan registrados abajo.
 
@@ -77,11 +77,11 @@ Evidencias locales: `artifacts/windows-x64-local/` (ignorado por Git), incluyend
 
 ## Ejecuciones Windows en GitHub
 
-- [Ejecución 1](https://github.com/VodoooFilms/BlueDoor/actions/runs/40432242182): typecheck y pruebas de empaquetado aprobadas; FFmpeg compilado. Falló el enlace de Rust porque MSYS2 anteponía su `link.exe` al de MSVC. Se aisló el PATH de MSYS2 dentro del subprocess de FFmpeg.
-- [Ejecución 2](https://github.com/VodoooFilms/BlueDoor/actions/runs/40489807252), commit `d116204`: instalador `BlueDoor_0.4.0_x64-setup.exe` compilado y validado. Instalación silenciosa, carga de DLL CPU, decoder y arranque de ventana aprobados. `startup.json` registra 15.97 s, cero errores y 23,449,600 bytes de pico del proceso principal (no incluye WebView2 ni modelos). Suite Rust: 111 aprobadas, 15 omitidas y una prueba fallida por usar `/tmp/...` como ruta absoluta. Se cambió únicamente el fixture a `std::env::temp_dir()`, conservando las aserciones de rechazo de rutas relativas.
-- [Ejecución 3](https://github.com/VodoooFilms/BlueDoor/actions/runs/40492601482), commit `63d0c09`: finalizada. Añade caché de dependencias compiladas y recoge resultados de ambos modelos aunque falle una prueba independiente; cualquier fallo sigue bloqueando el artifact aprobado. Los pesos temporales están fuera del directorio cacheado. Build, instalación y arranque aprobados; suite Windows: **112 aprobadas, 15 omitidas, 0 fallos**. Q4 y Q8 descargados y verificados de nuevo; ambos completaron Detect → Protect → Export y la inspección independiente de objetos/streams del PDF, con tres entidades y cero fragmentos fallidos. La suite UI falló porque WebKit en Windows no proporciona `AudioContext` para la prueba de grabación. Se selecciona Chromium en Windows (motor afín a [WebView2](https://learn.microsoft.com/en-us/microsoft-edge/webview2/)) mediante un helper de pruebas; macOS/Linux conservan WebKit. La suite completa pasó localmente con Chromium antes de volver a ejecutar Actions.
+- [Ejecución 1](https://github.com/VodoooFilms/Bluedoor/actions/runs/40432242182): typecheck y pruebas de empaquetado aprobadas; FFmpeg compilado. Falló el enlace de Rust porque MSYS2 anteponía su `link.exe` al de MSVC. Se aisló el PATH de MSYS2 dentro del subprocess de FFmpeg.
+- [Ejecución 2](https://github.com/VodoooFilms/Bluedoor/actions/runs/40489807252), commit `d116204`: instalador `Bluedoor_0.4.0_x64-setup.exe` compilado y validado. Instalación silenciosa, carga de DLL CPU, decoder y arranque de ventana aprobados. `startup.json` registra 15.97 s, cero errores y 23,449,600 bytes de pico del proceso principal (no incluye WebView2 ni modelos). Suite Rust: 111 aprobadas, 15 omitidas y una prueba fallida por usar `/tmp/...` como ruta absoluta. Se cambió únicamente el fixture a `std::env::temp_dir()`, conservando las aserciones de rechazo de rutas relativas.
+- [Ejecución 3](https://github.com/VodoooFilms/Bluedoor/actions/runs/40492601482), commit `63d0c09`: finalizada. Añade caché de dependencias compiladas y recoge resultados de ambos modelos aunque falle una prueba independiente; cualquier fallo sigue bloqueando el artifact aprobado. Los pesos temporales están fuera del directorio cacheado. Build, instalación y arranque aprobados; suite Windows: **112 aprobadas, 15 omitidas, 0 fallos**. Q4 y Q8 descargados y verificados de nuevo; ambos completaron Detect → Protect → Export y la inspección independiente de objetos/streams del PDF, con tres entidades y cero fragmentos fallidos. La suite UI falló porque WebKit en Windows no proporciona `AudioContext` para la prueba de grabación. Se selecciona Chromium en Windows (motor afín a [WebView2](https://learn.microsoft.com/en-us/microsoft-edge/webview2/)) mediante un helper de pruebas; macOS/Linux conservan WebKit. La suite completa pasó localmente con Chromium antes de volver a ejecutar Actions.
 
-- [Ejecución 4](https://github.com/VodoooFilms/BlueDoor/actions/runs/40496004892), commit `a13f902`: **SUCCESS**. Siete pruebas de empaquetado; NSIS, instalación y arranque; **112 pruebas Rust aprobadas y 15 omitidas explícitamente**; Q4/Q8 con descarga limpia, SHA-256, inferencia CPU y PDF revisado por dos parsers; suite completa de interfaz Chromium, incluidas privacidad ES/EN, configuración de modelos y captura PCM. Se generaron los artifacts del instalador y del reporte. El CI general del mismo commit también terminó en verde, incluyendo las pruebas macOS/WebKit.
+- [Ejecución 4](https://github.com/VodoooFilms/Bluedoor/actions/runs/40496004892), commit `a13f902`: **SUCCESS**. Siete pruebas de empaquetado; NSIS, instalación y arranque; **112 pruebas Rust aprobadas y 15 omitidas explícitamente**; Q4/Q8 con descarga limpia, SHA-256, inferencia CPU y PDF revisado por dos parsers; suite completa de interfaz Chromium, incluidas privacidad ES/EN, configuración de modelos y captura PCM. Se generaron los artifacts del instalador y del reporte. El CI general del mismo commit también terminó en verde, incluyendo las pruebas macOS/WebKit.
 
 ### Medición real de CPU, ejecución final 4
 
@@ -92,7 +92,7 @@ VM Windows Server 2022, CPU AMD (AuthenticAMD Family 25 Model 17), cuatro proces
 | Qwen3 1.7B Q4 | 29.53 s, 1,359,279,776 bytes | 2.01 s | 10.29 s | 12.56 s | 2,908,934,144 bytes (~2.71 GiB) | PASS, 3 entidades, 0 fugas del fixture |
 | Qwen3 1.7B Q8 | 24.88 s, 2,220,088,992 bytes | 1.93 s | 15.59 s | 17.78 s | 2,954,027,008 bytes (~2.75 GiB) | PASS, 3 entidades, 0 fugas del fixture |
 
-La carga incluye la verificación Rust del archivo. El tiempo del flujo excluye la descarga. Los reportes por modelo tienen `errors: []`, `failed_fragments: 0`, `export_verified: true` y `independent-pdf.json` aprobado. Artifact de evidencia: [BlueDoor-Windows-x64-report-4](https://github.com/VodoooFilms/BlueDoor/actions/runs/40496004892/artifacts/12731915222). La suite UI Windows también pasó; el artifact del instalador está disponible. El arranque final registró 16.78 s, ventana que responde, cero errores y 23,437,312 bytes de pico del proceso principal; no incluye WebView2 ni modelos. El módulo CPU elegido fue `ggml-cpu-icelake.dll`, nombre de la variante ISA, sobre un host AMD.
+La carga incluye la verificación Rust del archivo. El tiempo del flujo excluye la descarga. Los reportes por modelo tienen `errors: []`, `failed_fragments: 0`, `export_verified: true` y `independent-pdf.json` aprobado. Artifact de evidencia: [Bluedoor-Windows-x64-report-4](https://github.com/VodoooFilms/Bluedoor/actions/runs/40496004892/artifacts/12731915222). La suite UI Windows también pasó; el artifact del instalador está disponible. El arranque final registró 16.78 s, ventana que responde, cero errores y 23,437,312 bytes de pico del proceso principal; no incluye WebView2 ni modelos. El módulo CPU elegido fue `ggml-cpu-icelake.dll`, nombre de la variante ISA, sobre un host AMD.
 
 ## Pendiente en Windows físico
 

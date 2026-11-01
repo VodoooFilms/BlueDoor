@@ -33,7 +33,7 @@ pub(crate) async fn prepare_local_setup(app_handle: tauri::AppHandle) -> Result<
                 .map_err(|e| e.to_string())?
                 .join("runtime/bluedoor-ocr");
             if !ocr.is_file() {
-                return Err("Falta el componente de análisis OCR. Reinstala BlueDoor.".into());
+                return Err("Falta el componente de análisis OCR. Reinstala Bluedoor.".into());
             }
         }
         crate::platform::load_owned_backends()?;
@@ -90,7 +90,7 @@ pub(crate) fn check_installation(app_handle: tauri::AppHandle) -> Result<(), Str
         let decoder = crate::platform::decoder_path(&app_handle)?;
         if !decoder.is_file() {
             return Err(
-                "La instalación está incompleta. Reinstala BlueDoor; tus documentos se conservan."
+                "La instalación está incompleta. Reinstala Bluedoor; tus documentos se conservan."
                     .into(),
             );
         }
@@ -106,7 +106,7 @@ pub(crate) fn check_installation(app_handle: tauri::AppHandle) -> Result<(), Str
                 == 0
             {
                 return Err(
-                    "Un componente de audio no puede iniciarse. Reinstala BlueDoor.".into(),
+                    "Un componente de audio no puede iniciarse. Reinstala Bluedoor.".into(),
                 );
             }
         }

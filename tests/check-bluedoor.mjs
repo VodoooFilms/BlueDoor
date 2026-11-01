@@ -37,7 +37,8 @@ try {
     }};
   });
   await page.goto('http://localhost:1420');
-  await page.locator('.welcome[role="dialog"] .close').click();
+  const welcome = page.locator('.welcome[role="dialog"] .close');
+  if (await welcome.count()) await welcome.click();
   await page.locator('.blue-import-screen').waitFor();
   await page.waitForFunction(()=>Array.from(document.images).every(img=>img.complete));
   const checkChrome=async()=>{
@@ -147,5 +148,5 @@ try {
   await page.waitForFunction(()=>window.__blueRecordingAccepted===true);
   await page.evaluate(()=>window.__blueTestAudio.close());
   assert.deepEqual(errors,[],'no runtime errors');
-  console.log('BlueDoor: import, audio, settings, models, editor and map; 80% illustrations, white navigation, readable paper, minimum window size passed.');
+  console.log('Bluedoor: import, audio, settings, models, editor and map; 80% illustrations, white navigation, readable paper, minimum window size passed.');
 } finally { await browser.close(); }

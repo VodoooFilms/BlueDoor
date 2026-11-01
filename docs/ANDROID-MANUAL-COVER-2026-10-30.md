@@ -25,6 +25,6 @@ No se prometen tiempos ni mejor precisión sin medir con un conjunto de document
 
 ## Validación y artefacto
 
-Versión 0.5.4 / 5004. 140 pruebas nativas correctas, 21 ignoradas por recursos externos; ocho pruebas instrumentadas Android correctas (debug firmado localmente), incluida cobertura sin OCR y comprobación de píxeles del PDF. Suites de maquetación, modelos y UX móvil correctas; esta última verifica arrastre, coordenadas accesibles, guardar/deshacer y aprobación invalidada. Typecheck sin errores ni avisos y build release correctos. Firma, versión y alineación ZIP/ELF verificadas. Instalación por actualización y arranque release correctos en BlueDoorQA, sin errores en el buffer de crash al comprobar. No es una prueba en Redmi ni una reproducción del documento del usuario.
+Versión 0.5.4 / 5004. 140 pruebas nativas correctas, 21 ignoradas por recursos externos; ocho pruebas instrumentadas Android correctas (debug firmado localmente), incluida cobertura sin OCR y comprobación de píxeles del PDF. Suites de maquetación, modelos y UX móvil correctas; esta última verifica arrastre, coordenadas accesibles, guardar/deshacer y aprobación invalidada. Typecheck sin errores ni avisos y build release correctos. Firma, versión y alineación ZIP/ELF verificadas. Instalación por actualización y arranque release correctos en BluedoorQA, sin errores en el buffer de crash al comprobar. No es una prueba en Redmi ni una reproducción del documento del usuario.
 
-APK: `installers/BlueDoor-android-arm64-preview.apk`. SHA-256 `a25589d31fd54565c97d01fbae2bfdde9ba469ffecfff02ae536e0d4329b3f7e`.
+APK: `installers/Bluedoor-android-arm64-preview.apk`. SHA-256 `a25589d31fd54565c97d01fbae2bfdde9ba469ffecfff02ae536e0d4329b3f7e`.

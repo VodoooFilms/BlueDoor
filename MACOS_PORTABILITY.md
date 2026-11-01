@@ -62,7 +62,7 @@ pnpm release:mac
 
 The command builds/caches the pinned decoder, gathers and audits dependency notices/source, builds the locked arm64 Tauri app in a dedicated `src-tauri/target/portable` tree, bundles native dependencies, removes build rpaths, adds the Frameworks rpath and verifies the icon/bundle. It then signs nested code and the app with Developer ID plus hardened runtime and secure timestamp, notarizes/staples the app and DMG, runs Gatekeeper assessments, verifies the image and emits SHA-256. `pnpm release:mac:dev` produces a separately named ad-hoc local test image.
 
-Artifact: `src-tauri/target/portable/aarch64-apple-darwin/release/bundle/dmg/BlueDoor_0.2.0_aarch64.dmg` (commercial), or `BlueDoor_0.2.0_development_aarch64.dmg` (development). Dated GitHub previews use an additional timestamp in the asset name.
+Artifact: `src-tauri/target/portable/aarch64-apple-darwin/release/bundle/dmg/Bluedoor_0.2.0_aarch64.dmg` (commercial), or `Bluedoor_0.2.0_development_aarch64.dmg` (development). Dated GitHub previews use an additional timestamp in the asset name.
 
 `build-dmg.sh` is a compatibility wrapper for that same command. `build-install.sh` uses it too, stages and verifies the app, keeps rollback until replacement succeeds, and launches. It is a developer convenience, not an end-user install requirement. No stale “newest app” discovery or skip-build distribution path. Tauri is configured to build only `.app`; plain `tauri build` is not the release entry point because post-processing remains necessary.
 

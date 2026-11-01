@@ -100,7 +100,7 @@ export const COPY: Record<Lang, Copy> = {
     lightTheme: "Cambiar a modo claro",
     darkTheme: "Cambiar a modo oscuro",
     home: "Inicio (micrófono)",
-    startupError: "No se pudo iniciar BlueDoor.",
+    startupError: "No se pudo iniciar Bluedoor.",
     historyPreserved: "El historial no se ha modificado.",
     retry: "Reintentar",
     retrying: "Reintentando…",
@@ -112,7 +112,7 @@ export const COPY: Record<Lang, Copy> = {
 
     modelsTitle: "Modelos",
     modelsSubtitle:
-      "Estos modelos se almacenan localmente en tu dispositivo. Puedes elegir, descargar y eliminar cada uno cuando quieras.",
+      "Elige tu modelo de IA local para lograr el mejor equilibrio entre velocidad y precisión.",
     setupWhisperTitle: "Transcripción de voz",
     setupWhisperLink:
       "Convierte tu voz en texto en el idioma que hables. Parakeet es el más rápido; Whisper es más preciso.",
@@ -193,7 +193,7 @@ export const COPY: Record<Lang, Copy> = {
     lightTheme: "Switch to light mode",
     darkTheme: "Switch to dark mode",
     home: "Home (microphone)",
-    startupError: "BlueDoor could not start.",
+    startupError: "Bluedoor could not start.",
     historyPreserved: "Your history has not been modified.",
     retry: "Retry",
     retrying: "Retrying…",
@@ -205,7 +205,7 @@ export const COPY: Record<Lang, Copy> = {
 
     modelsTitle: "Models",
     modelsSubtitle:
-      "These models are stored locally on your device. You can choose, download and delete each one anytime.",
+      "Choose your local AI model for the best balance of speed and accuracy.",
     setupWhisperTitle: "Speech to text",
     setupWhisperLink: "Turns your voice into text in the language you speak. Parakeet is the fastest; Whisper is more accurate.",
     setupNemotronTitle: "NVIDIA Nemotron 3",

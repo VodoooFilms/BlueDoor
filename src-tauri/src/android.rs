@@ -15,7 +15,7 @@ use std::sync::OnceLock;
 static VM: OnceLock<JavaVM> = OnceLock::new();
 static HELPER: OnceLock<GlobalRef> = OnceLock::new();
 
-const HELPER_CLASS: &str = "com/bluedoor/desktop/BlueDoorAndroid";
+const HELPER_CLASS: &str = "com/bluedoor/desktop/AndroidBridge";
 
 /// Android calls this when the application library is loaded. Caching the VM
 /// and a global reference to the helper class lets any Rust worker thread call
@@ -49,7 +49,7 @@ fn call_string(method: &str, signature: &str, argument: &str) -> Result<String, 
     let vm = VM.get().ok_or("El puente Android no se ha inicializado.")?;
     let helper = HELPER
         .get()
-        .ok_or("El componente Android de BlueDoor no está disponible.")?;
+        .ok_or("El componente Android de Bluedoor no está disponible.")?;
     let mut env = vm
         .attach_current_thread()
         .map_err(|_| "No se pudo preparar el componente Android.")?;
@@ -216,4 +216,29 @@ pub(crate) fn layout_call(mode: &str, payload: &str) -> Result<String, String> {
         return Err(message.to_string());
     }
     Ok(result)
+}
+
+pub(crate) fn batch_choose_tree(write: bool) -> Result<Option<String>, String> {
+    let value = call_string(
+        "batchChooseTree",
+        "(Ljava/lang/String;)Ljava/lang/String;",
+        if write { "write" } else { "read" },
+    )?;
+    Ok((!value.is_empty()).then_some(value))
+}
+pub(crate) fn batch_list_tree(tree: &str) -> Result<String, String> {
+    call_string(
+        "batchListTree",
+        "(Ljava/lang/String;)Ljava/lang/String;",
+        tree,
+    )
+}
+pub(crate) fn batch_source() -> Result<String, String> {
+    call_string("batchSource", "(Ljava/lang/String;)Ljava/lang/String;", "")
+}
+pub(crate) fn batch_write_tree(tree: &str, path: &Path, name: &str) -> Result<(), String> {
+    let payload =
+        serde_json::json!({"tree":tree,"path":path.to_str().ok_or("Ruta no válida")?,"name":name})
+            .to_string();
+    call_string("batchWriteTree", "(Ljava/lang/String;)V", &payload).map(|_| ())
 }

@@ -4,8 +4,8 @@ export function microphoneError(error: unknown, lang: Lang): string {
   const name = (error as { name?: string } | null)?.name;
   const es = lang === "es";
   if (name === "NotAllowedError" || name === "SecurityError") return es
-    ? "Permiso de micrófono denegado. Activa BlueDoor en Ajustes del Sistema → Privacidad y seguridad → Micrófono y vuelve a intentarlo."
-    : "Microphone permission denied. Enable BlueDoor in System Settings → Privacy & Security → Microphone, then try again.";
+    ? "Permiso de micrófono denegado. Activa Bluedoor en Ajustes del Sistema → Privacidad y seguridad → Micrófono y vuelve a intentarlo."
+    : "Microphone permission denied. Enable Bluedoor in System Settings → Privacy & Security → Microphone, then try again.";
   if (name === "NotFoundError" || name === "DevicesNotFoundError" || name === "OverconstrainedError") return es
     ? "No se encontró ningún micrófono. Conecta uno o selecciona una entrada de audio en Ajustes del Sistema → Sonido y vuelve a intentarlo."
     : "No microphone found. Connect one or select an audio input in System Settings → Sound, then try again.";

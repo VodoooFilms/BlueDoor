@@ -174,7 +174,7 @@ impl AppState {
         {
             Ok(canonical)
         } else {
-            Err("Selecciona el audio mediante el diálogo de BlueDoor.".into())
+            Err("Selecciona el audio mediante el diálogo de Bluedoor.".into())
         }
     }
 
@@ -192,7 +192,7 @@ impl AppState {
         if self.authorized_pdf_paths.lock().unwrap().remove(&canonical) {
             Ok(canonical)
         } else {
-            Err("Selecciona el destino mediante el diálogo de BlueDoor.".into())
+            Err("Selecciona el destino mediante el diálogo de Bluedoor.".into())
         }
     }
 
@@ -220,7 +220,7 @@ impl AppState {
             Ok(canonical)
         } else {
             Err(
-                "Arrastra el documento a la ventana de BlueDoor o selecciónalo en el diálogo."
+                "Arrastra el documento a la ventana de Bluedoor o selecciónalo en el diálogo."
                     .into(),
             )
         }

@@ -24,7 +24,7 @@ pub(crate) enum Kind {
     Other,
 }
 impl Kind {
-    fn prefix(self) -> &'static str {
+    pub(crate) fn prefix(self) -> &'static str {
         match self {
             Self::Person => "PERSON",
             Self::Company => "COMPANY",
@@ -96,14 +96,14 @@ pub(crate) fn parse_detections(raw: &str) -> Result<Vec<Detection>, String> {
         .unwrap_or(raw)
         .trim();
     let value: serde_json::Value = serde_json::from_str(raw)
-        .map_err(|_| "Qwen no devolvió entidades JSON válidas. No se aprobará ninguna salida; vuelve a analizar.".to_string())?;
+        .map_err(|_| "El modelo no devolvió detecciones válidas. No se aprobará ninguna salida; vuelve a analizar.".to_string())?;
     let items = if value.is_array() {
         value.as_array().cloned().unwrap_or_default()
     } else {
         serde_json::from_value::<Extraction>(value)
             .map(|v| v.entities)
             .map_err(|_| {
-                "Qwen no devolvió entidades JSON válidas. No se aprobará ninguna salida; vuelve a analizar."
+                "El modelo no devolvió detecciones válidas. No se aprobará ninguna salida; vuelve a analizar."
                     .to_string()
             })?
     };
@@ -126,7 +126,7 @@ pub(crate) fn parse_detections(raw: &str) -> Result<Vec<Detection>, String> {
         });
     }
     if entities.is_empty() && !explicitly_empty {
-        return Err("Qwen no devolvió entidades JSON válidas. No se aprobará ninguna salida; vuelve a analizar.".into());
+        return Err("El modelo no devolvió detecciones válidas. No se aprobará ninguna salida; vuelve a analizar.".into());
     }
     if entities.len() > MAX_ENTITIES {
         return Err("Demasiadas entidades en una respuesta local.".into());
@@ -231,7 +231,7 @@ pub(crate) fn parse_ocr_suggestions(raw: &str, text: &str) -> Result<Vec<OcrSugg
         suggestions: Vec<OcrSuggestion>,
     }
     let response: Response = serde_json::from_str(raw.trim())
-        .map_err(|_| "Qwen no devolvió sugerencias OCR válidas. El texto no se modificó.")?;
+        .map_err(|_| "El modelo no devolvió sugerencias OCR válidas. El texto no se modificó.")?;
     if response.suggestions.len() > 50 {
         return Err("Demasiadas sugerencias OCR; revisa un documento más corto.".into());
     }
@@ -260,7 +260,8 @@ pub(crate) async fn suggest_private_ocr(
             .try_lock()
             .map_err(|_| "Ya hay un análisis local en curso.")?;
         if cache.as_ref().is_none_or(|(loaded, _)| loaded != &model_id) {
-            let path = crate::paths::models_dir(&app).join(crate::models::qwen_file(&model_id)?);
+            let path =
+                crate::paths::models_dir(&app).join(crate::models::privacy_llm_file(&model_id)?);
             crate::models::verify_model_file(&path)
                 .map_err(|_| "Descarga Qwen desde Modelos antes de revisar OCR.")?;
             *cache = Some((
@@ -461,8 +462,12 @@ pub(crate) fn deterministic_detections(text: &str) -> Vec<Detection> {
             }
             // A checksummed/explicit structured value owns its complete span;
             // generic numeric rules must not emit fragments inside it.
-            if structured.iter().any(|d| d.text != hit && text.match_indices(&d.text).any(|(start, _)|
-                start <= matched.start() && matched.end() <= start + d.text.len())) {
+            if structured.iter().any(|d| {
+                d.text != hit
+                    && text.match_indices(&d.text).any(|(start, _)| {
+                        start <= matched.start() && matched.end() <= start + d.text.len()
+                    })
+            }) {
                 continue;
             }
             result.push(Detection {
@@ -1006,7 +1011,36 @@ fn complete_detected_names(original: &str, entities: &mut Vec<Entity>) {
             continue;
         }
         let offset = original[begin..split].find(value).unwrap();
-        name_lines.push((original[begin + offset..end].trim(), true));
+        let name_start = begin + offset;
+        let mut name_end = end;
+        // At most four printed lines and eight words. Each continuation must
+        // pass the same boundaries as the first; never skip a blank or label.
+        for _ in 0..2 {
+            if name_end >= original.len() {
+                break;
+            }
+            let tail_start = name_end + 1;
+            let tail_end = original[tail_start..]
+                .find('\n')
+                .map_or(original.len(), |i| tail_start + i);
+            let tail = original[tail_start..tail_end].trim();
+            if !(1..=3).contains(&tail.split_whitespace().count())
+                || !name_like(tail)
+                || connector(&name_token(tail.split_whitespace().last().unwrap_or("")))
+                || original[name_start..tail_end].split_whitespace().count() > 8
+                || entities.iter().any(|e| {
+                    matching_pattern(&e.original).ok().is_some_and(|pattern| {
+                        pattern
+                            .find_iter(tail)
+                            .any(|hit| boundary(tail, hit.start(), hit.end()))
+                    })
+                })
+            {
+                break;
+            }
+            name_end = tail_end;
+        }
+        name_lines.push((original[name_start..name_end].trim(), true));
     }
     for (line, wrapped) in name_lines {
         let line = line.trim();
@@ -1200,9 +1234,13 @@ fn add_ocr_name_variants(original: &str, entities: &mut Vec<Entity>) {
     }
 }
 
-/// Replace from source spans, longest-first at each position, in a single pass.
-/// Never re-replace aliases or accept a model-generated rewrite of the document.
-pub(crate) fn sanitize(original: &str, entities: &[Entity]) -> Result<String, String> {
+/// Source coverage shared by text replacement and pixel redaction. Keep every
+/// detected byte: a crossing match contributes its uncovered tail even when
+/// an earlier category already covers its beginning.
+pub(crate) fn coverage_matches(
+    original: &str,
+    entities: &[Entity],
+) -> Result<Vec<(usize, usize, usize)>, String> {
     validate_entities(original, entities)?;
     let mut matches = vec![];
     for (i, entity) in entities.iter().enumerate() {
@@ -1213,6 +1251,21 @@ pub(crate) fn sanitize(original: &str, entities: &[Entity]) -> Result<String, St
         }
     }
     matches.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+    let mut cursor = 0;
+    let mut result = vec![];
+    for (start, end, i) in matches {
+        if end <= cursor {
+            continue;
+        }
+        result.push((start.max(cursor), end, i));
+        cursor = end;
+    }
+    Ok(result)
+}
+
+/// Never re-replace aliases or accept a model-generated rewrite.
+pub(crate) fn sanitize(original: &str, entities: &[Entity]) -> Result<String, String> {
+    let matches = coverage_matches(original, entities)?;
     let mut output = String::new();
     let mut cursor = 0;
     for (start, end, i) in matches {
@@ -1670,19 +1723,18 @@ pub(crate) async fn analyze_private_document(
             *cache = None;
             Some(crate::gliner::GlinerEngine::load(&app, &model_id)?)
         } else { None };
-        // The multilingual NER pass runs before Qwen. Missing/corrupt weights
-        // fail closed; downloading remains an explicit action in Models.
+        // Keep Qwen's auxiliary pass and preserve load errors instead of
+        // treating every tokenizer failure as a download.
         #[cfg(target_os = "android")]
-        let pre_ner = if crate::models::gliner_files(&model_id).is_none() {
-            let ner = crate::gliner::GlinerEngine::load(&app, crate::models::GLINER_MULTI_ID)
-                .map_err(|_| "Instala GLiNER multilingüe desde Modelos antes de analizar con Qwen en Android.".to_string())?;
+        let pre_ner = if crate::models::requires_mobile_ner(&model_id) {
+            let ner = crate::gliner::GlinerEngine::load(&app, crate::models::GLINER_MULTI_ID)?;
             Some(analyze_with_progress(&ner, &session.original, &mut |_, _, _| {})?)
         } else { None };
         if crate::models::gliner_files(&model_id).is_none() && cache.as_ref().is_none_or(|(loaded, _)| loaded != &model_id) {
-            let path = crate::paths::models_dir(&app).join(crate::models::qwen_file(&model_id)?);
+            let path = crate::paths::models_dir(&app).join(crate::models::privacy_llm_file(&model_id)?);
             let verify_timer = crate::performance::Timer::new("model_verify");
             crate::models::verify_model_file(&path)
-                .map_err(|_| "Qwen no está instalado o está dañado. Descárgalo desde Modelos.")?;
+                .map_err(|_| "El modelo no está instalado o está dañado. Descárgalo desde Modelos.")?;
             drop(verify_timer);
             let _ = app.emit("private-analysis-progress", (id.as_str(), requested_revision, "model_load"));
             let _load_timer = crate::performance::Timer::new("model_load");
@@ -1861,6 +1913,107 @@ pub(crate) fn review_private_document(
     session.revision += 1;
     Ok(session.clone())
 }
+pub(crate) fn batch_alias_leaks(alias: &str, values: &[String]) -> bool {
+    values.iter().any(|value| grounded(alias, value))
+}
+/// Rebuild a batch snapshot without approving it or discarding saved text edits.
+pub(crate) fn batch_map(session: &Session, entities: Vec<Entity>) -> Result<Session, String> {
+    let changed = session.entities.len() != entities.len()
+        || session
+            .entities
+            .iter()
+            .zip(&entities)
+            .any(|(a, b)| a.kind != b.kind || a.original != b.original || a.alias != b.alias);
+    if !changed {
+        return Ok(session.clone());
+    }
+    let sanitized = sanitize_for_file(&session.original, &entities, &session.file_name)?;
+    let mut next = session.clone();
+    let aliases_only = session.entities.len() == entities.len()
+        && session
+            .entities
+            .iter()
+            .zip(&entities)
+            .all(|(a, b)| a.kind == b.kind && a.original == b.original);
+    if let Some(layout) = session.layout.as_ref() {
+        if layout.edits.is_empty() {
+            // Alias-only changes reuse immutable page rasters instead of
+            // duplicating every image for a multi-document preview.
+            next.sanitized = if session.edited {
+                crate::layout::batch_compiled_text(layout, &entities)?
+            } else {
+                sanitized
+            };
+        } else {
+            let mut document = (**layout).clone();
+            crate::layout::rebase_batch_aliases(&mut document, &session.entities, &entities)?;
+            next.sanitized = if session.edited {
+                crate::layout::batch_compiled_text(&document, &entities)?
+            } else {
+                sanitized
+            };
+            next.layout = Some(std::sync::Arc::new(document));
+        }
+    } else if session.edited && aliases_only {
+        let mut changes = HashMap::new();
+        for (old, new) in session.entities.iter().zip(&entities) {
+            if let Some(known) = changes.insert(old.alias.clone(), new.alias.clone()) {
+                if known != new.alias {
+                    return Err(
+                        "Un alias compartido debe mantener el mismo reemplazo en el texto editado."
+                            .into(),
+                    );
+                }
+            }
+        }
+        let text = &session.sanitized;
+        let mut matches = Vec::new();
+        for (old, new) in changes {
+            if old == new || old.is_empty() {
+                continue;
+            }
+            for (start, _) in text.match_indices(&old) {
+                if boundary(text, start, start + old.len()) {
+                    matches.push((start, start + old.len(), new.clone()));
+                }
+            }
+        }
+        matches.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+        let mut output = String::new();
+        let mut cursor = 0;
+        for (start, end, alias) in matches {
+            if start < cursor {
+                continue;
+            }
+            output.push_str(&text[cursor..start]);
+            output.push_str(&alias);
+            cursor = end;
+        }
+        output.push_str(&text[cursor..]);
+        next.sanitized = output;
+    } else {
+        next.sanitized = sanitized;
+        next.edited = false;
+    }
+    if next.sanitized.len() > MAX_DOCUMENT_BYTES {
+        return Err("El documento editado debe contener texto y no superar 64 KB.".into());
+    }
+    require_sanitized(&session.original, &next.sanitized, &entities)?;
+    next.entities = entities;
+    next.warnings = leak_warnings(&next.sanitized, &next.entities);
+    if !next.analysis_complete {
+        for warning in &session.warnings {
+            if !next.warnings.contains(warning) {
+                next.warnings.push(warning.clone());
+            }
+        }
+    }
+    next.advisories = privacy_advisories(&next.entities);
+    next.reviewed = false;
+    next.revision += 1;
+    Ok(next)
+}
+
 #[tauri::command]
 pub(crate) fn update_private_document(
     id: String,

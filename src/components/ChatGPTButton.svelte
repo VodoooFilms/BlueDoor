@@ -11,7 +11,7 @@
     if (opening || disabled) return;
     opening = true; error = ""; message = "";
     try {
-      // Opens a fixed destination only. No document, title, path or text leaves BlueDoor.
+      // Opens a fixed destination only. No document, title, path or text leaves Bluedoor.
       await invoke("open_chatgpt_home");
       message = p("ChatGPT abierto. Exporta el PDF protegido y adjúntalo en el chat.");
     } catch {

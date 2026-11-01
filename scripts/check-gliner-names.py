@@ -12,6 +12,7 @@ from tokenizers import Tokenizer
 parser = argparse.ArgumentParser()
 parser.add_argument('--model-dir', type=Path, default=Path('.build-cache/gliner'))
 parser.add_argument('--multi', action='store_true')
+parser.add_argument('--cases-json', type=Path, help='Explicit local cases; never uploaded')
 parser.add_argument('--multi-file', default='model_fp16.onnx')
 parser.add_argument('--person-label', default='person name')
 parser.add_argument('--output', type=Path, default=Path('artifacts/gliner-name-regression.json'))
@@ -21,6 +22,10 @@ options = ort.SessionOptions()
 options.intra_op_num_threads = 4
 session = ort.InferenceSession(str(args.model_dir / (args.multi_file if args.multi else 'onnx/model_quint8.onnx')), options, providers=['CPUExecutionProvider'])
 cases = [
+    ('Beneficiario: Juan Carlos\nPérez\nAndrade\nTotal: USD 20', ['Juan Carlos\nPérez\nAndrade'], ['Beneficiario:', 'Total: USD 20']),
+    # Known model false positive: 'Otra sección' is classified as a company.
+    # This case asserts name coverage only; it is not a prose-precision claim.
+    ('Ana Sofía\nRamírez\nCedeño\n\nOtra sección', ['Ana Sofía\nRamírez\nCedeño'], []),
     ('Carlos Andrés Mendoza\nVALDEZ\nTotal: USD 20', ['Carlos Andrés Mendoza\nVALDEZ'], ['Total: USD 20']),
     ('Nombre: Elena Sofía Vargas\nRÍOS', ['Elena Sofía Vargas\nRÍOS'], ['Nombre:']),
 
@@ -38,6 +43,8 @@ cases = [
     ('Nombre: María José de la Torre Vera', ['María José de la Torre Vera'], ['Nombre:']),
     ('Diego Alfonso Herrera Lozano y Ana Lucia Vera comparecen.', ['Diego Alfonso Herrera Lozano', 'Ana Lucia Vera'], [' y ', ' comparecen.']),
 ]
+if args.cases_json:
+    cases = json.loads(args.cases_json.read_text())
 result = []
 for text, names, preserved in cases:
     words = list(re.finditer(r'\w+(?:[-_]\w+)*|\S', text))
@@ -68,4 +75,4 @@ for text, names, preserved in cases:
     result.append({'text': text, 'names': names, 'preserved': preserved, 'words': offsets, 'outputs': outputs})
 args.output.parent.mkdir(parents=True, exist_ok=True)
 args.output.write_text(json.dumps(result, ensure_ascii=False))
-print(f'Generated {len(result)} synthetic real-model regression cases: {args.output}')
+print(f'Generated {len(result)} real-model regression cases: {args.output}')

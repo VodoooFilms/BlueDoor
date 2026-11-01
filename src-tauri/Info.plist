@@ -3,14 +3,14 @@
 <plist version="1.0">
 <dict>
     <key>NSDocumentsFolderUsageDescription</key>
-    <string>BlueDoor prepara el acceso a Documentos para importar y analizar archivos locales y exportar tus documentos.</string>
+    <string>Bluedoor prepara el acceso a Documentos para importar y analizar archivos locales y exportar tus documentos.</string>
     <key>NSDesktopFolderUsageDescription</key>
-    <string>BlueDoor prepara el acceso al Escritorio para importar archivos locales y exportar tus documentos.</string>
+    <string>Bluedoor prepara el acceso al Escritorio para importar archivos locales y exportar tus documentos.</string>
     <key>NSDownloadsFolderUsageDescription</key>
-    <string>BlueDoor prepara el acceso a Descargas para importar archivos locales y exportar tus documentos.</string>
+    <string>Bluedoor prepara el acceso a Descargas para importar archivos locales y exportar tus documentos.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>BlueDoor usa el micrófono para grabar tu voz y convertirla en un documento PDF. Todo el audio permanece en tu dispositivo.</string>
+    <string>Bluedoor usa el micrófono para grabar tu voz y convertirla en un documento PDF. Todo el audio permanece en tu dispositivo.</string>
     <key>NSAudioCaptureUsageDescription</key>
-    <string>BlueDoor graba tu voz para transcribirla a un documento PDF. Todo el audio permanece en tu dispositivo.</string>
+    <string>Bluedoor graba tu voz para transcribirla a un documento PDF. Todo el audio permanece en tu dispositivo.</string>
 </dict>
 </plist>

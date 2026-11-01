@@ -1,14 +1,14 @@
 # Auditoría del APK Android — 30 de octubre de 2026
 
-Artefacto auditado: `installers/BlueDoor-android-arm64-preview.apk`
+Artefacto auditado: `installers/Bluedoor-android-arm64-preview.apk`
 
 - SHA-256: `7fd5979598ac148087c1bac8c2fc85611b203d36dffb76f65199e03b522e9994`
 - Tamaño: 72 041 084 bytes. Construido el 30/10/2026 05:54 desde un árbol de trabajo con cambios sin confirmar (HEAD `1fae3cf`).
-- Firma local de prueba `CN=BlueDoor local preview` (SHA-256 `ad6b9f9b…c214`), esquemas v2 y v3 válidos; sin v1.
+- Firma local de prueba `CN=Bluedoor local preview` (SHA-256 `ad6b9f9b…c214`), esquemas v2 y v3 válidos; sin v1.
 - `versionCode=4002`, `versionName=0.4.2`, `minSdk=24`, `targetSdk=34`, `compileSdk=36`, solo `arm64-v8a`.
 - `allowBackup=false`, `usesCleartextTraffic=false`, `extractNativeLibs=false`, no depurable, alineación ZIP/ELF de 16 KiB verificada.
 
-Las pruebas de dispositivo se hicieron en el emulador `BlueDoorQA` (arm64-v8a, API 35, 2 GB). **No es un Redmi 15C** y sus tiempos no representan al teléfono.
+Las pruebas de dispositivo se hicieron en el emulador `BluedoorQA` (arm64-v8a, API 35, 2 GB). **No es un Redmi 15C** y sus tiempos no representan al teléfono.
 
 ## Veredicto
 
@@ -90,7 +90,7 @@ No está listo para entregarse como «0.4.2»:
 
 ```bash
 ./scripts/build-android.sh                       # APK de prueba firmado con la clave local
-adb install -r installers/BlueDoor-android-arm64-preview.apk
+adb install -r installers/Bluedoor-android-arm64-preview.apk
 adb shell am start -n com.bluedoor.desktop/.MainActivity
 adb push tests/fixtures/private-scan.pdf /sdcard/Download/
 # Importar desde Documentos, analizar con GLiNER, aprobar y exportar.
@@ -133,7 +133,7 @@ Además, GLiNER rechaza spans de persona que absorben etiquetas impresas («CEDU
 - Validación: `pnpm typecheck` (sin errores ni avisos), `pnpm build`, `pnpm test:layout:ui` y compilación Kotlin de aplicación y pruebas correctos. La compilación Kotlin omite recompilar Rust; no valida un nuevo APK release completo.
 - Siguen pendientes capa de texto, cobertura manual, revisión de QR, transporte de imágenes sin base64 y validación Qwen/Redmi. No hay dispositivo físico conectado.
 
-La ejecución instrumentada en BlueDoorQA se intentó, pero terminó con cero pruebas por `INSTALL_FAILED_UPDATE_INCOMPATIBLE`: la aplicación instalada tiene otra firma. No se desinstaló ni se borraron sus datos. Las nuevas regresiones están compiladas, todavía no ejecutadas. No se reemplazó el APK preview de `installers/`.
+La ejecución instrumentada en BluedoorQA se intentó, pero terminó con cero pruebas por `INSTALL_FAILED_UPDATE_INCOMPATIBLE`: la aplicación instalada tiene otra firma. No se desinstaló ni se borraron sus datos. Las nuevas regresiones están compiladas, todavía no ejecutadas. No se reemplazó el APK preview de `installers/`.
 
 ## Segunda continuación: ejecución Android
 
@@ -143,12 +143,12 @@ Las seis pruebas de `DocumentLayoutTest` se ejecutaron: inicialmente cinco corre
 
 Tras la corrección pasan las seis pruebas, incluido OCR, geometría A4, borrado opaco, alias contiguos, edición y PDF. Logcat registra `Transport backend 'cct' is not registered`, sin peticiones Firelog observadas durante estas pruebas. No se ha hecho interceptación ni captura de red; ML Kit sigue generando eventos locales. Se añade además una regresión que comprueba el registro del backend en el manifiesto instalado.
 
-La suite debug ampliada pasa **7/7** en BlueDoorQA, incluida la comprobación del manifiesto instalado. La instrumentación directa sobre release ofuscado terminó en `Process crashed`; no se cuenta como validación release. Se detectó y corrigió además `tauri.android.conf.json`, que todavía sobrescribía la versión con 0.4.2/4002. El script de construcción comprueba ahora las versiones del APK y de ambos archivos de configuración frente a `package.json`.
+La suite debug ampliada pasa **7/7** en BluedoorQA, incluida la comprobación del manifiesto instalado. La instrumentación directa sobre release ofuscado terminó en `Process crashed`; no se cuenta como validación release. Se detectó y corrigió además `tauri.android.conf.json`, que todavía sobrescribía la versión con 0.4.2/4002. El script de construcción comprueba ahora las versiones del APK y de ambos archivos de configuración frente a `package.json`.
 
 ### Artefacto reconstruido
 
-- `installers/BlueDoor-android-arm64-preview.apk`: 0.5.0 / 5000.
+- `installers/Bluedoor-android-arm64-preview.apk`: 0.5.0 / 5000.
 - SHA-256: `921093f88b9e070d6926c473e3980b13f357830ec8e33a001cfe0c8bfafaa38e`.
-- Construcción release completa correcta; firma local, alineación ZIP/ELF de 16 KiB y clases JNI ONNX verificadas. Instalación por actualización y arranque en frío correctos en BlueDoorQA (no representa rendimiento Redmi).
+- Construcción release completa correcta; firma local, alineación ZIP/ELF de 16 KiB y clases JNI ONNX verificadas. Instalación por actualización y arranque en frío correctos en BluedoorQA (no representa rendimiento Redmi).
 - `pnpm typecheck`, `pnpm build` y `pnpm test:layout:ui` correctos. Las siete pruebas instrumentadas corresponden al APK debug; el release solo tiene comprobación de instalación/arranque, no el recorrido privado completo.
 - El árbol sigue con cambios sin confirmar; el hash identifica este binario, no una reconstrucción reproducible desde un commit limpio. No se hizo push ni publicación.

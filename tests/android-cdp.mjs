@@ -6,7 +6,7 @@ export async function connectAndroid(port = 9223) {
     await new Promise(resolve => setTimeout(resolve, 500));
   }
   const tab = tabs.find(t => t.url === 'http://tauri.localhost/' || t.url === 'https://tauri.localhost/');
-  if (!tab) throw new Error('No BlueDoor debug WebView found');
+  if (!tab) throw new Error('No Bluedoor debug WebView found');
   const socket = new WebSocket(tab.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
   let sequence = 0;

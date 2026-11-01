@@ -9,8 +9,8 @@ import androidx.activity.OnBackPressedCallback
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-    BlueDoorAndroid.init(applicationContext)
-    BlueDoorAndroid.activity = java.lang.ref.WeakReference(this)
+    AndroidBridge.init(applicationContext)
+    AndroidBridge.activity = java.lang.ref.WeakReference(this)
     java.io.File(cacheDir, "imports").deleteRecursively()
     java.io.File(cacheDir, "vault-transfer").deleteRecursively()
     super.onCreate(savedInstanceState)
@@ -41,6 +41,14 @@ class MainActivity : TauriActivity() {
       override fun handleOnBackPressed() { moveTaskToBack(true) }
     })
   }
+  @Deprecated("System activity result bridge")
+  override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+    if (!AndroidBridge.batchTreeResult(requestCode, resultCode, data)) super.onActivityResult(requestCode, resultCode, data)
+  }
+  override fun onWebViewCreate(webView: android.webkit.WebView) {
+    super.onWebViewCreate(webView)
+    webView.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.bluedoor_blue))
+  }
   private external fun nativeBackground()
   private external fun nativeForeground()
   private external fun nativeStopped()
@@ -51,7 +59,7 @@ class MainActivity : TauriActivity() {
   override fun onResume() {
     super.onResume()
     nativeForeground()
-    BlueDoorAndroid.applyScreenAwake()
+    AndroidBridge.applyScreenAwake()
   }
   override fun onPause() {
     nativeBackground()

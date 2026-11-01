@@ -1,8 +1,8 @@
 # Beta Android
 
 The signed public beta is pending; no release APK has been published by this
-change. Download only a signed `BlueDoor-android-arm64-release.apk` from the
-[project releases](https://github.com/VodoooFilms/BlueDoor/releases), once listed.
+change. Download only a signed `Bluedoor-android-arm64-release.apk` from the
+[project releases](https://github.com/VodoooFilms/Bluedoor/releases), once listed.
 Do not install a preview or an unsigned build as a release.
 
 1. Compare the downloaded APK SHA-256 with its `.sha256` sidecar; verify the
@@ -20,7 +20,7 @@ storage. Never migrate personal documents automatically.
 
 ## Report bugs voluntarily
 
-Use [Android beta issues](https://github.com/VodoooFilms/BlueDoor/issues/new?template=android-beta.yml).
+Use [Android beta issues](https://github.com/VodoooFilms/Bluedoor/issues/new?template=android-beta.yml).
 Include app/model version, phone model, Android version and reproduction steps
 using fictional text. Screenshots and logs are optional. There is no telemetry,
 remote crash reporting or automatic upload. GitHub receives only what you submit.

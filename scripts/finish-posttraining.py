@@ -43,9 +43,9 @@ def finish():
                    "--adapter-path", RUN/"best-adapters", "--save-path", RUN/"fused-hf", "--dequantize"])
     llama = ROOT / ".build-cache/llama-posttraining"
     stage("convert-gguf", [PYTHON, llama/"convert_hf_to_gguf.py", RUN/"fused-hf",
-                           "--outfile", RUN/"belegal-pii-v1-f16.gguf", "--outtype", "f16"])
-    trained = RUN / "belegal-pii-v1-q4.gguf"
-    stage("quantize", [llama/"build/bin/llama-quantize", RUN/"belegal-pii-v1-f16.gguf", trained, "Q4_K_M", "6"])
+                           "--outfile", RUN/"bluedoor-pii-v1-f16.gguf", "--outtype", "f16"])
+    trained = RUN / "bluedoor-pii-v1-q4.gguf"
+    stage("quantize", [llama/"build/bin/llama-quantize", RUN/"bluedoor-pii-v1-f16.gguf", trained, "Q4_K_M", "6"])
     trained_hash = sha(trained)
     comparisons = {}
     for name, fixture, baseline in [("openpii", "openpii-validation.jsonl", "baseline"),
@@ -87,7 +87,7 @@ def finish():
         return dict(phase="trained_evaluated_not_promoted", comparison=str(RUN/"RESULTADO.md"))
     manifest_path = ROOT / "src-tauri/model-manifest.json"
     manifest = json.loads(manifest_path.read_text())
-    manifest["belegal-pii-v1"] = dict(url="", size=trained.stat().st_size, sha256=trained_hash,
+    manifest["bluedoor-pii-v1"] = dict(url="", size=trained.stat().st_size, sha256=trained_hash,
         license_source="https://huggingface.co/Qwen/Qwen3-1.7B/blob/70d244cc86ccca08cf5af4e1e306ecf908b1ad5e/LICENSE",
         provenance="Local QLoRA. Training/evaluation records: artifacts/posttraining")
     manifest_path.write_text(json.dumps(manifest, indent=2)+"\n")
@@ -104,11 +104,11 @@ def finish():
         shutil.copy2(trained, temporary)
         assert sha(temporary) == trained_hash
         temporary.replace(destination)
-    built = ROOT/"src-tauri/target/debug/bundle/macos/BlueDoor.app"
-    installed = Path("/Applications/BlueDoor.app")
+    built = ROOT/"src-tauri/target/debug/bundle/macos/Bluedoor.app"
+    installed = Path("/Applications/Bluedoor.app")
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    staging = Path(f"/Applications/BlueDoor-posttraining-{stamp}.app")
-    backup = Path.home()/f"Downloads/BlueDoor/BlueDoor antes del postentrenamiento {stamp}.app"
+    staging = Path(f"/Applications/Bluedoor-posttraining-{stamp}.app")
+    backup = Path.home()/f"Downloads/Bluedoor/Bluedoor antes del postentrenamiento {stamp}.app"
     assert not staging.exists() and not backup.exists()
     subprocess.run(["ditto", str(built), str(staging)], check=True)
     subprocess.run(["codesign", "--verify", "--deep", "--strict", str(staging)], check=True)

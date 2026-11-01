@@ -1,5 +1,7 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import { getLang } from '../lib/i18n-store.svelte';
+  import { privateCopy as p } from '../lib/private-i18n';
   import { tick, onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
@@ -264,7 +266,7 @@
     changeScreen('locked');
   }
   async function importEntry() {
-    const entry = await run(() => invoke<Entry | null>('vault_import', { title: null }));
+    const entry = await run(() => invoke<Entry | null>('vault_import', { title: null, lang: getLang() }));
     if (!entry) {
       if (formError) return;
       finish('No se añadió ningún archivo.');
@@ -275,7 +277,7 @@
   }
   async function exportEntry(entry: Entry) {
     const destination = await run(() =>
-      invoke<string | null>('vault_export_entry', { id: entry.id, defaultName: entry.title }),
+      invoke<string | null>('vault_export_entry', { id: entry.id, defaultName: entry.title, lang: getLang() }),
     );
     if (!destination) return;
     finish(`Copia descifrada guardada en: ${destination}`);
@@ -290,13 +292,13 @@
     notice = `«${title}» se ha eliminado del Vault. No hay papelera.`;
   }
   async function createBackup() {
-    const destination = await run(() => invoke<string | null>('vault_backup'));
+    const destination = await run(() => invoke<string | null>('vault_backup', { lang: getLang() }));
     if (!destination) return;
     finish(`Copia cifrada guardada en: ${destination}`);
   }
   async function restoreBackup() {
     const next = await run(() =>
-      invoke<Status>('vault_restore', { secret: restoreSecret, replace: replaceExisting }),
+      invoke<Status>('vault_restore', { secret: restoreSecret, replace: replaceExisting, lang: getLang() }),
     );
     if (!next) return;
     status = next;
@@ -411,26 +413,26 @@
 </section>
 
 <dialog bind:this={dialog} class="vault-dialog" aria-labelledby="vault-dialog-title" onclose={() => { password = ''; formError = ''; if (modalTrigger?.isConnected) modalTrigger.focus(); }}>
-  <div class="modal-top"><span class="eyebrow">VAULT</span><button class="icon-button" title="Cerrar ventana" aria-label="Cerrar ventana" onclick={closeModal} disabled={busy}><Icon name="close" size={21} /></button></div>
+  <div class="modal-top"><span class="eyebrow">VAULT</span><button class="icon-button" title={p("Cerrar ventana")} aria-label={p("Cerrar ventana")} onclick={closeModal} disabled={busy}><Icon name="close" size={21} /></button></div>
   <span class="modal-icon"><Icon name={modal === 'delete' ? 'trash' : modal === 'recovery' ? 'key' : modal === 'hardware' ? 'fingerprint' : modal === 'import' ? 'plus' : modal === 'restore' ? 'history' : modal === 'migrate' ? 'folder' : 'download'} size={30} /></span>
-  <h2 id="vault-dialog-title">{modal === 'import' ? 'Un lugar para tus archivos.' : modal === 'export' ? 'Una copia, por tranquilidad.' : modal === 'delete' ? '¿Eliminar esta entrada?' : modal === 'recovery' ? 'Recupera tu acceso.' : modal === 'migrate' ? 'Tus transcripciones, al Vault.' : modal === 'restore' ? 'Vuelve a tu Vault.' : 'Una llave en tu equipo.'}</h2>
+  <h2 id="vault-dialog-title">{p(modal === 'import' ? 'Un lugar para tus archivos.' : modal === 'export' ? 'Una copia, por tranquilidad.' : modal === 'delete' ? '¿Eliminar esta entrada?' : modal === 'recovery' ? 'Recupera tu acceso.' : modal === 'migrate' ? 'Tus transcripciones, al Vault.' : modal === 'restore' ? 'Vuelve a tu Vault.' : 'Una llave en tu equipo.')}</h2>
   {#if modal === 'import'}
-    <p>Elige el archivo que quieres conservar. Se cifra aquí mismo y el original permanece en su ubicación.</p><div class="mock-dropzone"><Icon name="upload" size={32} /><strong>Explorar archivos</strong><span>Documentos, audio y originales</span><small>Se guarda una copia cifrada; el original no se modifica</small></div><div class="callout"><Icon name="info" size={19} /><span>Importar al Vault no implica anonimizar el contenido.</span></div>
+    <p>{p("Elige el archivo que quieres conservar. Se cifra aquí mismo y el original permanece en su ubicación.")}</p><div class="mock-dropzone"><Icon name="upload" size={32} /><strong>{p("Explorar archivos")}</strong><span>{p("Documentos, audio y originales")}</span><small>{p("Se guarda una copia cifrada; el original no se modifica")}</small></div><div class="callout"><Icon name="info" size={19} /><span>{p("Importar al Vault no implica anonimizar el contenido.")}</span></div>
   {:else if modal === 'export'}
-    <p>La copia contiene todo el Vault cifrado: originales, transcripciones y claves envueltas. Se abre con tu contraseña o con tu frase de recuperación.</p><div class="export-file"><Icon name="vault" size={28} /><div><strong>Mi Vault · Copia cifrada</strong><span>{status?.entryCount ?? 0} entradas · {formatBytes(status?.totalBytes ?? 0)}</span></div></div><div class="callout"><Icon name="key" size={21} /><span>Conserva también tu frase de recuperación fuera del equipo. La frase no sustituye a la copia si el disco falla.</span></div>
+    <p>{p("La copia contiene todo el Vault cifrado: originales, transcripciones y claves envueltas. Se abre con tu contraseña o con tu frase de recuperación.")}</p><div class="export-file"><Icon name="vault" size={28} /><div><strong>{p("Mi Vault · Copia cifrada")}</strong><span>{status?.entryCount ?? 0} {p("entradas")} · {formatBytes(status?.totalBytes ?? 0)}</span></div></div><div class="callout"><Icon name="key" size={21} /><span>{p("Conserva también tu frase de recuperación fuera del equipo. La frase no sustituye a la copia si el disco falla.")}</span></div>
   {:else if modal === 'delete'}
-    <p><strong>{selected?.title}</strong></p><p>Eliminar una entrada es permanente: se destruye la clave que la protege y no hay papelera. Las copias exportadas antes no se eliminan.</p><div class="callout"><Icon name="warning" size={20} /><span>El contenido será irrecuperable, también con la frase de recuperación.</span></div>
+    <p><strong>{selected?.title}</strong></p><p>{p("Eliminar una entrada es permanente: se destruye la clave que la protege y no hay papelera. Las copias exportadas antes no se eliminan.")}</p><div class="callout"><Icon name="warning" size={20} /><span>{p("El contenido será irrecuperable, también con la frase de recuperación.")}</span></div>
   {:else if modal === 'recovery'}
-    <p>Escribe las 12 palabras de tu frase de recuperación, separadas por espacios.</p><label class="field-label" for="recovery-input">Frase de recuperación</label><textarea id="recovery-input" rows="3" bind:value={restoreSecret} placeholder="palabra palabra palabra…" aria-describedby="recovery-help"></textarea><span class="form-help" id="recovery-help">Se comprueba en este equipo; no se envía a ningún sitio.</span>
+    <p>{p("Escribe las 12 palabras de tu frase de recuperación, separadas por espacios.")}</p><label class="field-label" for="recovery-input">{p("Frase de recuperación")}</label><textarea id="recovery-input" rows="3" bind:value={restoreSecret} placeholder={p("palabra palabra palabra…")} aria-describedby="recovery-help"></textarea><span class="form-help" id="recovery-help">{p("Se comprueba en este equipo; no se envía a ningún sitio.")}</span>
   {:else if modal === 'migrate'}
-    <p>Se copiarán las transcripciones del historial local, se verificarán una a una y solo entonces se retirarán del historial en claro.</p><ol class="migration-steps"><li><span>01</span>Cifrar cada transcripción</li><li><span>02</span>Descifrar y comparar la huella</li><li><span>03</span>Retirar del historial local</li></ol><div class="callout"><Icon name="info" size={19} /><span>Si la verificación falla, el historial queda intacto.</span></div>
+    <p>{p("Se copiarán las transcripciones del historial local, se verificarán una a una y solo entonces se retirarán del historial en claro.")}</p><ol class="migration-steps"><li><span>01</span>{p("Cifrar cada transcripción")}</li><li><span>02</span>{p("Descifrar y comparar la huella")}</li><li><span>03</span>{p("Retirar del historial local")}</li></ol><div class="callout"><Icon name="info" size={19} /><span>{p("Si la verificación falla, el historial queda intacto.")}</span></div>
   {:else if modal === 'restore'}
-    <p>Elige una copia cifrada y escribe la contraseña o la frase con la que se creó. Se verifica antes de escribir nada.</p><label class="field-label" for="restore-secret">Contraseña o frase de recuperación</label><textarea id="restore-secret" rows="2" bind:value={restoreSecret} placeholder="Contraseña o 12 palabras"></textarea>{#if status?.initialized}<label class="checkbox-label"><input type="checkbox" bind:checked={replaceExisting} />Sustituir el Vault actual de este equipo</label>{/if}<div class="callout"><Icon name="info" size={19} /><span>Si la copia no se puede abrir, el Vault actual no se toca.</span></div>
+    <p>{p("Elige una copia cifrada y escribe la contraseña o la frase con la que se creó. Se verifica antes de escribir nada.")}</p><label class="field-label" for="restore-secret">{p("Contraseña o frase de recuperación")}</label><textarea id="restore-secret" rows="2" bind:value={restoreSecret} placeholder={p("Contraseña o 12 palabras")}></textarea>{#if status?.initialized}<label class="checkbox-label"><input type="checkbox" bind:checked={replaceExisting} />{p("Sustituir el Vault actual de este equipo")}</label>{/if}<div class="callout"><Icon name="info" size={19} /><span>{p("Si la copia no se puede abrir, el Vault actual no se toca.")}</span></div>
   {:else}
-    <p>El contenido se cifra en reposo con XChaCha20-Poly1305 y una clave por entrada, envuelta por la clave maestra. La clave maestra se guarda envuelta con Argon2id a partir de tu contraseña y de tu frase de recuperación.</p><div class="callout"><Icon name="info" size={20} /><span>Pendiente: ligar la clave al Secure Enclave (macOS) o al TPM (Windows) para que otro sistema operativo no pueda usarla aunque copie el disco. Hoy el Vault depende de FileVault y de la contraseña.</span></div>
+    <p>{p("El contenido se cifra en reposo con XChaCha20-Poly1305 y una clave por entrada, envuelta por la clave maestra. La clave maestra se guarda envuelta con Argon2id a partir de tu contraseña y de tu frase de recuperación.")}</p><div class="callout"><Icon name="info" size={20} /><span>{p("Pendiente: ligar la clave al Secure Enclave (macOS) o al TPM (Windows) para que otro sistema operativo no pueda usarla aunque copie el disco. Hoy el Vault depende de FileVault y de la contraseña.")}</span></div>
   {/if}
-  {#if formError}<p class="inline-error modal-error" role="alert">{formError}</p>{/if}
-  <div class="modal-footer"><button class="v-secondary" onclick={closeModal} disabled={busy}>{modal === 'hardware' ? 'Cerrar' : 'Cancelar'}</button>{#if modal !== 'hardware'}<button class="v-primary" onclick={() => {
+  {#if formError}<p class="inline-error modal-error" role="alert">{p(formError)}</p>{/if}
+  <div class="modal-footer"><button class="v-secondary" onclick={closeModal} disabled={busy}>{p(modal === 'hardware' ? 'Cerrar' : 'Cancelar')}</button>{#if modal !== 'hardware'}<button class="v-primary" onclick={() => {
     if (modal === 'delete') void deleteEntry();
     else if (modal === 'import') void importEntry();
     else if (modal === 'export') void createBackup();
@@ -438,8 +440,8 @@
     else if (modal === 'restore') void restoreBackup();
     else if (modal === 'migrate') void migrateTranscripts();
   }} disabled={busy || (modal === 'restore' && status?.initialized && !replaceExisting)}>
-    {busy ? 'Procesando…' : modal === 'delete' ? 'Eliminar definitivamente' : modal === 'import' ? 'Elegir archivo' : modal === 'export' ? 'Guardar copia' : modal === 'recovery' ? (screen === 'security' ? 'Comprobar' : 'Desbloquear') : modal === 'restore' ? 'Restaurar' : 'Trasladar'}<Icon name="arrow" size={17} /></button>{/if}</div>
-  <span class="modal-disclaimer">{modal === 'hardware' ? 'Cifrado en reposo con claves derivadas de tu contraseña.' : 'Nada sale de este equipo.'}</span>
+    {p(busy ? 'Procesando…' : modal === 'delete' ? 'Eliminar definitivamente' : modal === 'import' ? 'Elegir archivo' : modal === 'export' ? 'Guardar copia' : modal === 'recovery' ? (screen === 'security' ? 'Comprobar' : 'Desbloquear') : modal === 'restore' ? 'Restaurar' : 'Trasladar')}<Icon name="arrow" size={17} /></button>{/if}</div>
+  <span class="modal-disclaimer">{p(modal === 'hardware' ? 'Cifrado en reposo con claves derivadas de tu contraseña.' : 'Nada sale de este equipo.')}</span>
 </dialog>
 
 <style>

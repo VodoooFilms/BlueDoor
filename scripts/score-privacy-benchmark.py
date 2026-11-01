@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Score observed output against external gold values, retaining all misses.
 
-This deliberately reports the full dataset taxonomy. Dates/titles that BlueDoor
+This deliberately reports the full dataset taxonomy. Dates/titles that Bluedoor
 intentionally preserves remain visible failures under the dataset's policy.
 """
 import collections

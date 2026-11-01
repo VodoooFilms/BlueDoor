@@ -22,4 +22,4 @@ No se midieron tiempo ni memoria en el Redmi y no se recibió el documento perso
 
 ## Artefacto final
 
-APK local firmado: `installers/BlueDoor-android-arm64-preview.apk`, 69481140 bytes. SHA-256: `d4f9569a61e8c7a8169d899ff6d4bf230218e22bd22069d3d2654e2a1f69203b`. Versión 0.5.5 / 5005, firma v2/v3, clases JNI y alineación ZIP/ELF de 16 KiB verificados. Instalación por actualización y arranque release correctos en BlueDoorQA. El frontend se incluye comprimido en la biblioteca Tauri, no como archivos JS separados del ZIP.
+APK local firmado: `installers/Bluedoor-android-arm64-preview.apk`, 69481140 bytes. SHA-256: `d4f9569a61e8c7a8169d899ff6d4bf230218e22bd22069d3d2654e2a1f69203b`. Versión 0.5.5 / 5005, firma v2/v3, clases JNI y alineación ZIP/ELF de 16 KiB verificados. Instalación por actualización y arranque release correctos en BluedoorQA. El frontend se incluye comprimido en la biblioteca Tauri, no como archivos JS separados del ZIP.

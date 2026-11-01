@@ -770,13 +770,18 @@ pub(crate) async fn vault_import(
     app: tauri::AppHandle,
     state: State<'_, VaultState>,
     title: Option<String>,
+    lang: Option<String>,
 ) -> Result<Option<VaultEntry>, String> {
     let master = state.require()?;
     let handle = app.clone();
     let picked = tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
             .file()
-            .set_title("Añadir al Vault")
+            .set_title(if lang.as_deref() == Some("en") {
+                "Add to Vault"
+            } else {
+                "Añadir al Vault"
+            })
             .blocking_pick_file()
     })
     .await
@@ -919,6 +924,7 @@ pub(crate) async fn vault_export_entry(
     state: State<'_, VaultState>,
     id: String,
     default_name: String,
+    lang: Option<String>,
 ) -> Result<Option<String>, String> {
     let master = state.require()?;
     let output_app = app.clone();
@@ -927,7 +933,11 @@ pub(crate) async fn vault_export_entry(
     let picked = tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
             .file()
-            .set_title("Exportar desde el Vault")
+            .set_title(if lang.as_deref() == Some("en") {
+                "Export from Vault"
+            } else {
+                "Exportar desde el Vault"
+            })
             .set_file_name(sanitize_file_name(&default_name))
             .blocking_save_file()
     })
@@ -1082,9 +1092,9 @@ impl<R: Read> BackupReader<R> {
         let mut header = [0u8; BACKUP_HEADER_LEN];
         inner
             .read_exact(&mut header)
-            .map_err(|_| "El archivo elegido no es una copia de BlueDoor.".to_string())?;
+            .map_err(|_| "El archivo elegido no es una copia de Bluedoor.".to_string())?;
         if &header[..8] != MAGIC_BACKUP.as_slice() || header[8] != FORMAT_VERSION {
-            return Err("El archivo elegido no es una copia de BlueDoor.".to_string());
+            return Err("El archivo elegido no es una copia de Bluedoor.".to_string());
         }
         let total = u32::from_le_bytes([header[9], header[10], header[11], header[12]]);
         if total > MAX_BACKUP_FILES {
@@ -1216,6 +1226,7 @@ fn unwrap_master_from_key(key_file: &KeyFile, secret: &str) -> Result<MasterKey,
 pub(crate) async fn vault_backup(
     app: tauri::AppHandle,
     state: State<'_, VaultState>,
+    lang: Option<String>,
 ) -> Result<Option<String>, String> {
     state.require()?;
     let output_app = app.clone();
@@ -1223,9 +1234,24 @@ pub(crate) async fn vault_backup(
     let picked = tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
             .file()
-            .set_title("Guardar copia cifrada del Vault")
-            .set_file_name("Mi Vault.bluedoor")
-            .add_filter("Copia del Vault", &["bluedoor"])
+            .set_title(if lang.as_deref() == Some("en") {
+                "Save encrypted Vault backup"
+            } else {
+                "Guardar copia cifrada del Vault"
+            })
+            .set_file_name(if lang.as_deref() == Some("en") {
+                "My Vault.bluedoor"
+            } else {
+                "Mi Vault.bluedoor"
+            })
+            .add_filter(
+                if lang.as_deref() == Some("en") {
+                    "Vault backup"
+                } else {
+                    "Copia del Vault"
+                },
+                &["bluedoor"],
+            )
             .blocking_save_file()
     })
     .await
@@ -1249,6 +1275,7 @@ pub(crate) async fn vault_restore(
     state: State<'_, VaultState>,
     secret: String,
     replace: bool,
+    lang: Option<String>,
 ) -> Result<VaultStatus, String> {
     let dir = dir_for(&app);
     if dir.join(KEY_FILE).exists() && !replace {
@@ -1258,8 +1285,19 @@ pub(crate) async fn vault_restore(
     let picked = tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
             .file()
-            .set_title("Seleccionar copia del Vault")
-            .add_filter("Copia del Vault", &["bluedoor"])
+            .set_title(if lang.as_deref() == Some("en") {
+                "Choose Vault backup"
+            } else {
+                "Seleccionar copia del Vault"
+            })
+            .add_filter(
+                if lang.as_deref() == Some("en") {
+                    "Vault backup"
+                } else {
+                    "Copia del Vault"
+                },
+                &["bluedoor"],
+            )
             .blocking_pick_file()
     })
     .await

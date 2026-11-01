@@ -202,7 +202,7 @@ def collect():
         json.dumps(summary, indent=2) + "\n"
     )
     shutil.copyfile(ROOT / "THIRD_PARTY_NOTICES.md", OUT / "THIRD_PARTY_NOTICES.md")
-    shutil.copyfile(ROOT / "LICENSE", OUT / "BlueDoor-LICENSE.txt")
+    shutil.copyfile(ROOT / "LICENSE", OUT / "Bluedoor-LICENSE.txt")
     shutil.copyfile(ROOT / "scripts/build-ffmpeg.py", OUT / "ffmpeg-build.py")
     shutil.copyfile(
         ROOT / ".build-cache/ffmpeg-8.1.2.tar.xz", OUT / "ffmpeg-source.tar.xz"

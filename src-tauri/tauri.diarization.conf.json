@@ -1,10 +1,10 @@
 {
-  "productName": "BlueDoor Diarization Test",
+  "productName": "Bluedoor Diarization Test",
   "identifier": "com.bluedoor.desktop.diarizationtest",
   "app": {
     "windows": [
       {
-        "title": "BlueDoor Diarization Test"
+        "title": "Bluedoor Diarization Test"
       }
     ]
   }

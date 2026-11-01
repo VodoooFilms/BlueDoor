@@ -1,6 +1,6 @@
-# Privacy Policy — BlueDoor
+# Privacy Policy — Bluedoor
 
-**Short version:** BlueDoor processes documents, audio and edits locally on your Mac.
+**Short version:** Bluedoor processes documents, audio and edits locally on your Mac.
 After model installation, its document and transcription workflows can run offline.
 The application downloads models when you request them. The optional **Send to GPT**
 button opens ChatGPT in your browser; it does not upload a document, copy its text
@@ -38,10 +38,10 @@ Exports to PDF are validated in the application process, not in the interface: t
   `~/Library/Application Support/com.bluedoor.desktop/models/`.
 - **Browser navigation**: pressing **Send to GPT** opens the fixed address
   `https://chatgpt.com/`. The browser makes its own network requests and may use
-  your existing ChatGPT session. BlueDoor supplies no document, title, file path
+  your existing ChatGPT session. Bluedoor supplies no document, title, file path
   or text to this command. Attaching an exported PDF remains a manual action.
 - No telemetry, analytics, application accounts or crash reporters are configured
-  in BlueDoor. Its local processing workflows do not send document content to a server.
+  in Bluedoor. Its local processing workflows do not send document content to a server.
 
 ## Permissions the app may ask for
 

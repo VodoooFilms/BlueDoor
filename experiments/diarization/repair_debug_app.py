@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DEBUG = ROOT / "src-tauri/target/debug"
-APP = DEBUG / "bundle/macos/BlueDoor Diarization Test.app"
+APP = DEBUG / "bundle/macos/Bluedoor Diarization Test.app"
 
 spec = importlib.util.spec_from_file_location("release_mac", ROOT / "scripts/release-mac.py")
 release = importlib.util.module_from_spec(spec)

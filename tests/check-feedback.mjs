@@ -32,7 +32,8 @@ try {
       }}});
     },lang);
     await page.goto('http://localhost:1420');
-    await page.locator('.welcome[role="dialog"] .close').click();
+    const welcome=page.locator('.welcome[role="dialog"] .close');
+    if(await welcome.count()) await welcome.click();
     await page.locator('#recordToggle').click();
     const geometry=()=>page.locator('.orb-window,.state-title,.import-inline,.mic-panel .model-card,.masthead').evaluateAll(els=>els.map(el=>{
       const r=el.getBoundingClientRect();return [r.x,r.y,r.width,r.height];
@@ -73,6 +74,12 @@ try {
     await page.locator('.feedback-error').waitFor();
     assert.match(await page.locator('.feedback-error').innerText(),lang==='es'?/formato de documento no es compatible/:/document format is not supported/);
     assert.deepEqual(await importAction.boundingBox(),before,'document errors never move import action');
+    for(const [width,height] of [[320,568],[844,390]]) {
+      await page.setViewportSize({width,height});
+      const box=await page.locator('.feedback-host').boundingBox();
+      assert(box && box.x>=0 && box.y>=0 && box.x+box.width<=width+1 && box.y+box.height<=height+1, 'global notifications stay within the mobile viewport');
+    }
+    await page.setViewportSize({width:1280,height:828});
     await dismiss();
     await page.evaluate(()=>window.modelsEmpty=true);
     await page.locator('.settings-menu summary').click();
@@ -99,9 +106,24 @@ try {
     assert.deepEqual(await cards(),modelBefore,'long model error never moves the heading or cards');
     await page.setViewportSize({width:960,height:648});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'long notice fits minimum window');
-    assert(await page.locator('.feedback-host').evaluate(el=>el.scrollHeight>el.clientHeight),'long notices scroll rather than expanding the app');
+    assert(await page.locator('.models-feedback').evaluate(el=>el.scrollHeight>el.clientHeight),'long model notices scroll above Back rather than expanding the app');
     await page.screenshot({path:`artifacts/feedback/long-error-${lang}.png`});
-    await dismiss();
+    await page.clock.install();
+    await page.clock.fastForward(5500);
+    assert(await page.locator('.feedback-error').isVisible(), 'Errors remain until dismissed');
+    await page.locator('.models-feedback button').click();
+    await page.evaluate(() => window.modelsEmpty = false);
+    await page.locator('.back-btn').click();
+    await page.locator('.settings-menu summary').click();
+    await page.locator('#modelsToggle').click();
+    await page.locator('.privacy-model-delete').click();
+    await page.locator('.dialog .danger').click();
+    const status = page.locator('.models-feedback [role="status"]');
+    await status.waitFor();
+    await page.clock.fastForward(4000);
+    assert(await status.isVisible(), 'Informational notice stays readable for four seconds');
+    await page.clock.fastForward(1100);
+    await status.waitFor({state:'hidden'});
     await page.close();
   }
   console.log('PASS: ES/EN microphone absence, denial, busy device, audio/document formats, corrupt audio and long progress/errors keep controls still; dark blue, dismissible notices.');

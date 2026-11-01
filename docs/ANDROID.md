@@ -1,11 +1,11 @@
-# BlueDoor Android: prueba local
+# Bluedoor Android: prueba local
 
 Destino: Redmi 15C, Helio G81-Ultra, 8 GB físicos. La extensión virtual no cuenta como RAM para dimensionar el modelo. Rama: `codex/android-protection`. No se publica en tiendas ni se sube el APK a servicios externos.
 
 ## Instalar y empezar
 
-1. Copia `installers/BlueDoor-android-arm64-preview.apk` al teléfono y ábrelo. Permite instalar desde la aplicación que uses para abrirlo. Es una firma local de prueba; conserva la clave de `.build-cache/android-preview.keystore` para actualizar sin desinstalar.
-2. También puedes conectar el teléfono por USB y ejecutar `adb install -r installers/BlueDoor-android-arm64-preview.apk`. Requiere Android 7/API 24 o posterior y sistema ARM64. El manifiesto del APK y la ABI se comprueban al construir; hay que confirmar la ABI real del teléfono con `adb shell getprop ro.product.cpu.abilist`.
+1. Copia `installers/Bluedoor-android-arm64-preview.apk` al teléfono y ábrelo. Permite instalar desde la aplicación que uses para abrirlo. Es una firma local de prueba; conserva la clave de `.build-cache/android-preview.keystore` para actualizar sin desinstalar.
+2. También puedes conectar el teléfono por USB y ejecutar `adb install -r installers/Bluedoor-android-arm64-preview.apk`. Requiere Android 7/API 24 o posterior y sistema ARM64. El manifiesto del APK y la ABI se comprueban al construir; hay que confirmar la ABI real del teléfono con `adb shell getprop ro.product.cpu.abilist`.
 3. Abre **Modelos**. El inicio abre esa página si falta el modelo seleccionado. El predeterminado para Android es **GLiNER Multi PII · español · FP16**: pulsa **Descargar** para obtener unos **596 MB** (modelo y tokenizador). Los archivos vienen de Hugging Face con revisión, tamaño y SHA-256 fijados en `model-manifest.json`. El APK no incluye esos pesos. Small y Qwen siguen disponibles como alternativas; al actualizar se selecciona Multi PII una sola vez, incluso si antes estaba seleccionado Qwen. Las elecciones hechas después de esta actualización se conservan; los archivos anteriores no se borran.
 4. OCR latino de ML Kit está incluido en el APK. No requiere descargar un modelo OCR ni conectarse a Play Services para reconocer texto.
 5. En **Documentos**, importa TXT/Markdown UTF-8, DOCX, PDF o imagen, o despliega **Pegar texto**. PDF e imágenes se muestran como original, con controles de página y ampliación; **Ver texto extraído** alterna la extracción. **Ampliar original** abre el visor interno. Pellizca para ampliar, arrastra para desplazarte y toca dos veces para volver al ajuste de página. Las fotos respetan su orientación EXIF. Puedes corregir el texto extraído antes de analizarlo.

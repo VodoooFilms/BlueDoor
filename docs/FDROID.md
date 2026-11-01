@@ -38,7 +38,7 @@ BLUEDOOR_ANDROID_BUILD_MODE=unsigned ./scripts/build-android.sh
 ```
 
 The unsigned mode uses no signing key and writes
-`installers/BlueDoor-android-arm64-unsigned.apk`. It verifies identity/version,
+`installers/Bluedoor-android-arm64-unsigned.apk`. It verifies identity/version,
 16 KiB ELF and ZIP alignment and retained ONNX JNI names. It is for the F-Droid
 signing pipeline, not direct installation. Weights are not bundled: inference
 runs locally after opt-in downloads verified against model-manifest.json.
@@ -79,7 +79,7 @@ export ANDROID_KEYSTORE_ALIAS=bluedoor-release
 Gradle reads all four ANDROID_KEYSTORE_* variables; partial configuration fails.
 Release mode is the default and refuses missing keys, debug/preview certificates,
 invalid signatures or a certificate SHA-256 different from the pinned fingerprint.
-It writes `installers/BlueDoor-android-arm64-release.apk` and its SHA-256 sidecar.
+It writes `installers/Bluedoor-android-arm64-release.apk` and its SHA-256 sidecar.
 It never generates a temporary signing identity. Keep secrets out of shell logs.
 Add the signed APK and checksum to a GitHub beta release only after the full
 PII pipeline and required suites pass. There is no signed public beta link yet.

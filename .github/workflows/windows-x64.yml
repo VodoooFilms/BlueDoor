@@ -93,7 +93,7 @@ jobs:
       - name: Downloadable installer (only after all gates pass)
         uses: actions/upload-artifact@v4
         with:
-          name: BlueDoor-Windows-x64-CPU-${{ github.run_number }}
+          name: Bluedoor-Windows-x64-CPU-${{ github.run_number }}
           path: |
             src-tauri/target/windows-x64/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
             src-tauri/target/windows-x64/x86_64-pc-windows-msvc/release/bundle/nsis/*.sha256
@@ -103,7 +103,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: BlueDoor-Windows-x64-report-${{ github.run_number }}
+          name: Bluedoor-Windows-x64-report-${{ github.run_number }}
           path: |
             artifacts/windows-x64/
             src-tauri/target/windows-x64/runtime-x64.json
@@ -117,7 +117,7 @@ jobs:
           @'
           import json, os
           from pathlib import Path
-          lines = ['## BlueDoor Windows x64 CPU', '', 'Commit: ' + os.environ['GITHUB_SHA'], '',
+          lines = ['## Bluedoor Windows x64 CPU', '', 'Commit: ' + os.environ['GITHUB_SHA'], '',
                    'Status: ${{ job.status }}', '',
                    'VM windows-2022; physical Windows 10/11 Intel/AMD and 4 GB RAM remain unvalidated.', '',
                    '| Evidence | Result |', '| --- | --- |']

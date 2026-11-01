@@ -443,7 +443,7 @@ fn missing_internal_decoder_requests_reinstall_not_system_tools() {
         Path::new("/missing/bluedoor-internal-decoder"),
     )
     .unwrap_err();
-    assert!(result.contains("Reinstala BlueDoor"));
+    assert!(result.contains("Reinstala Bluedoor"));
     assert!(!result.contains("brew"));
     assert!(!result.contains("Instala FFmpeg"));
 }

@@ -293,12 +293,17 @@ fn is_field_word(word: &str) -> bool {
 
 /// The two GLiNER passes can propose overlapping spans for the same source
 /// text (a "person" that starts inside an identifier and the identifier
-/// itself). Keep one span per region, preferring the specific non-person kind
-/// and, at equal kind, the longer span.
+/// itself). Prefer specific categories for fully covered alternatives, but
+/// preserve any candidate that contributes previously uncovered source text.
 pub(crate) fn resolve_overlaps(text: &str, detections: Vec<Detection>) -> Vec<Detection> {
     let mut spans: Vec<(usize, usize, Detection)> = detections
         .into_iter()
         .filter_map(|detection| {
+            if detection.kind == Kind::Person
+                && detection.text.split_whitespace().any(is_field_word)
+            {
+                return None;
+            }
             text.find(&detection.text)
                 .map(|start| (start, start + detection.text.len(), detection))
         })
@@ -312,7 +317,9 @@ pub(crate) fn resolve_overlaps(text: &str, detections: Vec<Detection>) -> Vec<De
     let mut kept: Vec<(usize, usize)> = vec![];
     let mut result = vec![];
     for (start, end, detection) in spans {
-        if kept.iter().any(|&(a, b)| start < b && end > a) {
+        // A fully covered alternative adds no source coverage. A broader or
+        // crossing candidate must survive so its uncovered tail is protected.
+        if kept.iter().any(|&(a, b)| start >= a && end <= b) {
             continue;
         }
         kept.push((start, end));
@@ -560,14 +567,25 @@ mod tests {
                     .unwrap(),
                 );
             }
-            let entities = crate::privacy::merge_detection_sources(text, hits, vec![]).unwrap();
+            let entities =
+                crate::privacy::merge_detection_sources(text, resolve_overlaps(text, hits), vec![])
+                    .unwrap();
             let protected = crate::privacy::sanitize(text, &entities).unwrap();
             for name in case["names"].as_array().unwrap() {
                 let name = name.as_str().unwrap();
-                assert!(
-                    entities.iter().any(|entity| entity.original == name),
-                    "incomplete model coverage: {name}; entities={entities:?}"
-                );
+                // Different, crossing categories may jointly cover a name.
+                // Verify source-byte coverage as well as the protected output.
+                let start = text.find(name).unwrap();
+                let covered = crate::privacy::coverage_matches(text, &entities).unwrap();
+                for (offset, ch) in name.char_indices().filter(|(_, ch)| !ch.is_whitespace()) {
+                    assert!(
+                        covered
+                            .iter()
+                            .any(|&(a, b, _)| a <= start + offset
+                                && b >= start + offset + ch.len_utf8()),
+                        "uncovered name character; entities={entities:?}"
+                    );
+                }
                 for word in name
                     .split_whitespace()
                     .filter(|word| word.chars().count() > 3)
@@ -575,10 +593,40 @@ mod tests {
                     assert!(!protected.contains(word), "residual name word: {word}");
                 }
             }
+            if let Ok(path) = std::env::var("BLUEDOOR_GLINER_LAYOUT") {
+                let document: crate::layout::DocumentLayout =
+                    serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+                assert_eq!(document.text, text);
+                let areas = crate::layout::redactions(&document, &entities).unwrap();
+                for name in case["names"].as_array().unwrap() {
+                    let name = name.as_str().unwrap();
+                    let start = text.find(name).unwrap();
+                    for (page, source) in document.pages.iter().enumerate() {
+                        for glyph in source
+                            .glyphs
+                            .iter()
+                            .filter(|g| g.start < start + name.len() && g.end > start)
+                        {
+                            let [x, y, w, h] = glyph.rect;
+                            assert!(
+                                areas.iter().any(|area| area.page == page
+                                    && area.rect[0] <= x
+                                    && area.rect[1] <= y
+                                    && area.rect[0] + area.rect[2] >= x + w
+                                    && area.rect[1] + area.rect[3] >= y + h),
+                                "name glyph has no full pixel coverage"
+                            );
+                        }
+                    }
+                }
+                std::fs::write(format!("{path}.plan.json"), serde_json::to_vec(&serde_json::json!({
+                    "mode": "--preview", "pages": document.pages, "redactions": areas, "overlays": []
+                })).unwrap()).unwrap();
+            }
             for preserved in case["preserved"].as_array().unwrap() {
                 assert!(
                     protected.contains(preserved.as_str().unwrap()),
-                    "legal prose was consumed: {protected}"
+                    "legal prose was consumed for {text:?}: {protected}; entities={entities:?}"
                 );
             }
         }
@@ -636,6 +684,28 @@ mod tests {
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].kind, Kind::Id);
         assert_eq!(hits[0].text, "0912345678");
+    }
+    #[test]
+    fn crossing_categories_keep_the_persons_uncovered_surname() {
+        let text = "CALLE NORTE CARLOS ANDRÉS\nMENDOZA";
+        let hits = resolve_overlaps(
+            text,
+            vec![
+                Detection {
+                    kind: Kind::Address,
+                    text: "CALLE NORTE CARLOS".into(),
+                },
+                Detection {
+                    kind: Kind::Person,
+                    text: "CARLOS ANDRÉS\nMENDOZA".into(),
+                },
+            ],
+        );
+        assert_eq!(hits.len(), 2);
+        let entities = crate::privacy::merge_detection_sources(text, hits, vec![]).unwrap();
+        let protected = crate::privacy::sanitize(text, &entities).unwrap();
+        assert!(!protected.contains("MENDOZA"));
+        assert!(!protected.contains("ANDRÉS"));
     }
     #[test]
     #[ignore = "Requires the pinned tokenizer and Python reference fixture"]

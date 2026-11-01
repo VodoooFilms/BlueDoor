@@ -68,8 +68,8 @@ La suite UI usa mocks del IPC; las pruebas nativas y la comprobación manual com
 ## Retomar desde otra máquina
 
 ```sh
-git clone https://github.com/VodoooFilms/belegal.git
-cd belegal
+git clone https://github.com/VodoooFilms/proyecto-origen.git
+cd proyecto-origen
 git switch --detach milestone/2026-10-04-workflow-editor-stable
 pnpm install --frozen-lockfile
 pnpm demo:mac

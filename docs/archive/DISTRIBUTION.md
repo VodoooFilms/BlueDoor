@@ -1,8 +1,8 @@
 # Distribución comercial — 12 Sep 2026
 
-- Repositorio `VodoooFilms/Belegal _ Local demo`: privado, confirmado por GitHub API.
+- Repositorio `VodoooFilms/aplicación de origen`: privado, confirmado por GitHub API.
 - Compra: https://www.prompthea.com/projects/voicetopdf — USD 19 mediante PayPal.
-- Entrega: endpoint privado de Prompthea `/api/paypal/belegal-local-demo/download`. Requiere cookie firmada de la sesión de compra y verificación del pedido/captura con PayPal en cada descarga.
+- Entrega: endpoint privado de Prompthea `/api/paypal/origin-app/download`. Requiere cookie firmada de la sesión de compra y verificación del pedido/captura con PayPal en cada descarga.
 - El instalador se incluye fuera de `public/` en el repositorio privado `VodoooFilms/Prompthea`; commit de despliegue `b73164c`.
 - No publicar enlaces de GitHub como entrega al comprador. No volver a hacer público este repositorio: expondría nuevamente releases e historial.
 - El acceso dura siete días en el navegador comprador. Para pérdida de sesión u otra descarga, el cliente contacta Prompthea con el recibo; no debe pagar de nuevo. Recuperación automática pendiente.

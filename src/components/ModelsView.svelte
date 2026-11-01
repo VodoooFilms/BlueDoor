@@ -11,6 +11,7 @@
   import { DEFAULT_STT, STT_OPTIONS } from "../lib/types";
   import type { SttModel } from "../lib/types";
   import ModelIcon from "./ModelIcon.svelte";
+  import ModelFamilyIcon from "./ModelFamilyIcon.svelte";
   import {
     getSttModel,
     setSttModel,
@@ -20,6 +21,7 @@
 
   interface Props {
     mobile?: boolean;
+    privacyModelRequired?: boolean;
     onClose: () => void;
     onDone: () => void;
     onSetupComplete: () => void;
@@ -27,7 +29,7 @@
     onBusyChange?: (busy: boolean) => void;
   }
 
-  let { mobile = false, onClose, onDone, onSetupComplete, firstRun, onBusyChange }: Props = $props();
+  let { privacyModelRequired = false, mobile = false, onClose, onDone, onSetupComplete, firstRun, onBusyChange }: Props = $props();
 
   // Estado de ficheros: id de modelo -> ¿instalado?
   let installed = $state<Record<string, boolean>>({});
@@ -64,6 +66,14 @@
   const offerSetup = $derived(!mobile && loaded && (setupPending || !Object.values(installed).some(Boolean)));
   $effect(() => { onBusyChange?.(busy); });
   const nemotronId = "nemotron3-diarization";
+  const firstPrivacyModelKey = "bluedoor-first-privacy-model-ready";
+  let documentTimer: ReturnType<typeof setTimeout> | undefined;
+  function cancelDocumentRedirect() {
+    if (documentTimer !== undefined) {
+      clearTimeout(documentTimer);
+      documentTimer = undefined;
+    }
+  }
   let unlistenProgress: (() => void) | null = null;
 
   const sttCurrent = $derived(
@@ -72,17 +82,19 @@
   const ready = $derived(STT_OPTIONS.some((o) => installed[o.id]));
 
   onMount(async () => {
+    if (privacyModelRequired) localStorage.setItem("bluedoor-privacy-model", mobile ? MOBILE_PRIVACY_MODEL : "qwen3-fast");
     privacySelected = privacyModel(mobile);
     // Si venía guardado un modelo que ya no ofrecemos (tiny/base), volver al recomendado.
     if (!STT_OPTIONS.some((o) => o.id === getSttModel())) setSttModel(sttCurrent.id);
     unlistenProgress = await listen<[string, number]>("model-download-progress", (event) => {
       const [label, pct] = event.payload;
-      const id = label === "gliner-multi-pii-tokenizer" ? MOBILE_PRIVACY_MODEL : label === "gliner-pii-tokenizer" ? "gliner-pii-small-int8" : label;
-      const total = label === "gliner-multi-pii-tokenizer" ? 95 + Math.round(pct * .05) : label === MOBILE_PRIVACY_MODEL ? Math.round(pct * .95) : label === "gliner-pii-tokenizer" ? 96 + Math.round(pct * .04) : label === "gliner-pii-small-int8" ? Math.round(pct * .96) : pct;
+      const id = label === "gliner-multi-pii-tokenizer" ? "gliner-multi-pii-fp16" : label === "gliner-pii-tokenizer" ? "gliner-pii-small-int8" : label;
+      const total = label === "gliner-multi-pii-tokenizer" ? 95 + Math.round(pct * .05) : label === "gliner-multi-pii-fp16" ? Math.round(pct * .95) : label === "gliner-pii-tokenizer" ? 96 + Math.round(pct * .04) : label === "gliner-pii-small-int8" ? Math.round(pct * .96) : pct;
       progress = { ...progress, [id]: total };
     });
     try { await refresh(); } catch (e) { messageKind = "error"; message = String(e); }
     window.addEventListener("keydown", onKeyDown);
+    for (const event of ["pointerdown", "keydown", "wheel", "touchstart"]) window.addEventListener(event, cancelDocumentRedirect, { passive: true });
   });
 
   onDestroy(() => {
@@ -90,6 +102,8 @@
       unlistenProgress();
       unlistenProgress = null;
     }
+    cancelDocumentRedirect();
+    for (const event of ["pointerdown", "keydown", "wheel", "touchstart"]) window.removeEventListener(event, cancelDocumentRedirect);
     window.removeEventListener("keydown", onKeyDown);
   });
 
@@ -98,6 +112,11 @@
       menu = null;
       if (pendingDelete) pendingDelete = null;
     }
+  }
+
+  function modelBytes(size: string): number {
+    return [...size.matchAll(/(\d+(?:[.,]\d+)?)\s*(GB|MB|KB)/gi)].reduce((total, match) =>
+      total + Number(match[1].replace(",", ".")) * ({ GB: 1e9, MB: 1e6, KB: 1e3 }[match[2].toUpperCase()] ?? 1), 0);
   }
 
   async function refresh(allowFallback = false) {
@@ -112,11 +131,12 @@
     for (const m of all.parakeet) map[m.id] = m.installed;
     for (const m of all.diarization) map[m.id] = m.installed;
     for (const m of all.privacy) map[m.id] = m.installed;
-    privacyOptions = all.privacy;
+    privacyOptions = [...all.privacy].sort((a, b) => modelBytes(a.size) - modelBytes(b.size));
     if (!all.privacy.some(m => m.id === privacySelected && m.installed) && all.privacy.some(m => m.installed) && (allowFallback || privacySelected !== MOBILE_PRIVACY_MODEL || !all.privacy.some(m => m.id === privacySelected))) {
       privacySelected = all.privacy.find(m => m.installed)!.id;
       localStorage.setItem("bluedoor-privacy-model", privacySelected);
     }
+    if (all.privacy.some(m => m.installed)) localStorage.setItem(firstPrivacyModelKey, "true");
     installed = map;
     loaded = true;
     nemotronAvailable = await invoke<boolean>("diarization_available").catch(() => false);
@@ -129,8 +149,23 @@
 
   async function install(family: SttModel | "diarization" | "privacy") {
     if (busy) return;
+    cancelDocumentRedirect();
+    const firstPrivacyDownload = family === "privacy" && loaded
+      && localStorage.getItem(firstPrivacyModelKey) !== "true"
+      && !privacyOptions.some(model => installed[model.id]);
+    const downloadedId = privacySelected;
     message = ""; messageKind = "error";
-    try { await downloadCurrent(family); } catch (e) { messageKind = "error"; message = String(e); }
+    try {
+      await downloadCurrent(family);
+      if (firstPrivacyDownload && installed[downloadedId]) {
+        messageKind = "status";
+        message = p("Modelo listo");
+        documentTimer = setTimeout(() => {
+          documentTimer = undefined;
+          onClose();
+        }, 2000);
+      }
+    } catch (e) { messageKind = "error"; message = String(e); }
   }
 
   async function downloadCurrent(family: SttModel | "diarization" | "privacy") {
@@ -249,11 +284,10 @@
 </script>
 
 <section class="models">
-  <Feedback message={setupStatus || message} kind={setupStatus ? "status" : messageKind} onDismiss={setupStatus ? undefined : () => message = ""} />
   <div class="models-head">
     <div class="head-top">
     <div class="head-copy">
-      <Icon name="settings" size={36} /><h1>{t.langLabel === "ES" ? "Modelos locales:" : "Local models:"}</h1>
+      <Icon name="settings" size={36} /><h1>{t.langLabel === "ES" ? "Modelos de IA locales:" : "Local AI models:"}</h1>
     </div>
     {#if offerSetup || setupRunning || installingId}
       <div class="head-actions">
@@ -262,7 +296,7 @@
             {#if setupRunning}{t.langLabel === "ES" ? "Preparando…" : "Preparing…"}
             {:else if setupPending}{t.langLabel === "ES" ? "Reanudar preparación" : "Resume setup"}
             {:else}
-              <Icon name="download" size={24} />
+              <Icon name={mobile ? "install-mobile" : "download"} size={24} />
               <span class="setup-copy">
                 <span>{t.langLabel === "ES" ? "Descargar todos los modelos" : "Download all models"}</span>
                 <span>{t.langLabel === "ES" ? "Aprobar todos los permisos" : "Approve all permissions"}</span>
@@ -276,6 +310,9 @@
       </div>
     {/if}
     </div>
+    <p class="models-subtitle">{t.modelsSubtitle}</p>
+    <h2 class="privacy-section-title"><Icon name="privacy" size={20} /><span>{t.langLabel === "ES" ? "Modelo de privacidad de documentos:" : "Document privacy model:"}</span></h2>
+    {#if privacyModelRequired && !installed[privacySelected]}<p class="models-subtitle" role="status">{t.langLabel === "ES" ? "Descarga un modelo local AI primero" : "Download a local AI model first"}</p>{/if}
   </div>
 
   <div class="list">
@@ -303,13 +340,14 @@
         <div class="right-actions">
           {#if installingId === sttCurrent.id}
             <div class="download-progress">
+              <span class="download-size">{sttCurrent.size}</span>
               <div class="progress-track"><div class="progress-fill" style={`width: ${progress[sttCurrent.id] ?? 0}%`}></div></div>
               <span>{progress[sttCurrent.id] ?? 0}%</span>
             </div>
           {:else if installed[sttCurrent.id]}
             <span class="ok">{mobile ? (t.langLabel === "ES" ? "Instalado" : "Installed") : t.downloaded}</span>
           {:else}
-            <button class="download-btn" disabled={busy} onclick={() => install(sttCurrent.id)}><Icon name="download" size={20} /><span>{t.download}</span></button>
+            <button class="download-btn" disabled={busy} onclick={() => install(sttCurrent.id)}><Icon name={mobile ? "install-mobile" : "download"} size={20} /><span>{t.download}</span></button>
           {/if}
 
           <button
@@ -338,27 +376,32 @@
         <div class="card-copy"><strong>{t.langLabel === "ES" ? "Privacidad de documentos" : "Document privacy"}</strong><span>{p("Extracción local de entidades privadas en documentos")}</span></div>
       </div>
       <div class="row privacy-model-row">
+        <div class="selected-model-identity">
+          <ModelFamilyIcon modelId={privacySelected} />
         <div class="row-copy">
           <strong title={privacyOptions.find(m => m.id === privacySelected)?.name}>{privacyOptions.find(m => m.id === privacySelected)?.name ?? "Qwen3-0.6B Q4_K_M"}</strong>
           <span class="row-size">{privacyOptions.find(m => m.id === privacySelected)?.size ?? "397 MB"}</span>
         </div>
+        </div>
+        <div class="privacy-model-controls">
         <button class="change-btn model-picker-trigger" aria-label={t.changeModel} title={t.changeModel} onclick={(event) => openPicker("privacy", event.currentTarget)} disabled={busy}>
           <Icon name="edit" size={16} /><span>{t.changeModel}</span>
         </button>
-          <button class="icon-btn privacy-model-delete" title={t.delete} aria-label={t.delete} disabled={!installed[privacySelected] || busy} onclick={() => remove("privacy") }>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11"></path><path d="M6.5 6v10a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V6"></path><path d="M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6"></path><path d="M10 9v5"></path></svg>
+          <button class="change-btn privacy-model-delete" title={t.delete} aria-label={t.delete} disabled={!installed[privacySelected] || busy} onclick={() => remove("privacy") }>
+            <Icon name="trash" size={16} /><span>{t.delete}</span>
           </button>
+        </div>
         <div class="spacer"></div>
         <div class="right-actions privacy-model-status">
-          {#if mobile && installingId !== privacySelected}<span class="mobile-model-size">{privacySelected === MOBILE_PRIVACY_MODEL ? "596,0 MB total" : privacySelected === "gliner-pii-small-int8" ? "86,3 MB total" : privacyOptions.find(m => m.id === privacySelected)?.size}</span>{/if}
+          {#if mobile && installingId !== privacySelected}<span class="mobile-model-size">{privacySelected === "gliner-multi-pii-fp16" ? "596,0 MB total" : privacySelected === "gliner-pii-small-int8" ? "86,3 MB total" : privacyOptions.find(m => m.id === privacySelected)?.size}</span>{/if}
           {#if installingId === privacySelected}
-            <div class="download-progress"><div class="progress-track"><div class="progress-fill" style={`width: ${progress[privacySelected] ?? 0}%`}></div></div><span>{progress[privacySelected] ?? 0}%</span></div>
+            <div class="download-progress"><span class="download-size">{privacySelected === "gliner-multi-pii-fp16" ? "596,0 MB" : privacySelected === "gliner-pii-small-int8" ? "86,3 MB" : privacyOptions.find(m => m.id === privacySelected)?.size}</span><div class="progress-track"><div class="progress-fill" style={`width: ${progress[privacySelected] ?? 0}%`}></div></div><span>{progress[privacySelected] ?? 0}%</span></div>
           {:else if installed[privacySelected]}
             <span class="ok">{mobile ? (t.langLabel === "ES" ? "Instalado" : "Installed") : t.downloaded}</span>
-          {:else if privacySelected === "belegal-pii-v1"}
+          {:else if privacySelected === "bluedoor-pii-v1"}
             <span>{p("Restaura la copia local del modelo entrenado.")}</span>
           {:else}
-            <button class="download-btn" disabled={busy} onclick={() => install("privacy")}><Icon name="download" size={20} /><span>{t.download}</span></button>
+            <button class="download-btn" disabled={busy} onclick={() => install("privacy")}><Icon name={mobile ? "install-mobile" : "download"} size={20} /><span>{t.download}</span></button>
           {/if}
 
         </div>
@@ -383,14 +426,14 @@
         <div class="spacer"></div>
         <div class="right-actions">
           {#if installingId === nemotronId}
-            <div class="download-progress">
+            <div class="download-progress"><span class="download-size">102 MB</span>
               <div class="progress-track"><div class="progress-fill" style={`width: ${progress[nemotronId] ?? 0}%`}></div></div>
               <span>{progress[nemotronId] ?? 0}%</span>
             </div>
           {:else if installed[nemotronId]}
             <span class="ok">{mobile ? (t.langLabel === "ES" ? "Instalado" : "Installed") : t.downloaded}</span>
           {:else}
-            <button class="download-btn" disabled={busy} onclick={() => install("diarization")}><Icon name="download" size={20} /><span>{t.download}</span></button>
+            <button class="download-btn" disabled={busy} onclick={() => install("diarization")}><Icon name={mobile ? "install-mobile" : "download"} size={20} /><span>{t.download}</span></button>
           {/if}
           <button
             class="icon-btn"
@@ -422,7 +465,7 @@
     </div>
     <div class="model-choices" role="group" aria-label={t.langLabel === "ES" ? "Modelos disponibles" : "Available models"}>
       {#if menu === "stt"}
-        {#each STT_OPTIONS as option (option.id)}
+        {#each [...STT_OPTIONS].sort((a, b) => modelBytes(a.size) - modelBytes(b.size)) as option (option.id)}
           <button class="model-choice" class:selected={option.id === sttCurrent.id} aria-pressed={option.id === sttCurrent.id} disabled={busy} onclick={() => pickStt(option.id)}>
             <span class="choice-copy"><strong>{option.family === "whisper" ? `Whisper ${option.label}` : option.label}</strong><span>{option.size} · {option.family === "whisper" ? "Whisper" : "NVIDIA Parakeet"}</span></span>
             {#if option.id === sttCurrent.id}<Icon name="check" size={20} />{/if}
@@ -431,6 +474,7 @@
       {:else}
         {#each privacyOptions as option (option.id)}
           <button class="model-choice" class:selected={option.id === privacySelected} aria-pressed={option.id === privacySelected} disabled={busy} onclick={() => pickPrivacy(option.id)}>
+            <ModelFamilyIcon modelId={option.id} />
             <span class="choice-copy"><strong>{option.name}</strong><span>{option.size}</span></span>
             {#if option.id === privacySelected}<Icon name="check" size={20} />{/if}
           </button>
@@ -439,19 +483,20 @@
     </div>
   </dialog>
 
-  {#if firstRun}
-    <div class="footer">
+  <div class="footer">
+    {#if setupStatus || message}
+      <div class="models-feedback"><Feedback inline autoDismissMs={setupStatus ? 0 : undefined} message={setupStatus || message} kind={setupStatus ? "status" : messageKind} onDismiss={setupStatus ? undefined : () => message = ""} /></div>
+    {/if}
+    {#if firstRun}
       <p class="footer-note" role="status">{ready ? t.continueReadyHint : t.continueDisabledHint}</p>
       <button class="continue" onclick={onDone} disabled={!ready || busy}>
         <span>{t.continue}</span>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4" /></svg>
       </button>
-    </div>
-  {:else}
-    <div class="footer">
-      <button class="back-btn" onclick={onClose} disabled={busy}>&larr; {t.back}</button>
-    </div>
-  {/if}
+    {:else}
+      <button class="back-btn" onclick={onClose} disabled={busy}><Icon name="arrow-left" size={20} /><span>{t.back}</span></button>
+    {/if}
+  </div>
 
   {#if pendingDelete}
     <div class="overlay" role="dialog" aria-modal="true" tabindex="-1" onclick={cancelDelete} onkeydown={(e) => { if (e.key === "Escape") cancelDelete(); }}>
@@ -485,6 +530,7 @@
   .setup-copy { display:flex; flex-direction:column; gap:2px; text-align:center; font-weight:700; flex:none; white-space:nowrap; }
   .back-btn:disabled { opacity: .55; cursor: default; }
   .head-copy { display:flex; flex-direction:row; align-items:center; gap:14px; }
+  .models-subtitle { margin:0; color:var(--muted); font-size:14px; line-height:1.5; }
   .head-copy h1 { margin:0; font-family:var(--font-heading); font-size:20px; font-weight:650; line-height:1.2; white-space:nowrap; }
 
   .list { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
@@ -515,6 +561,9 @@
     background: var(--surface);
   }
 
+  .selected-model-identity { display:flex; align-items:center; gap:12px; min-width:0; }
+  .privacy-model-controls { display:flex; align-items:center; gap:12px; }
+  .privacy-model-controls button { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
   .row-copy { flex: none; width: clamp(160px, 20vw, 230px); min-width: 0; display: flex; flex-direction: column; gap: 3px; }
   .row-copy strong { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row-size { color: var(--muted); font-size: 13px; }
@@ -559,7 +608,7 @@
   .download-btn:disabled { opacity: .55; cursor: default; }
   .download-btn:hover:not(:disabled) { border-color: var(--button-hover); background: var(--button-hover); }
 
-  .download-progress { display: flex; align-items: center; gap: 10px; width: 160px; }
+  .download-progress { display: flex; align-items: center; gap: 10px; width: 240px; }
   .progress-track { flex: 1; height: 7px; border-radius: 4px; background: var(--line-dark); overflow: hidden; }
   .progress-fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width .15s ease; }
   .download-progress span { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -579,7 +628,8 @@
   .icon-btn:hover:not(:disabled) { background: var(--error-background); color: #fff; }
   .icon-btn:disabled { opacity: .3; cursor: default; }
 
-  .footer { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 18px; padding-top: 4px; }
+  .models-feedback { flex:0 0 100%; min-width:0; max-height:min(25dvh,240px); overflow:auto; }
+  .footer { flex: none; display: flex; flex-wrap:wrap; align-items: center; justify-content: flex-end; gap: 18px; padding-top: 4px; }
   .footer-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; text-align: right; }
   .continue {
     flex: none;
@@ -605,7 +655,10 @@
   .continue:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .continue:disabled { border-color: var(--line-dark); color: var(--muted); background: var(--panel); cursor: default; }
 
+  .privacy-section-title { display:flex; align-items:center; gap:10px; margin:16px 0 0; font-size:16px; font-weight:500; }
+  .privacy-section-title :global(svg) { flex-shrink:0; }
   .back-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     height: 44px;
     padding: 0 21px;
     border: 1px solid var(--line-dark);
@@ -655,8 +708,8 @@
   .dialog-actions .cancel:hover { background: var(--hover); }
   .dialog-actions .danger { border-color: var(--error); color: var(--error); }
   .dialog-actions .danger:hover { background: var(--error-background); color: #fff; }
-  .model-picker { width:min(760px,calc(100vw - 48px)); max-height:calc(100vh - 64px); padding:26px; border:1px solid #a7caff66; border-radius:18px; background:#1745a5; color:white; box-shadow:0 28px 90px #00194766; }
-  .model-picker::backdrop { background:#051d54a6; backdrop-filter:blur(5px); }
+  .model-picker { width:min(760px,calc(100vw - 48px)); max-height:calc(100vh - 64px); padding:26px; border:1px solid #a7caff66; border-radius:18px; background:var(--modal-surface); color:white; box-shadow:var(--modal-shadow); }
+  .model-picker::backdrop { background:var(--modal-backdrop); backdrop-filter:blur(var(--modal-blur)); }
   .picker-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:22px; }
   .picker-heading h2 { font:650 23px/1.3 var(--font-heading); margin:0 0 5px; }
   .picker-heading p { margin:0; color:#c5dbff; font-size:14px; }
@@ -665,7 +718,7 @@
   .model-choice { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:17px; min-height:78px; border:1px solid #b8d4ff55; border-radius:12px; background:#ffffff08; color:white; text-align:left; cursor:pointer; }
   .model-choice:hover { background:#ffffff16; }
   .model-choice.selected { border-color:white; background:#ffffff1f; }
-  .choice-copy { display:flex; flex-direction:column; gap:5px; min-width:0; }
+  .choice-copy { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
   .choice-copy strong { font-size:14px; font-weight:650; }
   .choice-copy > span { font-size:12px; color:#c5dbff; }
   @media (max-width:600px) { .model-choices { grid-template-columns:1fr; } }

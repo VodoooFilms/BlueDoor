@@ -1,4 +1,4 @@
-# Belegal _ Local demo — commercial readiness audit
+# aplicación de origen — commercial readiness audit
 
 Audit date: 10 Sep 2026. Scope: current `main` after the Qwen3 migration plus
 the commercial-release changes in this working session. Version: 0.1.0, arm64,
@@ -77,8 +77,8 @@ pnpm release:mac
 The commercial command builds and verifies everything before the credential
 boundary. It then requires one valid keychain identity named `Developer ID
 Application: …` with its private key. If several exist, select one through
-`BELEGAL_LOCAL_DEMO_SIGNING_IDENTITY`. Notarization uses either a preconfigured
-`BELEGAL_LOCAL_DEMO_NOTARY_PROFILE` or the three App Store Connect API environment
+`ORIGIN_APP_SIGNING_IDENTITY`. Notarization uses either a preconfigured
+`ORIGIN_APP_NOTARY_PROFILE` or the three App Store Connect API environment
 values documented in `MACOS_PORTABILITY.md`. Secrets stay outside the repository.
 
 ## Open risks after a credentialed build
