@@ -14,7 +14,7 @@ try {
    if(['check_installation','save_transcripts','plugin:event|unlisten'].includes(cmd))return;
    if(cmd==='load_transcripts')return [];
    if(cmd==='plugin:event|listen')return 1;
-   if(cmd==='list_models')return {whisper:[],parakeet:[],diarization:[],privacy:[{installed:true}]};
+   if(cmd==='list_models')return {whisper:[],parakeet:[],diarization:[],privacy:[{id:'qwen3-fast',installed:true}]};
    if(cmd==='diarization_available')return false;
    if(cmd==='get_privacy_session')return structuredClone(session);
    if(cmd==='preview_private_layout'){
@@ -31,7 +31,7 @@ try {
   }};
  },{pages,editedPages,blocks});
  await page.goto('http://localhost:1420');
- await page.locator('.welcome[role="dialog"] .close').click();
+ await page.locator('.welcome[role="dialog"]').waitFor({state:'detached'});
  await page.getByRole('combobox',{name:'Zoom',exact:true}).selectOption('100');
  await page.getByRole('button',{name:'Editar texto 1, Página 1',exact:true}).click();
  const editor=page.locator('.page-editor .rich-editor');await editor.waitFor();

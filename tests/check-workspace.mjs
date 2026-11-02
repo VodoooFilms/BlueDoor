@@ -28,7 +28,7 @@ try {
     if(['check_installation','save_transcripts','plugin:event|unlisten'].includes(cmd))return;
     if(cmd==='plugin:event|listen')return 1;
     if(cmd==='load_transcripts')return [];
-    if(cmd==='list_models')return {whisper:[{installed:true}],parakeet:[],privacy:[{installed:true}]};
+    if(cmd==='list_models')return {whisper:[{installed:true}],parakeet:[],diarization:[],privacy:[{id:'qwen3-fast',installed:true}]};
     if(cmd==='get_privacy_session')return structuredClone(session);
     if(cmd==='import_private_document'){session={id:'workspace',revision:0,fileName:layout?'ejemplo.pdf':'ejemplo.txt',original,entities:[],sanitized:'',warnings:[],advisories:[],analyzed:false,analysisComplete:false,reviewed:false,edited:false,layoutAvailable:layout};return structuredClone(session);}
     if(cmd==='analyze_private_document'){revision(args);session.entities=[{kind:'PERSON',original:'María Ejemplo',alias:'PERSONA_1',source:'review'}];session.sanitized=original.replace('María Ejemplo','PERSONA_1');session.analyzed=true;session.analysisComplete=true;session.revision++;return structuredClone(session);}
@@ -45,7 +45,7 @@ try {
    }};
   },{layout,language});
   await page.goto('http://localhost:1420');
-  await page.locator('.welcome[role="dialog"] .close').click();
+  await page.locator('.welcome[role="dialog"]').waitFor({state:'detached'});
   await page.getByRole('button',{name:label('Importar documento','Import document'),exact:true}).click();
   assert.equal(await page.getByRole('heading',{name:label('Lo privado permanece aquí.','Your private information stays here.'),exact:true}).count(),0,'welcome copy leaves the functional workspace');
   assert.equal(await page.getByRole('button',{name:label('Ver texto','View text'),exact:true}).count(),0,'no route to legacy comparison');
@@ -60,11 +60,11 @@ try {
   await editor.waitFor({state:'visible'});
   if(layout){
    const zoom = page.getByRole('combobox',{name:'Zoom',exact:true});
-   assert(await zoom.evaluate(el=>!!el.closest('.editor-toolbar')),'zoom belongs to the editor toolbar');
-   assert.equal(await page.locator('.workspace-header .workspace-zoom').count(),0,'zoom no longer occupies the document header');
-   const zoomRect=await zoom.boundingBox(), resetRect=await page.locator('.editor-actions .head-btn').first().boundingBox();
-   assert(zoomRect.x+zoomRect.width<=resetRect.x,'zoom sits left of Reset');
-   assert(Math.abs(zoomRect.y+zoomRect.height/2-resetRect.y-resetRect.height/2)<2,'zoom and Reset share the same row');
+   assert.equal(await zoom.count(),1,'one zoom control per document');
+   assert(await zoom.evaluate(el=>!!el.closest('.workspace-zoom-row')),'zoom belongs to the workspace zoom row');
+   assert.equal(await page.locator('.workspace-header .workspace-zoom, .editor-toolbar .workspace-zoom').count(),0,'zoom no longer crowds the header or the toolbar');
+   const zoomRect=await zoom.boundingBox(), barRect=await page.locator('.editor-toolbar').boundingBox();
+   assert(zoomRect.y+zoomRect.height<=barRect.y+1,'zoom sits above the editor toolbar');
    await page.screenshot({path:`artifacts/workspace/edit-actions-${language}.png`});
   }
   if(layout){
@@ -80,6 +80,9 @@ try {
   await page.locator('.save-btn').click();
   await map.waitFor();
   await page.waitForFunction(()=>!document.querySelector('.workspace-views button:last-child').disabled);
+  // Saving a page block closes its editor (save-and-close); reopen it to keep
+  // measuring the toolbar layout across viewport changes.
+  if(layout) await page.getByRole('button',{name:label('Editar texto 1, Página 1','Edit text 1, Page 1'),exact:true}).click();
   const bar=page.locator('.editor-toolbar');
   assert.equal(await page.locator('.page-editor .viewer-head').count(),0,'no duplicate action toolbar');
   // Repeated viewport changes exercise ResizeObserver delivery on WebKit;
@@ -96,7 +99,7 @@ try {
   await map.click();
   const alias=page.getByRole('textbox',{name:'Alias 1',exact:true});
   await alias.fill('CLIENTE_1');
-  const document=page.getByRole('button',{name:label('Documento','Document'),exact:true});
+  const document=page.getByRole('button',{name:label('Volver al documento','Back to document'),exact:true});
   assert(await document.isDisabled(),'map draft cannot be lost on view switch');
   await page.locator('.map-page').getByRole('button',{name:label('Guardar cambios','Save changes'),exact:true}).click();
   await page.waitForFunction(()=>window.__savedMap?.entities[0].alias==='CLIENTE_1');
@@ -106,7 +109,7 @@ try {
    await page.getByRole('textbox',{name:label('Alias en el documento','Alias in the document'),exact:true}).fill('CLIENTE_2');
    const exportButton=page.getByRole('button',{name:label('Exportar PDF','Export PDF'),exact:true});
    assert(await exportButton.isDisabled(),'unsaved alias cannot export');
-   await page.locator('.alias-actions').getByRole('button',{name:label('Guardar cambios','Save changes'),exact:true}).click();
+   await page.getByRole('button',{name:label('Confirmar alias','Confirm alias'),exact:true}).click();
    await page.waitForFunction(()=>window.__savedMap?.entities[0].alias==='CLIENTE_2');
   }
   const settings=page.locator('.settings-menu summary');
@@ -114,7 +117,9 @@ try {
   assert(await page.locator('#modelsToggle').isVisible());
   assert.equal(await page.locator('#themeToggle').count(),0,'appearance toggle removed');
   await page.locator('#languageToggle').click();
-  assert.equal(await page.locator('.workspace-views button:last-child').getAttribute('aria-label'),english?'Mapa privado':'Private map');
+  assert.equal(await page.locator('.workspace-views button').getAttribute('aria-label'),english?'Mapa privado':'Private map');
+  // The language choice closes the settings menu, so reopen it to switch back.
+  await settings.click();
   await page.locator('#languageToggle').click();
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('.settings-menu').evaluate(el=>el.open),false);
@@ -130,8 +135,8 @@ try {
   const gptCalls=calls.filter(c=>c.cmd==='open_chatgpt_home');
   assert.equal(gptCalls.length,2,'GPT action opens the browser and supports retry after failure');
   assert(gptCalls.every(c=>Object.keys(c.args||{}).length===0),'opening ChatGPT sends no document or filename');
-  assert.equal(await page.locator('.workspace-views button').first().innerText(),label('Documento','Document'));
-  assert.equal(await page.locator('.workspace-views button').last().innerText(),label('Mapa privado','Private map'));
+  assert.equal(await page.locator('.workspace-views button').count(),1,'one document/map toggle');
+  assert.equal(await page.locator('.workspace-views button').innerText(),label('Mapa privado','Private map'));
   assert(calls.some(c=>c.cmd===(layout?'review_private_layout':'review_private_document')&&c.args.confirm===true),'export still confirms native review');
   assert.equal(calls.filter(c=>c.cmd==='analyze_private_document').length,1,'no extra protection from Edit');
   assert.equal(calls.filter(c=>c.cmd==='open_server_home').length,0,'legacy company destination is never opened');

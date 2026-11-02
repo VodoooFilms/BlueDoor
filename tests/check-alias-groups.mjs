@@ -64,9 +64,9 @@ try {
   await previous.click();await previous.click();await previous.click();
   assert.equal(await alias.inputValue(),'BORRADOR','returning to first box preserves its draft');assert(await previous.isDisabled());
   await alias.fill('COMPANY_01');
-  await page.locator('.alias-actions').getByRole('button',{name:'Guardar cambios',exact:true}).click();
+  await page.getByRole('button',{name:'Confirmar alias',exact:true}).click();
   await page.waitForFunction(()=>window.__reviewed?.revision===2);
-  await panel.getByRole('button',{name:'Cerrar editor de alias',exact:true}).click();
+  assert.equal(await panel.count(),0,'confirm closes the alias editor');
   await page.getByRole('combobox',{name:'Zoom',exact:true}).selectOption('100');
   await page.getByRole('button',{name:'Mapa privado',exact:true}).first().click();
   const first=page.getByRole('textbox',{name:'Alias 1',exact:true});
@@ -77,14 +77,14 @@ try {
   await page.locator('.map-page').getByRole('button',{name:'Guardar cambios',exact:true}).click();
   await page.waitForFunction(()=>window.__reviewed?.revision===3);
   assert.equal(await page.evaluate(()=>window.__reviewed.sanitized),'COMPANY_02_PERSONALIZADA\nCOMPANY_02_PERSONALIZADA\nCOMPANY_02\nCOMPANY_02_PERSONALIZADA');
-  await page.getByRole('button',{name:'Documento',exact:true}).click();
+  await page.getByRole('button',{name:'Volver al documento',exact:true}).click();
   // Edit from the other original on page 2, then verify all three occurrences.
   await page.getByRole('button',{name:'Editar alias COMPANY_02_PERSONALIZADA, Página 2',exact:true}).first().click();
   const editor=page.getByRole('textbox',{name:'Alias en el documento',exact:true});
   await editor.fill('');
   await editor.pressSequentially('PROVEEDOR PRINCIPAL');
   assert(await page.getByRole('button',{name:'Exportar PDF'}).isDisabled());
-  await page.locator('.alias-actions').getByRole('button',{name:'Guardar cambios',exact:true}).click();
+  await page.getByRole('button',{name:'Confirmar alias',exact:true}).click();
   await page.waitForFunction(()=>window.__reviewed?.revision===4);
   assert.deepEqual(await page.evaluate(()=>window.__reviewed.entities.map(e=>e.alias)),['PROVEEDOR PRINCIPAL','PROVEEDOR PRINCIPAL','COMPANY_02']);
   assert.equal(await page.getByRole('button',{name:'Editar alias PROVEEDOR PRINCIPAL, Página 1',exact:true}).count(),1);
@@ -97,7 +97,7 @@ try {
   assert.equal(await page.getByRole('textbox',{name:'Alias 2',exact:true}).inputValue(),'PROVEEDOR PRINCIPAL');
   // The floating alias editor covers the toolbar on Android, so its check button
   // must apply the alias and close the panel on its own.
-  await page.getByRole('button',{name:'Documento',exact:true}).click();
+  await page.getByRole('button',{name:'Volver al documento',exact:true}).click();
   await page.getByRole('button',{name:'Editar alias PROVEEDOR PRINCIPAL, Página 2',exact:true}).first().click();
   const confirmPanel=page.getByRole('complementary',{name:'Editar alias',exact:true});
   const confirmAlias=confirmPanel.getByRole('textbox',{name:'Alias en el documento',exact:true});

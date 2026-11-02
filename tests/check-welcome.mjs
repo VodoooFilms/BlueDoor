@@ -29,8 +29,15 @@ try {
       };
     }, scenario);
     await page.goto('http://localhost:1420');
-    await page.locator('.welcome[role="dialog"]').waitFor();
-    assert(await page.locator('.welcome[role="dialog"]').evaluate(el => { const r = el.getBoundingClientRect(); return r.width === innerWidth && r.height === innerHeight; }), 'welcome covers the first render while native startup is pending');
+    const dialog = page.locator('.welcome[role="dialog"]');
+    await page.locator('.brand').waitFor();
+    if (scenario.privacy) {
+      await page.waitForTimeout(600);
+      assert.equal(await dialog.count(), 0, 'an installed privacy model opens the workspace without the welcome');
+      await page.locator('.brand').click();
+    }
+    await dialog.waitFor();
+    assert(await dialog.evaluate(el => { const r = el.getBoundingClientRect(); return r.width === innerWidth && r.height === innerHeight; }), 'welcome covers the whole window when it opens');
     const action = page.getByRole('button', { name: scenario.cta, exact: true });
     await action.waitFor();
     assert.equal(await page.locator('html').getAttribute('lang'), scenario.cta === 'Get started' ? 'en' : 'es', 'English is the default even with a Spanish browser; saved preferences remain effective');
@@ -40,14 +47,14 @@ try {
     assert(Number(await action.evaluate(el => getComputedStyle(el).fontWeight)) >= 700, 'welcome action is bold');
     await action.click();
     assert.equal(await page.getByRole('dialog').count(), 0);
-    if (!scenario.voice || !scenario.privacy) await page.locator('.models').waitFor();
+    if (!scenario.privacy) await page.locator('.models').waitFor();
     else await page.locator('.blue-import-screen').waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem('bluedoor-welcome-seen')), 'true');
     await page.reload();
     await page.locator('.brand').waitFor();
-    await page.waitForTimeout(250);
-    assert.equal(await page.getByRole('dialog').count(), 1, 'welcome opens on every launch');
-    await page.locator('.welcome[role="dialog"] .close').click();
+    await page.waitForTimeout(600);
+    assert.equal(await page.getByRole('dialog').count(), scenario.privacy ? 0 : 1, 'the welcome only gates launches until a privacy model is installed');
+    if (await page.locator('.welcome[role="dialog"] .close').count()) await page.locator('.welcome[role="dialog"] .close').click();
     await page.locator('.brand').click();
     await page.getByRole('button', { name: scenario.cta, exact: true }).waitFor();
     if (scenario.voice && scenario.privacy) await page.screenshot({ path: 'artifacts/bluedoor-welcome.png' });

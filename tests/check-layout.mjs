@@ -61,7 +61,7 @@ try {
   }};
  },{pages,originalPages,editedPages,redactions:plan.redactions,mobile});
  await page.goto('http://localhost:1420');
- await page.locator('.welcome[role="dialog"] .close').click();
+ await page.locator('.welcome[role="dialog"]').waitFor({state:'detached'});
  assert(await page.locator('#editToggle').isDisabled());
  await page.getByRole('button',{name:'Importar documento',exact:true}).click();
  assert(await page.locator('#editToggle').isDisabled());
@@ -154,18 +154,10 @@ try {
   await page.setViewportSize({width:412,height:900});
   await zoom.selectOption('fit');
   await checkFit('.page-editor .viewer-body');
-  const rows = await page.locator('.editor-toolbar').evaluate(el => {
-   const box = selector => { const r=el.querySelector(selector).getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}; };
-   return {font:box('.tb-font'),size:box('.tb-size'),styles:box('.style-controls'),actions:box('.toolbar-actions'),bar:el.getBoundingClientRect().toJSON()};
-  });
+  assert.equal(await page.locator('.editor-toolbar').count(),0,'text formatting opens only when editing a text block');
   await page.screenshot({path:'artifacts/layout-workflow/ui-mobile-toolbar.png',fullPage:true});
-  assert(Math.abs(rows.font.y-rows.size.y)<2,'font and size share the first mobile row');
   const zoomBox=await zoom.boundingBox();
-  const titleBox=await page.locator('.workspace-title').boundingBox();
-  assert(zoomBox.x>=titleBox.x+titleBox.width && Math.abs(zoomBox.y-titleBox.y)<30,'zoom sits beside the file name');
-  assert(rows.styles.y>=rows.font.y+rows.font.height,'format controls occupy the second row');
-  assert(rows.actions.y>=rows.styles.y+rows.styles.height,'save actions occupy the third row');
-  assert(zoomBox.x+zoomBox.width<=412,'zoom fits the phone');
+  assert(zoomBox.x>=0 && zoomBox.x+zoomBox.width<=412,'zoom fits the phone');
   const initial=await page.locator('.page-wrapper').first().evaluate(el=>el.getBoundingClientRect().width);
   await page.locator('.page-wrapper img').first().evaluate(async el => {
    const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+Math.min(140,r.height/2);
@@ -189,7 +181,7 @@ try {
  await page.getByRole('textbox',{name:'Alias en el documento'}).fill('CLIENTE_01');
  assert(await page.getByRole('button',{name:'Exportar PDF'}).isDisabled(),'unapplied map cannot export');
  assert(await page.getByRole('button',{name:'Documentos',exact:true}).isDisabled(),'unsaved map blocks navigation');
- await page.locator('.alias-actions').getByRole('button',{name:'Guardar cambios',exact:true}).click();
+ await page.getByRole('button',{name:'Confirmar alias',exact:true}).click();
  await page.getByRole('button',{name:'Editar alias CLIENTE_01, Página 1',exact:true}).first().waitFor();
  assert.equal(await page.getByRole('button',{name:'Editar alias CLIENTE_01, Página 2',exact:true}).count(),1,'repeat uses same edited alias');
  if(mobile) await page.getByRole('button',{name:'Aprobar revisión',exact:true}).click();

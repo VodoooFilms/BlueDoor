@@ -61,7 +61,7 @@ try {
         if (cmd === 'load_transcripts') return [];
         if (cmd === 'get_privacy_session') return null;
         if (cmd === 'list_models') {
-          return { whisper: [{ installed: true }], parakeet: [], privacy: [{ id: 'qwen3-fast', installed: true }] };
+          return { whisper: [{ installed: true }], parakeet: [], diarization: [], privacy: [{ id: 'qwen3-fast', installed: true }] };
         }
         if (['check_installation', 'save_transcripts', 'plugin:event|unlisten'].includes(cmd)) return;
         switch (cmd) {
