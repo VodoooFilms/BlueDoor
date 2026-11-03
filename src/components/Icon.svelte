@@ -1,4 +1,5 @@
 <script lang="ts">
+  import recordNav from "../assets/icons/record-nav.svg?raw";
   import { suppliedIcons } from "../lib/supplied-icons";
   let { name, size = 24 }: { name: string; size?: number } = $props();
   const paths: Record<string, string> = {
@@ -40,9 +41,15 @@
     upload: "M12 17V2m-6 6 6-6 6 6M3 15v7h18v-7", history: "M3 4v6h6M3 10a9 9 0 1 1 2 8m7-13v7l4 2",
   };
 </script>
-{#if suppliedIcons[name]}
+{#if name === "record-nav"}<span class="record-nav-icon" style={`width:${size}px;height:${size}px`} aria-hidden="true">{@html recordNav}</span>
+{:else if suppliedIcons[name]}
 <svg width={size} height={size} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d={suppliedIcons[name]} /></svg>
 {:else}
 <svg width={name === "door" ? size * 211 / 381 : size} height={size} viewBox={name === "door" ? "406.5 321.5 211 381" : "0 0 24 24"} fill="none" stroke="currentColor" stroke-width={name === "door" ? 36 : 1.7} stroke-linecap={name === "door" ? "butt" : "round"} stroke-linejoin={name === "door" ? "miter" : "round"} aria-hidden="true"><path d={paths[name] ?? paths.document} /></svg>
 
 {/if}
+
+<style>
+.record-nav-icon { display:inline-flex; flex:none; }
+.record-nav-icon :global(svg) { width:100%; height:100%; fill:currentColor; }
+</style>

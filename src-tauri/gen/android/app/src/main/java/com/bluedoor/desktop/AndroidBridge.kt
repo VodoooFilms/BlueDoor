@@ -43,6 +43,8 @@ object AndroidBridge {
   }
   @JvmStatic fun renderLayout(payload: String): String = DocumentLayout.render(payload)
   @JvmStatic fun checkLayoutAliases(payload: String): String = DocumentLayout.checkAliases(payload)
+  @JvmStatic fun unloadVosk(ignored: String) = VoskRuntime.unload()
+  @JvmStatic fun runVosk(payload: String): String = VoskRuntime.run(payload)
   @JvmStatic fun runGliner(payload: String): String = GlinerRuntime.run(payload)
   @JvmStatic fun unloadGliner(ignored: String) = GlinerRuntime.unload()
   @JvmStatic fun setAnalysisActive(value: String) {

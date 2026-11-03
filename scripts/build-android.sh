@@ -23,6 +23,8 @@ case "$mode" in
     ;;
   *) echo "Unknown build mode: $mode" >&2; exit 1 ;;
 esac
+python3 scripts/prepare-android-transcribe.py
+export TRANSCRIBE_DIR="$PWD/src-tauri/target/android-transcribe-arm64/install"
 pnpm tauri android build --target aarch64 --apk --ci
 sdk_tools="$ANDROID_HOME/build-tools/35.0.0"
 output_dir=src-tauri/gen/android/app/build/outputs/apk/universal/release

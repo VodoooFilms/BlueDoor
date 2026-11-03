@@ -24,3 +24,11 @@
 # ONNX's JNI resolves tensor/value classes and enum members by their original
 # names. Keeping only native methods still lets R8 rename those support types.
 -keep class ai.onnxruntime.** { *; }
+
+-keep class org.vosk.** { *; }
+-keep class com.sun.jna.** { *; }
+# JNA ships optional desktop AWT hooks; Android uses only native library calls.
+-dontwarn java.awt.Component
+-dontwarn java.awt.GraphicsEnvironment
+-dontwarn java.awt.HeadlessException
+-dontwarn java.awt.Window

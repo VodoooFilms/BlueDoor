@@ -94,5 +94,17 @@
     "size": 579717643,
     "sha256": "e756837e13d16ef832f6cd9fca473c2c3dd1eb232cab13e6443d958d608e797b",
     "license_source": "https://huggingface.co/urchade/gliner_multi_pii-v1/blob/main/README.md"
+  },
+  "vosk-small-es": {
+    "url": "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip",
+    "size": 39817833,
+    "sha256": "09b239888f633ef2f0b4e09736e3d9936acfd810bc65d53fad45261762c6511f",
+    "license_source": "https://alphacephei.com/vosk/models"
+  },
+  "vosk-small-en": {
+    "url": "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip",
+    "size": 41205931,
+    "sha256": "30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498",
+    "license_source": "https://alphacephei.com/vosk/models"
   }
 }

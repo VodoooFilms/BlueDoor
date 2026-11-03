@@ -7,6 +7,10 @@ export function privacyModel(mobile: boolean): string {
   if (mobile && !localStorage.getItem("bluedoor-small-pii-default-v2")) {
     localStorage.setItem("bluedoor-small-pii-default-v2", "true");
   }
+  if (mobile && selected && ![MOBILE_PRIVACY_MODEL, "gliner-multi-pii-fp16"].includes(selected)) {
+    selected = MOBILE_PRIVACY_MODEL;
+    localStorage.setItem("bluedoor-privacy-model", selected);
+  }
   if (!selected) return mobile ? MOBILE_PRIVACY_MODEL : "qwen3-fast";
   if (!PRIVACY_MODELS.includes(selected)) {
     selected = mobile ? MOBILE_PRIVACY_MODEL : "qwen3-fast";

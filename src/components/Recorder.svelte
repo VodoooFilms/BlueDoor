@@ -4,7 +4,7 @@
   import Icon from "./Icon.svelte";
   import { PcmRecorder } from "../lib/pcm-recorder";
   import type { Transcript, RecordingState } from "../lib/types";
-  import { STT_OPTIONS, sttFamily } from "../lib/types";
+  import { MOBILE_STT, STT_OPTIONS, sttFamily } from "../lib/types";
   import { getSttModel } from "../lib/models-store.svelte";
   import { generateId, formatDuration } from "../lib/utils";
   import { getCopy } from "../lib/i18n-store.svelte";
@@ -15,6 +15,7 @@
   let t = $derived(getCopy());
 
   interface Props {
+    mobile?: boolean;
     transcripts: Transcript[];
     activeTranscript: Transcript | null;
     onTranscribe: (t: Transcript) => void;
@@ -27,8 +28,14 @@
     onBusyChange: (busy: boolean) => void;
   }
 
-  let { transcripts, activeTranscript, onTranscribe, onSelect, onDelete, onImport, importing, onBusyChange }: Props = $props();
+  let { mobile = false, transcripts, activeTranscript, onTranscribe, onSelect, onDelete, onImport, importing, onBusyChange }: Props = $props();
 
+  let processingDialog = $state<HTMLDialogElement>();
+  $effect(() => {
+    if (!processingDialog) return;
+    if (transcribing && !processingDialog.open) processingDialog.showModal();
+    else if (!transcribing && processingDialog.open) processingDialog.close();
+  });
   let recStatus = $state("idle" as RecordingState);
   const transcribing = $derived(recStatus === "transcribing" || recStatus === "processing" || importing);
   $effect(() => {
@@ -60,7 +67,7 @@
 
   // El modelo de transcripción (Whisper o Parakeet) lo elige la ventana de
   // Modelos; aquí solo se usa para transcribir.
-  const modelId = $derived(getSttModel());
+  const modelId = $derived(mobile ? ([MOBILE_STT, "vosk-small-en"].includes(getSttModel()) ? getSttModel() : MOBILE_STT) : getSttModel());
 
   // Nemotron corta los turnos por tiempo y cada intervalo se transcribe por
   // separado, asi que la diarizacion vale igual con Whisper que con Parakeet.
@@ -166,7 +173,7 @@
 
   onMount(() => {
     window.addEventListener("keydown", onGlobalKeydown);
-    syncNemotron();
+    if (!mobile) syncNemotron();
   });
 
   onDestroy(() => {
@@ -209,13 +216,13 @@
         whisper: { id: string; path: string; installed: boolean }[];
         parakeet: { id: string; path: string; installed: boolean }[];
       }>("list_models");
-      const pool = [...all.parakeet, ...all.whisper];
+      const pool = mobile ? all.parakeet.filter(m => [MOBILE_STT, "vosk-small-en"].includes(m.id)) : [...all.parakeet, ...all.whisper];
       const selected = pool.find((m) => m.id === modelId);
-      const anyInstalled = pool.find((m) => m.installed);
+      const anyInstalled = mobile ? (selected?.installed ? selected : undefined) : pool.find((m) => m.installed);
       // Si la selección no está instalada pero hay otro modelo, transcribimos con el instalado.
       modelPath = (selected?.installed ? selected.path : anyInstalled?.path) ?? "";
       activeWhisperId = (selected?.installed ? selected.id : anyInstalled?.id) ?? "";
-      anyWhisperInstalled = pool.some((m) => m.installed);
+      anyWhisperInstalled = mobile ? !!selected?.installed : pool.some((m) => m.installed);
       modelMissing = !anyWhisperInstalled;
       if (!modelMissing && modelDownloading) {
         modelDownloading = false;
@@ -346,12 +353,12 @@
       const arrayBuffer = await blob.arrayBuffer();
       const config = {
         modelPath,
-        language: "es",
+        language: (activeWhisperId || modelId) === "vosk-small-en" ? "en" : "es",
         threads: 0,
-        diarize: nemotronAvailable,
+        diarize: !mobile && nemotronAvailable,
       };
       const token = await invoke<string>("prepare_transcribe_blob", { config });
-      const trans = await invoke<{ id: string; text: string; segments: { start: number; end: number; text: string; speaker?: number }[]; language: string; duration: number }>("transcribe_blob", new Uint8Array(arrayBuffer), {
+      const trans = await invoke<{ id: string; text: string; segments: { start: number; end: number; text: string; speaker?: number }[]; language: string; duration: number }>("transcribe_blob", mobile ? { audio: Array.from(new Uint8Array(arrayBuffer)), token } : new Uint8Array(arrayBuffer), {
         headers: { "X-Bluedoor-Config": token },
       });
       const transcript: Transcript = {
@@ -410,8 +417,15 @@
   }
 </script>
 
-<section class="recorder">
+<dialog class="processing-dialog" bind:this={processingDialog} aria-label={t.transcribing} oncancel={event => event.preventDefault()}>
+  <div class="processing-label" role="status" aria-live="polite"><span class="processing-orbit" aria-hidden="true"></span><strong>{t.transcribing}</strong></div>
+  <p>{t.langLabel === "ES" ? `${modelInfo.whisper} está convirtiendo tu audio en texto en este dispositivo.` : `${modelInfo.whisper} is turning your audio into text on this device.`}</p>
+  <span class="processing-elapsed">{formatDuration(transcriptionSeconds)}</span>
+  <div class="processing-track" role="progressbar" aria-label={t.transcribing} aria-busy="true"><span></span></div>
+</dialog>
+<section class="recorder" class:voice-mobile={mobile}>
   <!-- Historial: columna izquierda desplegable -->
+  {#if !mobile}
   <aside class="history" class:collapsed={!historyOpen}>
     {#if historyOpen}
       <div class="history-head">
@@ -455,6 +469,7 @@
       </button>
     {/if}
   </aside>
+  {/if}
 
   <!-- Panel del micrófono: círculo central + texto de estado -->
   <div class="mic-panel">
@@ -464,7 +479,7 @@
       class:busy={transcribing}
       role="button"
       tabindex="0"
-      aria-label={t.recordTitle}
+      aria-label={recStatus === "recording" ? (t.langLabel === "ES" ? "Transcribir" : "Transcribe") : t.recordTitle}
       onclick={handlePanelClick}
       onkeydown={handlePanelKeydown}
     >
@@ -499,6 +514,7 @@
         {:else if recStatus === "recording"}
           <strong class="rec-time">{Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, "0")}</strong>
           <span class="state-sub">{t.recordingLabel}</span>
+          <strong class="state-title"><Icon name="record-voice" size={24} /><span>{t.langLabel === "ES" ? "Transcribir" : "Transcribe"}</span></strong>
         {:else}
           <strong class="state-title"><Icon name="record-voice" size={24} /><span>{t.recordTitle}</span></strong>
           <span class="state-sub sr-only">{t.recordHint}</span>
@@ -519,13 +535,13 @@
       </div>
     </div>
 
-    <Feedback message={errorMessage} onDismiss={() => errorMessage = ""} />
+    <Feedback message={errorMessage} autoDismissMs={12000} onDismiss={() => errorMessage = ""} />
 
 {#if modelMissing}
         <div class="model-card">
           <div class="model-copy">
-            <strong>{t.download} {t.model}: Whisper {modelInfo.whisper}</strong>
-            <span>{t.setupWhisperLink}</span>
+            <strong>{t.download} {t.model}: {modelInfo.whisper}</strong>
+            <span>{mobile ? (t.langLabel === "ES" ? "Descarga el modelo del idioma seleccionado en Ajustes → Modelos." : "Download the selected language model in Settings → Models.") : t.setupWhisperLink}</span>
           </div>
           {#if !modelDownloading}
             <button class="download-btn" onclick={downloadModel}><Icon name="download" size={20} /><span>{t.download}</span></button>
@@ -538,7 +554,7 @@
         </div>
       {/if}
 
-      {#if nemotronMissing}
+      {#if !mobile && nemotronMissing}
         <div class="model-card nemotron-card">
           <div class="model-copy">
             <strong>{t.download} {t.setupNemotronTitle}</strong>
@@ -555,6 +571,7 @@
         </div>
       {/if}
 
+      {#if !mobile}
       <div class="local-models" title={t.usingModelsTitle}>
         {#if transcribing}
           <span class="transcription-clock" role="timer" aria-label={t.transcriptionTime} title={t.transcriptionTime}>
@@ -570,10 +587,28 @@
           <span class="lm-item nemotron-item" class:on={nemotronActive}>NVIDIA Nemotron 3</span>
         </div>
       </div>
+      {/if}
     </div>
   </section>
 
 <style>
+  .processing-dialog { height:280px; max-height:calc(100dvh - 32px); overflow:auto; width:min(460px,calc(100vw - 48px)); box-sizing:border-box; padding:28px; border:1px solid var(--modal-border); border-radius:18px; background:var(--modal-surface); color:white; box-shadow:var(--modal-shadow); }
+  .processing-dialog::backdrop { background:var(--modal-backdrop); backdrop-filter:blur(var(--modal-blur)); }
+  .processing-label { display:flex; gap:12px; align-items:center; }
+  .processing-dialog p { font-size:14px; line-height:1.65; }
+  .processing-orbit { width:18px; height:18px; border:2px solid var(--modal-border); border-top-color:white; border-radius:50%; animation:audio-spin 1s linear infinite; }
+  .processing-elapsed { font-size:12px; font-variant-numeric:tabular-nums; }
+  .processing-track { height:3px; margin-top:20px; overflow:hidden; background:var(--modal-border); }
+  .processing-track span { display:block; width:35%; height:100%; background:white; animation:audio-progress 1.8s ease-in-out infinite alternate; }
+  @keyframes audio-progress { to { transform:translateX(180%); } }
+  @keyframes audio-spin { to { transform:rotate(360deg); } }
+  @media(prefers-reduced-motion:reduce) { .processing-orbit, .processing-track span { animation:none; } }
+
+  .voice-mobile { overflow:visible; flex:1 0 auto; }
+  .voice-mobile .mic-panel { padding:24px 0 72px; gap:24px; }
+  .voice-mobile .model-card { box-sizing:border-box; flex-wrap:wrap; }
+  .voice-mobile .mic-btn { max-width:100%; }
+
   .recorder {
     flex: 1;
     min-height: 0;
@@ -867,7 +902,8 @@
     justify-content: center;
     gap: 7px;
   }
-  .state-title { font-family: var(--font-heading); font-size: 24px; font-weight: 400; }
+  .state-title { display:flex; align-items:center; justify-content:center; gap:12px;
+ font-family: var(--font-heading); font-size: 24px; font-weight: 400; }
   .state-sub { color: var(--muted); font-size: 15px; }
   .state-or { margin-top: -4px; }
 

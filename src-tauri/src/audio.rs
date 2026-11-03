@@ -291,13 +291,27 @@ pub(crate) async fn choose_audio_file(
         app_handle
             .dialog()
             .file()
-            .add_filter("Audio / Video", AUDIO_EXTENSIONS)
+            .add_filter(
+                "Audio / Video",
+                if cfg!(target_os = "android") {
+                    &["wav"]
+                } else {
+                    AUDIO_EXTENSIONS
+                },
+            )
             .blocking_pick_file()
     })
     .await
     .map_err(|e| format!("No se pudo abrir el selector de audio: {}", e))?;
     let Some(selected) = selected else {
         return Ok(None);
+    };
+    #[cfg(target_os = "android")]
+    let selected = match selected {
+        tauri_plugin_dialog::FilePath::Url(url) if url.scheme() == "content" => {
+            tauri_plugin_dialog::FilePath::Path(crate::android::materialize_uri(url.as_str())?)
+        }
+        other => other,
     };
     let path = selected
         .into_path()
@@ -318,9 +332,22 @@ pub(crate) async fn transcribe_file(
     let resolved = state.resolve_config(&config, app_handle.clone());
     let use_diarization = resolved.diarize;
     let diarization_model = crate::diarization::managed_model_path(&app_handle);
-    let decoder = crate::platform::decoder_path(&app_handle)?;
+    #[cfg(not(target_os = "android"))]
+    let decoder = Some(crate::platform::decoder_path(&app_handle)?);
+    #[cfg(target_os = "android")]
+    let decoder: Option<PathBuf> = None;
     tauri::async_runtime::spawn_blocking(move || {
-        let audio_data = load_audio_as_f32(&file_path, Some(&decoder))?;
+        let audio_data = load_audio_as_f32(&file_path, decoder.as_deref())?;
+        #[cfg(target_os = "android")]
+        if std::path::Path::new(&resolved.model_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .is_some_and(|file| {
+                file == crate::models::VOSK_FILE || file == crate::models::VOSK_EN_FILE
+            })
+        {
+            return crate::vosk::transcribe(audio_data, &resolved);
+        }
         let state = app_handle.state::<AppState>();
         let session = state.stt_session(&resolved.model_path, resolved.threads as i32)?;
         run_transcription(
@@ -339,24 +366,54 @@ pub(crate) fn prepare_transcribe_blob(config: WhisperConfig, state: State<'_, Ap
     state.store_blob_config(config)
 }
 
+fn decode_json_audio(value: &serde_json::Value) -> Result<(Vec<u8>, String), String> {
+    let audio = value
+        .get("audio")
+        .and_then(serde_json::Value::as_array)
+        .ok_or("El envío de audio no es válido.")?;
+    if audio.len() > MAX_BLOB_BYTES {
+        return Err("El audio supera el tamaño máximo admitido.".into());
+    }
+    let token = value
+        .get("token")
+        .and_then(serde_json::Value::as_str)
+        .filter(|token| !token.is_empty() && token.len() <= 128)
+        .ok_or("Falta la configuración de la transcripción.")?;
+    let bytes = audio
+        .iter()
+        .map(|value| {
+            value
+                .as_u64()
+                .and_then(|n| u8::try_from(n).ok())
+                .ok_or_else(|| "El envío de audio contiene datos no válidos.".to_owned())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((bytes, token.to_owned()))
+}
+
 #[tauri::command]
 pub(crate) async fn transcribe_blob(
     request: tauri::ipc::Request<'_>,
     app_handle: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<TranscriptionResult, String> {
-    let token = request
-        .headers()
-        .get("x-bluedoor-config")
-        .and_then(|value| value.to_str().ok())
-        .ok_or("Falta la configuración de la transcripción.")?;
-    let data = match request.body() {
-        tauri::ipc::InvokeBody::Raw(data) => data.clone(),
-        tauri::ipc::InvokeBody::Json(_) => {
-            return Err("El audio debe enviarse como datos binarios.".into())
+    let (data, token) = match request.body() {
+        tauri::ipc::InvokeBody::Raw(data) => {
+            if data.len() > MAX_BLOB_BYTES {
+                return Err("El audio supera el tamaño máximo admitido.".into());
+            }
+            let token = request
+                .headers()
+                .get("x-bluedoor-config")
+                .and_then(|value| value.to_str().ok())
+                .ok_or("Falta la configuración de la transcripción.")?;
+            (data.clone(), token.to_owned())
         }
+        // Android's WebView bridge uses JSON. Keep the same single-use
+        // authorization and WAV decoder as the desktop binary transport.
+        tauri::ipc::InvokeBody::Json(value) => decode_json_audio(value)?,
     };
-    let config = state.consume_blob_config(token)?;
+    let config = state.consume_blob_config(&token)?;
     if data.len() > MAX_BLOB_BYTES {
         return Err(format!(
             "El audio supera el tamaño máximo admitido ({} GiB).",
@@ -368,6 +425,16 @@ pub(crate) async fn transcribe_blob(
     let diarization_model = crate::diarization::managed_model_path(&app_handle);
     tauri::async_runtime::spawn_blocking(move || {
         let audio = load_wav_reader(std::io::Cursor::new(data))?;
+        #[cfg(target_os = "android")]
+        if std::path::Path::new(&resolved.model_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .is_some_and(|file| {
+                file == crate::models::VOSK_FILE || file == crate::models::VOSK_EN_FILE
+            })
+        {
+            return crate::vosk::transcribe(audio, &resolved);
+        }
         let state = app_handle.state::<AppState>();
         let session = state.stt_session(&resolved.model_path, resolved.threads as i32)?;
         run_transcription(

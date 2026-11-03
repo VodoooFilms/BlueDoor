@@ -82,12 +82,15 @@ export const DEFAULT_STT: SttModel = "parakeet-tdt-0.6b-v3";
 const _whisperRecIdx = WHISPER_BASE.findIndex((o) => o.id === "small");
 const WHISPER_CHOICES = WHISPER_BASE.slice(_whisperRecIdx);
 
-type ParakeetModel = "parakeet-tdt-0.6b-v3";
+export const MOBILE_STT: SttModel = "vosk-small-es";
+type ParakeetModel = "vosk-small-es" | "parakeet-tdt-0.6b-v3" | "vosk-small-en";
 
 // NVIDIA Parakeet, servido como GGUF y ejecutado por transcribe.cpp. Es mucho
 // más rápido que Whisper y entrega timestamps por palabra, de modo que el texto
 // sale re-seccionado por frase. Admite diarización con el motor Nemotron.
 const PARAKEET_BASE: { id: ParakeetModel; label: string; size: string }[] = [
+  { id: "vosk-small-es", label: "Vosk Small Español", size: "39,8 MB" },
+  { id: "vosk-small-en", label: "Vosk Small English", size: "41,2 MB" },
   { id: "parakeet-tdt-0.6b-v3", label: "Parakeet TDT v3", size: "740 MB" },
 ];
 

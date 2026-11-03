@@ -8,7 +8,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { getCopy } from "../lib/i18n-store.svelte";
   import { onMount, onDestroy, untrack } from "svelte";
-  import { DEFAULT_STT, STT_OPTIONS } from "../lib/types";
+  import { DEFAULT_STT, MOBILE_STT, STT_OPTIONS } from "../lib/types";
   import type { SttModel } from "../lib/types";
   import ModelIcon from "./ModelIcon.svelte";
   import ModelFamilyIcon from "./ModelFamilyIcon.svelte";
@@ -67,17 +67,11 @@
   $effect(() => { onBusyChange?.(busy); });
   const nemotronId = "nemotron3-diarization";
   const firstPrivacyModelKey = "bluedoor-first-privacy-model-ready";
-  let documentTimer: ReturnType<typeof setTimeout> | undefined;
-  function cancelDocumentRedirect() {
-    if (documentTimer !== undefined) {
-      clearTimeout(documentTimer);
-      documentTimer = undefined;
-    }
-  }
   let unlistenProgress: (() => void) | null = null;
 
+  const sttOptions = $derived(mobile ? STT_OPTIONS.filter(o => [MOBILE_STT, "vosk-small-en"].includes(o.id)) : STT_OPTIONS.filter(o => ![MOBILE_STT, "vosk-small-en"].includes(o.id)));
   const sttCurrent = $derived(
-    STT_OPTIONS.find((o) => o.id === getSttModel()) ?? STT_OPTIONS[0]
+    sttOptions.find((o) => o.id === getSttModel()) ?? sttOptions[0]
   );
   const ready = $derived(STT_OPTIONS.some((o) => installed[o.id]));
 
@@ -85,7 +79,7 @@
     privacySelected = privacyModel(mobile);
     localStorage.setItem("bluedoor-privacy-model", privacySelected);
     // Si venía guardado un modelo que ya no ofrecemos (tiny/base), volver al recomendado.
-    if (!STT_OPTIONS.some((o) => o.id === getSttModel())) setSttModel(sttCurrent.id);
+    if (!sttOptions.some((o) => o.id === getSttModel())) setSttModel(sttCurrent.id);
     unlistenProgress = await listen<[string, number]>("model-download-progress", (event) => {
       const [label, pct] = event.payload;
       const id = label === "gliner-multi-pii-tokenizer" ? "gliner-multi-pii-fp16" : label === "gliner-pii-tokenizer" ? "gliner-pii-small-int8" : label;
@@ -94,7 +88,6 @@
     });
     try { await refresh(); } catch (e) { messageKind = "error"; message = String(e); }
     window.addEventListener("keydown", onKeyDown);
-    for (const event of ["pointerdown", "keydown", "wheel", "touchstart"]) window.addEventListener(event, cancelDocumentRedirect, { passive: true });
   });
 
   onDestroy(() => {
@@ -102,8 +95,6 @@
       unlistenProgress();
       unlistenProgress = null;
     }
-    cancelDocumentRedirect();
-    for (const event of ["pointerdown", "keydown", "wheel", "touchstart"]) window.removeEventListener(event, cancelDocumentRedirect);
     window.removeEventListener("keydown", onKeyDown);
   });
 
@@ -131,9 +122,10 @@
     for (const m of all.parakeet) map[m.id] = m.installed;
     for (const m of all.diarization) map[m.id] = m.installed;
     for (const m of all.privacy) map[m.id] = m.installed;
-    privacyOptions = [...all.privacy].sort((a, b) => modelBytes(a.size) - modelBytes(b.size));
-    if (all.privacy.some(m => m.installed) && (allowFallback || !all.privacy.some(m => m.id === privacySelected))) {
-      privacySelected = all.privacy.find(m => m.installed)!.id;
+    const offeredPrivacy = mobile ? all.privacy.filter(m => m.id === "gliner-pii-small-int8" || m.id === "gliner-multi-pii-fp16") : all.privacy;
+    privacyOptions = [...offeredPrivacy].sort((a, b) => modelBytes(a.size) - modelBytes(b.size));
+    if (offeredPrivacy.some(m => m.installed) && (allowFallback || !offeredPrivacy.some(m => m.id === privacySelected))) {
+      privacySelected = offeredPrivacy.find(m => m.installed)!.id;
       localStorage.setItem("bluedoor-privacy-model", privacySelected);
     }
     if (all.privacy.some(m => m.installed)) localStorage.setItem(firstPrivacyModelKey, "true");
@@ -149,7 +141,6 @@
 
   async function install(family: SttModel | "diarization" | "privacy") {
     if (busy) return;
-    cancelDocumentRedirect();
     const firstPrivacyDownload = family === "privacy" && loaded
       && localStorage.getItem(firstPrivacyModelKey) !== "true"
       && !privacyOptions.some(model => installed[model.id]);
@@ -160,10 +151,7 @@
       if (firstPrivacyDownload && installed[downloadedId]) {
         messageKind = "status";
         message = p("Modelo listo");
-        documentTimer = setTimeout(() => {
-          documentTimer = undefined;
-          onClose();
-        }, 2000);
+
       }
     } catch (e) { messageKind = "error"; message = String(e); }
   }
@@ -311,65 +299,13 @@
     {/if}
     </div>
     <p class="models-subtitle">{t.modelsSubtitle}</p>
-    <h2 class="privacy-section-title"><Icon name="privacy" size={20} /><span>{t.langLabel === "ES" ? "Modelo de privacidad de documentos:" : "Document privacy model:"}</span></h2>
+
     {#if privacyModelRequired && !installed[privacySelected]}<p class="models-subtitle" role="status">{t.langLabel === "ES" ? "Descarga un modelo local AI primero" : "Download a local AI model first"}</p>{/if}
   </div>
 
   <div class="list">
-    {#if !mobile}
-    <!-- Whisper -->
-    <div class="card">
-      <div class="card-head">
-        <ModelIcon kind="speech" />
-        <div class="card-copy">
-          <strong>{t.setupWhisperTitle}</strong>
-          <span>{t.setupWhisperLink}</span>
-        </div>
-      </div>
-      <div class="row">
-        <div class="row-copy">
-          <strong>{sttCurrent.family === "whisper" ? `Whisper ${sttCurrent.label}` : sttCurrent.label}</strong>
-          <span class="row-size">{sttCurrent.size}</span>
-        </div>
-        <button class="change-btn model-picker-trigger" aria-label={t.changeModel} title={t.changeModel} onclick={(event) => openPicker("stt", event.currentTarget)} disabled={busy}>
-          <Icon name="edit" size={16} /><span>{t.changeModel}</span>
-        </button>
-
-        <div class="spacer"></div>
-
-        <div class="right-actions">
-          {#if installingId === sttCurrent.id}
-            <div class="download-progress">
-              <span class="download-size">{sttCurrent.size}</span>
-              <div class="progress-track"><div class="progress-fill" style={`width: ${progress[sttCurrent.id] ?? 0}%`}></div></div>
-              <span>{progress[sttCurrent.id] ?? 0}%</span>
-            </div>
-          {:else if installed[sttCurrent.id]}
-            <span class="ok">{mobile ? (t.langLabel === "ES" ? "Instalado" : "Installed") : t.downloaded}</span>
-          {:else}
-            <button class="download-btn" disabled={busy} onclick={() => install(sttCurrent.id)}><Icon name={mobile ? "install-mobile" : "download"} size={20} /><span>{t.download}</span></button>
-          {/if}
-
-          <button
-            class="icon-btn"
-            title={t.delete}
-            aria-label={t.delete}
-            disabled={!installed[sttCurrent.id] || busy}
-            onclick={() => remove(sttCurrent.id)}
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M4.5 6h11"></path>
-              <path d="M6.5 6v10a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V6"></path>
-              <path d="M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6"></path>
-              <path d="M10 9v5"></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    {/if}
-    <!-- Qwen3: local document privacy -->
+    <h2 class="privacy-section-title"><Icon name="privacy" size={20} /><span>{t.langLabel === "ES" ? "Modelo de privacidad de documentos" : "Document privacy model"}</span></h2>
+    <!-- Local document privacy -->
     <div class="card">
       <div class="card-head">
         <ModelIcon kind="privacy" />
@@ -403,6 +339,52 @@
           {:else}
             <button class="download-btn" disabled={busy} onclick={() => install("privacy")}><Icon name={mobile ? "install-mobile" : "download"} size={20} /><span>{t.download}</span></button>
           {/if}
+
+        </div>
+      </div>
+    </div>
+
+    <h2 class="privacy-section-title"><Icon name="record-voice" size={20} /><span>{t.langLabel === "ES" ? "Modelo privado de transcripción de audio" : "Private Audio Transcription Model"}</span></h2>
+    <!-- Local transcription -->
+    <div class="card">
+      <div class="card-head">
+        <ModelIcon kind="speech" />
+        <div class="card-copy">
+          <strong>{mobile ? sttCurrent.label : t.setupWhisperTitle}</strong>
+          <span>{mobile ? (t.langLabel === "ES" ? "Transcripción privada de audio en tu dispositivo" : "Private audio transcription on your device") : t.setupWhisperLink}</span>
+        </div>
+      </div>
+      <div class="row privacy-model-row">
+        <div class="selected-model-identity">
+          <ModelFamilyIcon modelId={sttCurrent.id} />
+        <div class="row-copy">
+          <strong>{sttCurrent.family === "whisper" ? `Whisper ${sttCurrent.label}` : sttCurrent.label}</strong>
+          <span class="row-size">{sttCurrent.size}</span>
+        </div>
+        </div>
+        <div class="privacy-model-controls">
+        <button class="change-btn model-picker-trigger" aria-label={t.changeModel} title={t.changeModel} onclick={(event) => openPicker("stt", event.currentTarget)} disabled={busy}>
+          <Icon name="edit" size={16} /><span>{t.changeModel}</span>
+        </button>
+
+          <button class="change-btn privacy-model-delete" title={t.delete} aria-label={t.delete} disabled={!installed[sttCurrent.id] || busy} onclick={() => remove(sttCurrent.id)}><Icon name="trash" size={16} /><span>{t.delete}</span></button>
+        </div>
+        <div class="spacer"></div>
+
+        <div class="right-actions privacy-model-status">
+          {#if mobile && installingId !== sttCurrent.id}<span class="mobile-model-size">{sttCurrent.size}</span>{/if}
+          {#if installingId === sttCurrent.id}
+            <div class="download-progress">
+              <span class="download-size">{sttCurrent.size}</span>
+              <div class="progress-track"><div class="progress-fill" style={`width: ${progress[sttCurrent.id] ?? 0}%`}></div></div>
+              <span>{progress[sttCurrent.id] ?? 0}%</span>
+            </div>
+          {:else if installed[sttCurrent.id]}
+            <span class="ok">{mobile ? (t.langLabel === "ES" ? "Instalado" : "Installed") : t.downloaded}</span>
+          {:else}
+            <button class="download-btn" disabled={busy} onclick={() => install(sttCurrent.id)}><Icon name={mobile ? "install-mobile" : "download"} size={20} /><span>{t.download}</span></button>
+          {/if}
+
 
         </div>
       </div>
@@ -460,14 +442,14 @@
 
   <dialog class="model-picker" bind:this={modelPicker} aria-labelledby="model-picker-title" oncancel={(event) => { event.preventDefault(); menu = null; }}>
     <div class="picker-heading">
-      <div><h2 id="model-picker-title">{t.langLabel === "ES" ? "Elegir modelo" : "Choose a model"}</h2><p>{menu === "stt" ? t.setupWhisperTitle : (t.langLabel === "ES" ? "Privacidad de documentos" : "Document privacy")}</p></div>
+      <div><h2 id="model-picker-title">{t.langLabel === "ES" ? "Elegir modelo" : "Choose a model"}</h2><p>{menu === "stt" ? (mobile ? (t.langLabel === "ES" ? "Transcripción de audio" : "Audio transcription") : t.setupWhisperTitle) : (t.langLabel === "ES" ? "Privacidad de documentos" : "Document privacy")}</p></div>
       <button class="picker-close" aria-label={t.langLabel === "ES" ? "Cerrar selector" : "Close selector"} title={t.langLabel === "ES" ? "Cerrar selector" : "Close selector"} onclick={() => menu = null}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
     </div>
     <div class="model-choices" role="group" aria-label={t.langLabel === "ES" ? "Modelos disponibles" : "Available models"}>
       {#if menu === "stt"}
-        {#each [...STT_OPTIONS].sort((a, b) => modelBytes(a.size) - modelBytes(b.size)) as option (option.id)}
+        {#each [...sttOptions].sort((a, b) => modelBytes(a.size) - modelBytes(b.size)) as option (option.id)}
           <button class="model-choice" class:selected={option.id === sttCurrent.id} aria-pressed={option.id === sttCurrent.id} disabled={busy} onclick={() => pickStt(option.id)}>
-            <span class="choice-copy"><strong>{option.family === "whisper" ? `Whisper ${option.label}` : option.label}</strong><span>{option.size} · {option.family === "whisper" ? "Whisper" : "NVIDIA Parakeet"}</span></span>
+            <span class="choice-copy"><strong>{option.family === "whisper" ? `Whisper ${option.label}` : option.label}</strong><span>{option.size} · {option.id.startsWith("vosk") ? (option.id === "vosk-small-en" ? "Vosk · English" : "Vosk · Español") : option.family === "whisper" ? "Whisper" : "NVIDIA Parakeet"}</span></span>
             {#if option.id === sttCurrent.id}<Icon name="check" size={20} />{/if}
           </button>
         {/each}
@@ -502,7 +484,7 @@
     <div class="overlay" role="dialog" aria-modal="true" tabindex="-1" onclick={cancelDelete} onkeydown={(e) => { if (e.key === "Escape") cancelDelete(); }}>
       <div class="dialog" role="none" onclick={(e) => e.stopPropagation()}>
         <strong>{t.deleteTitle}</strong>
-        <p>{pendingDelete === "privacy" ? p("El análisis de documentos quedará deshabilitado hasta reinstalar este peso.") : pendingDelete === "diarization" ? (t.langLabel === "ES" ? "La detección de voces dejará de estar disponible hasta volver a instalar el modelo." : "Speaker detection will be unavailable until the model is installed again.") : t.deleteWhisperBody}</p>
+        <p>{pendingDelete === "privacy" ? p("El análisis de documentos quedará deshabilitado hasta reinstalar este peso.") : pendingDelete === "diarization" ? (t.langLabel === "ES" ? "La detección de voces dejará de estar disponible hasta volver a instalar el modelo." : "Speaker detection will be unavailable until the model is installed again.") : (t.langLabel === "ES" ? "Se eliminará el modelo de audio seleccionado. Tus transcripciones guardadas se conservan." : "The selected audio model will be removed. Your saved transcriptions are kept.")}</p>
         <p class="dialog-model">{pendingDelete === "privacy" ? (privacyOptions.find(m => m.id === privacySelected)?.name ?? "Qwen3") : pendingDelete === "diarization" ? "NVIDIA Nemotron 3" : sttCurrent.family === "whisper" ? `Whisper ${sttCurrent.label}` : sttCurrent.label}</p>
         <div class="dialog-actions">
           <button class="cancel" onclick={cancelDelete}>{t.cancel}</button>

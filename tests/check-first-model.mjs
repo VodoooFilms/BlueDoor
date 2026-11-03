@@ -37,7 +37,7 @@ try {
     await page.getByRole('heading', { name: 'Modelos de IA locales:' }).waitFor();
   }
   async function download() {
-    await page.locator('.privacy-model-status .download-btn').click();
+    await page.locator('.card').first().locator('.privacy-model-status .download-btn').click();
     await page.waitForFunction(() => typeof window.__finishDownload === 'function');
     await page.evaluate(() => window.__finishDownload());
     await page.locator('.privacy-model-status .ok').waitFor();
@@ -45,9 +45,9 @@ try {
   await openModels();
   await download();
   await page.getByText('Modelo listo', { exact: true }).waitFor();
-  await page.waitForTimeout(900);
-  assert(await page.locator('.models').isVisible(), 'success remains visible before the two-second delay');
-  await page.locator('.blue-import-screen').waitFor();
+  await page.waitForTimeout(2300);
+  assert(await page.locator('.models').isVisible(), 'first model download stays on Models');
+  assert(!(await page.locator('.blue-import-screen').isVisible()), 'no automatic redirect to Documents');
   assert.equal(await page.evaluate(() => localStorage.getItem('bluedoor-first-privacy-model-ready')), 'true');
 
   // Removing/reinstalling a model later must never repeat first-use navigation.
@@ -57,14 +57,14 @@ try {
   await page.waitForTimeout(2300);
   assert(await page.locator('.models').isVisible(), 'later downloads stay on Models');
 
-  // Explicit interaction cancels navigation, while retaining the once-only marker.
+  // First downloads also stay on Models after explicit interaction.
   await page.evaluate(() => { localStorage.setItem('qa-installed-models', '[]'); localStorage.removeItem('bluedoor-first-privacy-model-ready'); });
   await openModels();
   await download();
   await page.getByText('Modelo listo', { exact: true }).waitFor();
   await page.getByRole('heading', { name: 'Modelos de IA locales:' }).click();
   await page.waitForTimeout(2300);
-  assert(await page.locator('.models').isVisible(), 'interaction cancels automatic navigation');
+  assert(await page.locator('.models').isVisible(), 'interaction leaves Models open');
   assert.equal(await page.evaluate(() => localStorage.getItem('bluedoor-first-privacy-model-ready')), 'true');
-  console.log('First privacy model: delayed navigation, persistence and interaction cancellation passed.');
+  console.log('First privacy model: no automatic navigation; success and persistence passed.');
 } finally { await browser.close(); }

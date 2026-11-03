@@ -83,12 +83,23 @@ fn whisper_entry(
 
 /// Modelos Parakeet (FastConformer TDT) servidos por transcribe.cpp.
 /// Mismo formato de tupla que `WHISPER_MODELS` para reutilizar el downloader.
-pub(crate) const PARAKEET_MODELS: &[(&str, &str, &str, &str)] = &[(
-    "parakeet-tdt-0.6b-v3",
-    "Parakeet TDT v3 (rápido, 25 idiomas)",
-    "740 MB",
-    "parakeet-tdt-0.6b-v3-Q8_0.gguf",
-)];
+pub(crate) const VOSK_FILE: &str = "vosk-model-small-es-0.42.zip";
+pub(crate) const VOSK_EN_FILE: &str = "vosk-model-small-en-us-0.15.zip";
+pub(crate) const PARAKEET_MODELS: &[(&str, &str, &str, &str)] = &[
+    ("vosk-small-es", "Vosk Small Español", "39,8 MB", VOSK_FILE),
+    (
+        "vosk-small-en",
+        "Vosk Small English",
+        "41,2 MB",
+        VOSK_EN_FILE,
+    ),
+    (
+        "parakeet-tdt-0.6b-v3",
+        "Parakeet TDT v3 (rápido, 25 idiomas)",
+        "740 MB",
+        "parakeet-tdt-0.6b-v3-Q8_0.gguf",
+    ),
+];
 
 pub(crate) fn parakeet_file(id: &str) -> Result<&'static str, String> {
     PARAKEET_MODELS
@@ -145,6 +156,13 @@ pub(crate) fn list_models(app_handle: tauri::AppHandle) -> ModelsList {
     }
     let parakeet = PARAKEET_MODELS
         .iter()
+        .filter(|(id, _, _, _)| {
+            if cfg!(target_os = "android") {
+                *id == "vosk-small-en" || *id == "vosk-small-es"
+            } else {
+                *id != "vosk-small-en" && *id != "vosk-small-es"
+            }
+        })
         .map(|(id, name, size, file)| {
             let path = models_dir(&app_handle).join(file);
             ModelEntry {
@@ -220,11 +238,7 @@ pub(crate) fn list_models(app_handle: tauri::AppHandle) -> ModelsList {
     }
     ModelsList {
         whisper,
-        parakeet: if cfg!(target_os = "android") {
-            vec![]
-        } else {
-            parakeet
-        },
+        parakeet,
         diarization: if cfg!(target_os = "android") {
             vec![]
         } else {
@@ -272,6 +286,19 @@ pub(crate) fn delete_parakeet_model(
     id: String,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    if id == "vosk-small-es" || id == "vosk-small-en" {
+        crate::android::unload_vosk()?;
+        let cache = if id == "vosk-small-en" {
+            "vosk-small-en-0.15-verified-v1"
+        } else {
+            "vosk-small-es-0.42-verified-v1"
+        };
+        let directory = models_dir(&app_handle).join(cache);
+        if directory.exists() {
+            std::fs::remove_dir_all(directory).map_err(|e| e.to_string())?;
+        }
+    }
     let path = models_dir(&app_handle).join(parakeet_file(&id)?);
     if path.exists() {
         std::fs::remove_file(&path).map_err(|e| format!("No se pudo eliminar el modelo: {}", e))?;

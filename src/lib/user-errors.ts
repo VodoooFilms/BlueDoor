@@ -30,6 +30,10 @@ export function importErrorMessage(error: unknown, kind: "audio" | "document", l
       : "Could not read the document. Check that it opens and is not damaged or password protected, then import it again.";
     return message;
   }
+  if (/audio debe enviarse como datos binarios|envío de audio|configuración de la transcripción/i.test(message)) return es
+    ? "No se pudo enviar la grabación al motor local. Vuelve a grabar e inténtalo otra vez."
+    : "Could not send the recording to the local engine. Record again and retry.";
+  if (/Vosk:|Parakeet Redux:|Descarga Parakeet Redux|No se reconoció voz|grabación no contiene audio|Falló la transcripción|No se pudo cargar el modelo|No se pudo iniciar el motor|configuración de la transcripción|modelo.*(verific|integridad)/i.test(message)) return message;
   if (/Selecciona un archivo de audio o vídeo compatible|extensión válida|formato.*no.*válido|unsupported.*format/i.test(message)) return es
     ? "Este archivo no tiene un formato de audio o vídeo compatible. Prueba con WAV, MP3, M4A, FLAC, OGG, MP4 o MOV."
     : "This file is not a supported audio or video format. Try WAV, MP3, M4A, FLAC, OGG, MP4 or MOV.";
@@ -39,6 +43,6 @@ export function importErrorMessage(error: unknown, kind: "audio" | "document", l
   if (/No se pudo abrir|not found|no such file/i.test(message)) return es
     ? "No se pudo abrir el archivo. Comprueba que sigue disponible y tienes permiso para leerlo; después selecciónalo de nuevo."
     : "Could not open the file. Check that it is still available and you have permission to read it, then select it again.";
-  return es ? "No se pudo procesar el audio. Comprueba el archivo y que el modelo esté descargado, y vuelve a intentarlo."
-    : "Could not process the audio. Check the file and that the model is downloaded, then try again.";
+  return es ? `No se pudo procesar el audio. Detalle: ${message}`
+    : `Could not process the audio. Details: ${message}`;
 }

@@ -171,3 +171,18 @@ export function renameSpeakerHtml(
   });
   return container.innerHTML;
 }
+
+/** Paragraph breaks only: never summarize or rewrite recognized words. */
+export function transcriptionParagraphs(text: string): string {
+  return text.split(/\n+/).map(line => {
+    const sentences = line.split(/(?<=[.!?])(?=\s)/u);
+    const paragraphs: string[] = [];
+    let paragraph = "";
+    for (const sentence of sentences) {
+      paragraph += sentence;
+      if (paragraph.length >= 280) { paragraphs.push(paragraph.trim()); paragraph = ""; }
+    }
+    if (paragraph.trim()) paragraphs.push(paragraph.trim());
+    return paragraphs.join("\n\n");
+  }).join("\n\n");
+}

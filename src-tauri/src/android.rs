@@ -242,3 +242,11 @@ pub(crate) fn batch_write_tree(tree: &str, path: &Path, name: &str) -> Result<()
             .to_string();
     call_string("batchWriteTree", "(Ljava/lang/String;)V", &payload).map(|_| ())
 }
+
+pub(crate) fn transcribe_vosk(payload: &str) -> Result<String, String> {
+    call_string("runVosk", "(Ljava/lang/String;)Ljava/lang/String;", payload)
+}
+
+pub(crate) fn unload_vosk() -> Result<(), String> {
+    call_string("unloadVosk", "(Ljava/lang/String;)V", "").map(|_| ())
+}

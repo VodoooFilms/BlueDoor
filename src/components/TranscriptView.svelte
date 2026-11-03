@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
+  import { transcriptionParagraphs } from "../lib/editor/content";
   import Feedback from "./Feedback.svelte";
   import ChatGPTButton from "./ChatGPTButton.svelte";
   import { privateCopy as p } from "../lib/private-i18n";
@@ -16,13 +18,15 @@
   let t = $derived(getCopy());
 
   interface Props {
+    mobile?: boolean;
     transcript: Transcript;
     onSave: (
       id: string,
       text: string,
       format?: DocFormat,
       html?: string | null,
-      speakerNames?: Record<string, string>
+      speakerNames?: Record<string, string>,
+      title?: string
     ) => void | Promise<void>;
     onDirtyChange: (dirty: boolean, save: () => void | Promise<void>) => void;
     embedded?: boolean;
@@ -50,7 +54,19 @@
     onValidateExport?: (text: string, title?: string) => Promise<void>;
   }
 
-  let { transcript, onSave, onDirtyChange, privateDocument = false, privateReviewed = false, privateId = null, privateRevision = null, onConfirmReview, onValidateExport, embedded = false, pageSurface, surfaceActive = true, surfaceScale = 1, onSurfaceExtent, onSaved, onFinishEditing, onSaveOutcome, actions, toolbarLeading, onExportAction, externalDirty = false, externalCanUndo = false, externalUndoOrder = -1, nextUndoOrder, onResetExternal, onUndoExternal }: Props = $props();
+  let { mobile = false, transcript, onSave, onDirtyChange, privateDocument = false, privateReviewed = false, privateId = null, privateRevision = null, onConfirmReview, onValidateExport, embedded = false, pageSurface, surfaceActive = true, surfaceScale = 1, onSurfaceExtent, onSaved, onFinishEditing, onSaveOutcome, actions, toolbarLeading, onExportAction, externalDirty = false, externalCanUndo = false, externalUndoOrder = -1, nextUndoOrder, onResetExternal, onUndoExternal }: Props = $props();
+  let showAudioFormat = $state(false);
+  let draftTitle = $state("");
+  let approvedSnapshot = $state("");
+  const audioMobile = $derived(mobile && !privateDocument);
+  async function approveAudio() {
+    await saveCorrection();
+    await tick();
+    if (!dirty) {
+      approvedSnapshot = reviewSnapshot;
+      editorEl?.blur();
+    }
+  }
   let exporting = $state(false);
   $effect(() => { onExportAction?.(exportAsPDF, exporting); });
   let statusMessage = $state("");
@@ -94,6 +110,9 @@
   let editorEl = $state<HTMLDivElement | null>(null);
   let prevEditorEl: HTMLDivElement | null = null;
   let rich = $state("");
+  const reviewSnapshot = $derived(JSON.stringify([draftTitle, rich, docFormat, speakerNames]));
+  const audioReviewed = $derived(approvedSnapshot === reviewSnapshot);
+
   let canReset = $derived(externalDirty || (resetSnapshot !== null && snapshotAt(rich, docFormat, speakerNames, resetSnapshot)));
   let loading = $state(true);
   let selBold = $state(false);
@@ -116,7 +135,7 @@
     if (!element || !editorEl?.contains(element)) return;
     const style = getComputedStyle(element);
     const family = style.fontFamily.split(",")[0].trim().replace(/^["']|["']$/g, "");
-    selFont = FONT_OPTIONS.find(f => f.id.toLowerCase() === family.toLowerCase() || f.label.toLowerCase() === family.toLowerCase())?.id ?? family;
+    selFont = FONT_OPTIONS.find(f => f.id.toLowerCase() === family.toLowerCase() || f.label.toLowerCase() === family.toLowerCase() || f.css.split(",")[0].trim().replace(/["']/g, "").toLowerCase() === family.toLowerCase())?.id ?? family;
     selSize = parseFloat(style.fontSize) || null;
     selColor = style.color;
   }
@@ -162,12 +181,13 @@
   // que re-ejecutarían este efecto en cada tecleo, revirtiendo la edición).
   $effect(() => {
     if (pageSurface) statusMessage = "";
+    draftTitle = transcript.title;
     const names = { ...(transcript.speakerNames ?? {}) };
     const savedHtml = transcript.correctedHtml ?? null;
     const saved = transcript.corrected !== null && transcript.corrected !== undefined;
     const base = saved ? transcript.corrected! : normalizeSpeakerText(transcript.text, transcript.segments, names);
     const format = transcript.format ?? DEFAULT_FORMAT;
-    const sourceHtml = sanitizeRichHtml(savedHtml || textToHtml(base));
+    const sourceHtml = sanitizeRichHtml(savedHtml || textToHtml(audioMobile && !saved ? transcriptionParagraphs(base) : base));
     const initialRich = conversationHtml(sourceHtml, names, hasSpeakers);
     speakerNames = names;
     correctedText = htmlToPlain(initialRich);
@@ -183,7 +203,7 @@
     loading = true;
   });
 
-  const dirty = $derived(externalDirty || (savedSnapshot !== null && snapshotAt(rich, docFormat, speakerNames, savedSnapshot)));
+  const dirty = $derived((audioMobile && draftTitle !== transcript.title) || externalDirty || (savedSnapshot !== null && snapshotAt(rich, docFormat, speakerNames, savedSnapshot)));
   $effect(() => {
     onDirtyChange(pageSurface && !surfaceActive ? false : dirty, saveCorrection);
   });
@@ -534,7 +554,7 @@
 
   // --- PDF ---
   async function exportAsPDF() {
-    if (exporting) return;
+    if (exporting || (audioMobile && !audioReviewed)) return;
     exporting = true;
     statusMessage = "";
     const exportHtml = sanitizeRichHtml(rich);
@@ -558,7 +578,7 @@
         }
         await onValidateExport(exportText, transcript.title);
       }
-      const exportTitle = privateDocument ? p(transcript.title) : transcript.title;
+      const exportTitle = privateDocument ? p(transcript.title) : audioMobile ? draftTitle.trim() || transcript.title : transcript.title;
       const mobile = await invoke<string>("app_platform").catch(() => "unknown") === "android";
       const path = await invoke<string | null>(mobile ? "prepare_share_export" : "choose_pdf_destination", {
         defaultName: pdfFileName(exportTitle),
@@ -590,12 +610,12 @@
   }
 
   async function saveCorrection() {
-    if (savedCorrection && !externalDirty) { onSaveOutcome?.(true); return; }
+    if (savedCorrection && !dirty) { onSaveOutcome?.(true); return; }
     statusMessage = "";
     const safeHtml = sanitizeRichHtml(rich);
     rich = safeHtml;
     correctedText = htmlToPlain(safeHtml);
-    try { await onSave(transcript.id, correctedText, docFormat, safeHtml, speakerNames); }
+    try { await onSave(transcript.id, correctedText, docFormat, safeHtml, speakerNames, audioMobile ? draftTitle.trim() || transcript.title : undefined); }
     catch (e) { statusKind = "error"; statusMessage = String(e); onSaveOutcome?.(false, statusMessage); return; }
     savedSnapshot = editorSnapshot(safeHtml, docFormat, speakerNames);
     savedCorrection = true;
@@ -670,11 +690,11 @@
 
 <svelte:window onpointerdown={onGlobalPointerDown} onkeydown={onUndoKeydown} />
 
-<section class="viewer" class:private-document={privateDocument} class:embedded class:page-editor={!!pageSurface}>
+<section class="viewer" class:audio-mobile={audioMobile} class:private-document={privateDocument} class:embedded class:page-editor={!!pageSurface}>
   {#if !embedded}<SaveNotice sequence={saveSequence} />{/if}
   {#if !embedded && !privateDocument}<div class="viewer-head">
     {#if !pageSurface}<div class="head-copy">
-      <strong>{privateDocument ? p(transcript.title) : transcript.title}</strong>
+      {#if audioMobile}<label class="audio-title">{t.langLabel === "ES" ? "Título" : "Title"}<input aria-label={t.langLabel === "ES" ? "Título de la transcripción" : "Transcript title"} bind:value={draftTitle} maxlength="160" /></label>{:else}<strong>{privateDocument ? p(transcript.title) : transcript.title}</strong>{/if}
       <span>{privateDocument ? p("Documento privado · solo en memoria") : t.meta(formatDuration(transcript.duration), transcript.language, transcript.model)}</span>
     </div>{/if}
 
@@ -704,9 +724,12 @@
   {#if !pageSurface || surfaceActive}
   <div class="editor-tools">
   <div class="editor-toolbar" aria-label={t.alignLabel}>
+    {#if audioMobile}<button class="head-btn audio-format-toggle" onclick={() => showAudioFormat = !showAudioFormat} aria-expanded={showAudioFormat}><Icon name="edit" /><span>{t.langLabel === "ES" ? "Formato" : "Format"}</span></button>{/if}
+    {#if !audioMobile || showAudioFormat}
     <div class="font-zoom-controls">
     <fieldset class="format-controls font-controls" disabled={!surfaceActive}>
       <label class="tb-field" title={t.fontLabel}>
+      {#if audioMobile}<span class="audio-field-label"><Icon name="document" size={18} />{t.fontLabel}</span>{/if}
         <select
           class="tb-font"
           value={displayFont}
@@ -724,6 +747,7 @@
         </select>
       </label>
       <label class="tb-field" title={t.sizeLabel}>
+      {#if audioMobile}<span class="audio-field-label"><Icon name="edit" size={18} />{t.sizeLabel}</span>{/if}
         <select
           class="tb-size"
           value={displaySize}
@@ -747,16 +771,17 @@
       <span class="tb-sep"></span>
       <div class="tb-styles" role="group" aria-label={t.boldLabel}>
         <button class="tb-btn" class:active={selBold} title={t.boldLabel} aria-label={t.boldLabel} onmousedown={(e) => e.preventDefault()} onclick={() => applyFormat("bold")}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4h5a3 3 0 0 1 0 6H6zM6 10h6a3 3 0 0 1 0 6H6z"></path></svg>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4h5a3 3 0 0 1 0 6H6zM6 10h6a3 3 0 0 1 0 6H6z"></path></svg>{#if audioMobile}<span>{t.boldLabel}</span>{/if}
         </button>
         <button class="tb-btn" class:active={selItalic} title={t.italicLabel} aria-label={t.italicLabel} onmousedown={(e) => e.preventDefault()} onclick={() => applyFormat("italic")}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M9 4l2 12M12.5 4H7M13 16h-5.5"></path></svg>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M9 4l2 12M12.5 4H7M13 16h-5.5"></path></svg>{#if audioMobile}<span>{t.italicLabel}</span>{/if}
         </button>
         <button class="tb-btn" class:active={selUnderline} title={t.underlineLabel} aria-label={t.underlineLabel} onmousedown={(e) => e.preventDefault()} onclick={() => applyFormat("underline")}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4v6a4 4 0 0 0 8 0V4"></path><path d="M5 16.5h10"></path></svg>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4v6a4 4 0 0 0 8 0V4"></path><path d="M5 16.5h10"></path></svg>{#if audioMobile}<span>{t.underlineLabel}</span>{/if}
         </button>
       </div>
       <div class="tb-color" role="group" aria-label={t.textColor}>
+        {#if audioMobile}<span class="audio-field-label"><Icon name="edit" size={18} />{t.textColor}</span>{/if}
         <input
           type="color"
           class="tb-color-input"
@@ -769,43 +794,45 @@
       <span class="tb-sep"></span>
       <div class="tb-align" role="group" aria-label={t.alignLabel}>
         <button class="tb-btn" class:active={docFormat.align === "left"} title={t.alignLeft} aria-label={t.alignLeft} onclick={() => { if (inEditorSelection()) applyFormat("justifyLeft"); else setDocFormat({ align: "left" }); }}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5h13M3.5 10h8M3.5 15h13"></path></svg>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5h13M3.5 10h8M3.5 15h13"></path></svg>{#if audioMobile}<span>{t.alignLeft}</span>{/if}
         </button>
         <button class="tb-btn" class:active={docFormat.align === "center"} title={t.alignCenter} aria-label={t.alignCenter} onclick={() => { if (inEditorSelection()) applyFormat("justifyCenter"); else setDocFormat({ align: "center" }); }}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5h13M6 10h8M3.5 15h13"></path></svg>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5h13M6 10h8M3.5 15h13"></path></svg>{#if audioMobile}<span>{t.alignCenter}</span>{/if}
         </button>
         <button class="tb-btn" class:active={docFormat.align === "right"} title={t.alignRight} aria-label={t.alignRight} onclick={() => { if (inEditorSelection()) applyFormat("justifyRight"); else setDocFormat({ align: "right" }); }}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5h13M9 10h8M3.5 15h13"></path></svg>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5h13M9 10h8M3.5 15h13"></path></svg>{#if audioMobile}<span>{t.alignRight}</span>{/if}
         </button>
       </div>
     </fieldset>
+    {/if}
     <div class="toolbar-actions">
     {#if actions}{@render actions()}{:else}
       <div class="head-actions editor-actions">
-      <button class="head-btn" onclick={resetToOriginal} disabled={!surfaceActive || !canReset} title={t.reset} aria-label={t.reset}>
+      <button class="head-btn audio-reset" onclick={resetToOriginal} disabled={!surfaceActive || !canReset} title={t.reset} aria-label={t.reset}>
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
           <path d="M21 3v5h-5"></path>
         </svg>
         <span class="history-action-label">{t.reset}</span>
       </button>
-      <button class="head-btn" onclick={undo} disabled={!surfaceActive || !canUndo} title={`${t.undo} (Ctrl+Z)`} aria-label={t.undo}>
+      <button class="head-btn audio-undo" onclick={undo} disabled={!surfaceActive || !canUndo} title={`${t.undo} (Ctrl+Z)`} aria-label={t.undo}>
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
           <path d="M3 3v5h5"></path>
         </svg>
         <span class="history-action-label">{t.undo}</span>
       </button>
-      <button class="head-btn" class:copied={copied} onclick={copyToClipboard} disabled={!surfaceActive}>{copied ? t.copied : t.copy}</button>
-      <button class="head-btn save-btn" class:saved={savedCorrection && !externalDirty} onclick={saveCorrection} disabled={!surfaceActive || (savedCorrection && !externalDirty)}>
+      <button class="head-btn audio-copy" class:copied={copied} onclick={copyToClipboard} disabled={!surfaceActive}>{#if audioMobile}<Icon name="document" />{/if}{copied ? t.copied : t.copy}</button>
+      <button class="head-btn save-btn" class:saved={savedCorrection && !externalDirty} onclick={saveCorrection} disabled={!surfaceActive || (savedCorrection && !dirty)}>
+        {#if audioMobile}<Icon name="check" />{/if}
         <span class="save-label">
           <span class="save-label-measure" aria-hidden="true">{t.save}</span>
           <span class="save-label-measure" aria-hidden="true">{t.saved}</span>
-          <span>{savedCorrection && !externalDirty ? privateDocument ? p("Guardado") : t.saved : t.save}</span>
+          <span>{audioMobile ? (savedCorrection && !dirty ? (t.langLabel === "ES" ? "Guardado" : "Saved") : (t.langLabel === "ES" ? "Guardar" : "Save")) : savedCorrection && !externalDirty ? privateDocument ? p("Guardado") : t.saved : t.save}</span>
         </span>
       </button>
       {#if onFinishEditing && surfaceActive}<button class="head-btn" onclick={onFinishEditing}>{p("Terminar edición")}</button>{/if}
-      {#if !embedded && !onExportAction}<button class="head-btn primary" onclick={() => exportAsPDF()} disabled={exporting} title={privateDocument ? p("Exportar el documento actual a un PDF local") : t.exportPdf}>
+      {#if !embedded && !onExportAction}<button class="head-btn primary audio-export" onclick={() => exportAsPDF()} disabled={exporting || (audioMobile && !audioReviewed)} title={privateDocument ? p("Exportar el documento actual a un PDF local") : t.exportPdf}>
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M10 13V3"></path>
           <path d="M6 7l4-4 4 4"></path>
@@ -835,6 +862,12 @@
   </fieldset>
   </div>
   {/if}
+  {#if audioMobile}
+    <div class="audio-review">
+      <p>{t.langLabel === "ES" ? "Antes de exportar, revisa y aprueba la transcripción. Edítala si es necesario." : "Before exporting, review and approve the transcription. Edit it if needed."}</p>
+      <button class="head-btn primary" onclick={approveAudio} disabled={audioReviewed || !draftTitle.trim()}><Icon name="check" /><span>{audioReviewed ? (t.langLabel === "ES" ? "Revisión aprobada" : "Review approved") : (t.langLabel === "ES" ? "Aprobar revisión" : "Approve review")}</span></button>
+    </div>
+  {/if}
   <div class="viewer-body">
     {#if pageSurface}{@render pageSurface(richSurface)}{:else}
     {@render richSurface("")}
@@ -861,6 +894,21 @@
 {/snippet}
 
 <style>
+  .audio-title { display:grid; gap:8px; font-size:12px; width:100%; }
+  .audio-title input { width:100%; box-sizing:border-box; padding:10px 12px; font:inherit; font-size:20px; border:1px solid var(--line); border-radius:8px; background:transparent; color:inherit; }
+  .audio-review { padding:16px 0; display:grid; gap:12px; }
+  .audio-review p { margin:0; font-size:13px; line-height:1.6; color:var(--muted); }
+  .audio-mobile :global(.rich-editor) { box-sizing:border-box; width:100%; min-width:0; min-height:360px; padding:24px !important; background:white !important; color:#182336 !important; line-height:1.75; border-radius:12px; overflow-wrap:anywhere; }
+  .audio-mobile :global(.rich-editor > div + div), .audio-mobile :global(.rich-editor > p + p) { margin-top:12px; }
+  .audio-mobile :global(.history-action-label) { display:inline !important; }
+  .audio-mobile :global(.editor-actions .head-btn:has(.history-action-label)) { width:auto !important; }
+  .audio-mobile :global(.editor-actions) { flex-wrap:wrap; }
+  .audio-mobile :global(.tb-styles), .audio-mobile :global(.tb-align), .audio-mobile :global(.style-controls) { flex-wrap:wrap; }
+  .audio-mobile :global(.tb-btn) { width:auto; padding:8px; gap:8px; font-size:12px; }
+  .audio-mobile .viewer-body { overflow:visible; }
+  .audio-mobile { overflow:visible; flex:1 0 auto; }
+  .audio-mobile :global(.ruler-tools) { display:none; }
+
   .viewer {
     position: relative;
     flex: 1;

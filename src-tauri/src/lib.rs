@@ -1,16 +1,8 @@
 #[cfg(target_os = "android")]
 mod android;
-#[cfg(not(target_os = "android"))]
-mod audio;
-#[cfg(target_os = "android")]
-#[path = "audio_stub.rs"]
 mod audio;
 mod batch;
 mod diagnostics;
-#[cfg(not(target_os = "android"))]
-mod diarization;
-#[cfg(target_os = "android")]
-#[path = "diarization_stub.rs"]
 mod diarization;
 mod documents;
 #[cfg(any(target_os = "android", test))]
@@ -27,6 +19,8 @@ mod session_status;
 mod store;
 mod types;
 mod vault;
+#[cfg(target_os = "android")]
+mod vosk;
 
 use std::sync::Mutex;
 use tauri::Manager;
@@ -42,7 +36,6 @@ pub fn run() {
             threads: 0, // 0 = automático (todos los cores)
             diarize: false,
         }),
-        #[cfg(not(target_os = "android"))]
         stt: Mutex::new(None),
         authorized_audio_paths: Mutex::new(std::collections::HashSet::new()),
         authorized_pdf_paths: Mutex::new(std::collections::HashSet::new()),
@@ -178,17 +171,11 @@ pub fn run() {
             models::delete_model,
             #[cfg(not(target_os = "android"))]
             models::delete_diarization_model,
-            #[cfg(not(target_os = "android"))]
             models::download_parakeet_model,
-            #[cfg(not(target_os = "android"))]
             models::delete_parakeet_model,
-            #[cfg(not(target_os = "android"))]
             audio::choose_audio_file,
-            #[cfg(not(target_os = "android"))]
             audio::transcribe_file,
-            #[cfg(not(target_os = "android"))]
             audio::prepare_transcribe_blob,
-            #[cfg(not(target_os = "android"))]
             audio::transcribe_blob,
             pdf::choose_pdf_destination,
             pdf::generate_pdf,

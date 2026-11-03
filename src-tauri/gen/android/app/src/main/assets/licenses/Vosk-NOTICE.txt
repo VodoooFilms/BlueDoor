@@ -1,0 +1,8 @@
+Vosk API by Alpha Cephei: https://github.com/alphacep/vosk-api
+Android library com.alphacephei:vosk-android:0.3.75, Apache License 2.0.
+Spanish model vosk-model-small-es-0.42 and English model
+vosk-model-small-en-us-0.15, Alpha Cephei, Apache License 2.0.
+https://alphacephei.com/vosk/models
+JNA by Timothy Wall and contributors, Apache License 2.0 / LGPL 2.1 dual license;
+used here under Apache License 2.0. https://github.com/java-native-access/jna
+Models are downloaded on request. No speech data is sent to a server.

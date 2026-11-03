@@ -14,7 +14,7 @@
   import VaultView from "./components/VaultView.svelte";
   import type { Transcript, DocFormat } from "./lib/types";
   import type { PrivacySession } from "./lib/privacy";
-  import { DEFAULT_FORMAT } from "./lib/types";
+  import { DEFAULT_FORMAT, MOBILE_STT } from "./lib/types";
   import { getCopy, toggleLang } from "./lib/i18n-store.svelte";
   import { getSttModel } from "./lib/models-store.svelte";
   import { invoke } from "@tauri-apps/api/core";
@@ -381,7 +381,8 @@
     text: string,
     format?: DocFormat,
     html?: string | null,
-    speakerNames?: Record<string, string>
+    speakerNames?: Record<string, string>,
+    title?: string
   ) {
     // `corrected` es el texto plano (PDF); `correctedHtml` es el
     // contenido ricotexto del editor. Los segments originales se conservan.
@@ -389,6 +390,7 @@
       t.id === id
         ? {
             ...t,
+            ...(title ? { title } : {}),
             corrected: text,
             correctedHtml: html ?? undefined,
             ...(format ? { format } : {}),
@@ -399,6 +401,7 @@
     if (activeTranscript?.id === id) {
       activeTranscript = {
         ...activeTranscript,
+        ...(title ? { title } : {}),
         corrected: text,
         correctedHtml: html ?? undefined,
         ...(format ? { format } : {}),
@@ -457,9 +460,10 @@
         whisper: { id: string; path: string; installed: boolean }[];
         parakeet: { id: string; path: string; installed: boolean }[];
       }>("list_models");
-      const pool = [...all.parakeet, ...all.whisper];
-      const selectedModel = pool.find((m) => m.id === getSttModel() && m.installed)
-        ?? pool.find((m) => m.installed);
+      const pool = mobile ? all.parakeet : [...all.parakeet, ...all.whisper];
+      const selectedId = mobile && !["vosk-small-es", "vosk-small-en"].includes(getSttModel()) ? MOBILE_STT : getSttModel();
+      const selectedModel = pool.find((m) => m.id === selectedId && m.installed)
+        ?? (mobile ? undefined : pool.find((m) => m.installed));
       if (!selectedModel) {
         importError = t.needsModel;
         return;
@@ -471,7 +475,7 @@
         filePath: path,
         config: {
           modelPath: selectedModel.path,
-          language: "es",
+          language: selectedModel.id === "vosk-small-en" ? "en" : "es",
           threads: 0,
           diarize: await invoke<boolean>("diarization_available").catch(() => false),
         },
@@ -501,7 +505,7 @@
 
 <svelte:window onkeydown={closeSettings} onpointerdown={(event) => { if (settingsEl?.open && !settingsEl.contains(event.target as Node)) settingsEl.open = false; }} />
 
-<div class="shell">
+<div class="shell" class:record-page={mobile && workflow === "audio" && !showModels && !activeTranscript}>
   <header class="masthead">
     <span class="brand" role="button" tabindex="0" title={p("Acerca de Bluedoor")} onclick={openAbout} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAbout(); } }}>
       <Icon name="door" size={42} /><span class="brand-wordmark">Blue<span class="brand-door">door</span></span>
@@ -515,8 +519,9 @@
       <div class="nav-row">
         <button class="nav-models" class:nav-active={workflow === "private" && !privateEditVisible} onclick={goPrivate} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="document" /><span>{p("Documentos")}</span></button>
         {#if !mobile}<button class="nav-models" class:nav-active={workflow === "audio" && !showModels && !activeTranscript} id="recordToggle" onclick={goHome} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title={recorderBusy || importing ? t.navigationBlocked : t.recordNav}><Icon name="audio" /><span>{p("Audio")}</span></button>{/if}
+        {#if mobile}<button class="nav-models" class:nav-active={workflow === "audio" && !showModels && !activeTranscript} id="recordToggle" onclick={goHome} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title={t.recordTitle}><Icon name="record-nav" /><span>{t.langLabel === "ES" ? "Grabar" : "Record"}</span></button>{/if}
         <button class="nav-models" class:nav-active={(workflow === "private" && privateEditVisible) || (!showModels && workflow === "audio" && !!activeTranscript)} id="editToggle" onclick={goEdit} disabled={recorderBusy || importing || privacyBusy || modelsBusy || (workflow === "private" ? !privateTranscript : !privateTranscript && !editTranscript)} title={recorderBusy || importing ? t.navigationBlocked : t.editNav}><Icon name="edit" /><span>{t.editNav}</span></button>
-        {#if mobile}<button class="nav-models" class:nav-active={showModels} onclick={openModels} disabled={recorderBusy || importing || privacyBusy || modelsBusy}><Icon name="install-mobile" /><span>{t.langLabel === "ES" ? "Modelos" : "Models"}</span></button>{:else}<button class="nav-models" class:nav-active={workflow === "vault"} onclick={goVault} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title="Vault · Cifrado local"><Icon name="vault" /><span>Vault</span></button>{/if}
+        {#if !mobile}<button class="nav-models" class:nav-active={workflow === "vault"} onclick={goVault} disabled={recorderBusy || importing || privacyBusy || modelsBusy} title="Vault · Cifrado local"><Icon name="vault" /><span>Vault</span></button>{/if}
         <details class="settings-menu" bind:this={settingsEl}>
           <summary><Icon name="settings" /><span>{p("Ajustes")}</span></summary>
           <div class="settings-popover">
@@ -575,9 +580,9 @@
       onBusyChange={(busy) => (modelsBusy = busy)}
     />
   {:else if activeTranscript}
-    <TranscriptView transcript={activeTranscript} onSave={handleUpdateTranscriptText} onDirtyChange={(dirty, save) => { editorDirty = dirty; editorSave = save; }} />
+    <TranscriptView {mobile} transcript={activeTranscript} onSave={handleUpdateTranscriptText} onDirtyChange={(dirty, save) => { editorDirty = dirty; editorSave = save; }} />
   {:else}
-    <Recorder onTranscribe={handleNewTranscript} transcripts={transcripts} onSelect={handleSelectTranscript} onDelete={handleDeleteTranscript} activeTranscript={activeTranscript} onImport={handleImportAudio} importing={importing} onBusyChange={(busy) => (recorderBusy = busy)} />
+    <Recorder {mobile} onTranscribe={handleNewTranscript} transcripts={transcripts} onSelect={handleSelectTranscript} onDelete={handleDeleteTranscript} activeTranscript={activeTranscript} onImport={handleImportAudio} importing={importing} onBusyChange={(busy) => (recorderBusy = busy)} />
   {/if}
   </div>
   {/if}

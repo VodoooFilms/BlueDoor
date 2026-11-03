@@ -492,3 +492,25 @@ fn transcribe_spanish_works() {
         result.text
     );
 }
+
+#[test]
+fn android_json_audio_preserves_pcm_bytes_and_authorization_token() {
+    let bytes = vec![0u8, 1, 127, 128, 255];
+    let (decoded, token) =
+        super::decode_json_audio(&serde_json::json!({"audio": bytes, "token": "single-use-test"}))
+            .unwrap();
+    assert_eq!(decoded, bytes);
+    assert_eq!(token, "single-use-test");
+    for audio in [
+        serde_json::json!([-1]),
+        serde_json::json!([256]),
+        serde_json::json!([1.5]),
+        serde_json::json!(["1"]),
+        serde_json::json!({"0": 1}),
+    ] {
+        assert!(
+            super::decode_json_audio(&serde_json::json!({"audio":audio,"token":"test"})).is_err()
+        );
+    }
+    assert!(super::decode_json_audio(&serde_json::json!({"audio":[1]})).is_err());
+}

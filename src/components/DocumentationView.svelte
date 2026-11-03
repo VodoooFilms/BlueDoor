@@ -44,6 +44,10 @@
       <h2 id="documentation-usage">{copy.usageTitle}</h2>
       {#each copy.usage.split("\n\n") as paragraph}<p>{paragraph}</p>{/each}
     </section>
+    <section aria-labelledby="documentation-audio">
+      <h2 id="documentation-audio">{copy.audioTitle}</h2>
+      {#each copy.audio.split("\n\n") as paragraph}<p>{paragraph}</p>{/each}
+    </section>
     <section aria-labelledby="documentation-vault">
       <h2 id="documentation-vault">{copy.vaultTitle}</h2>
       <p>{copy.vault}</p>
