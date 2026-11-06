@@ -91,6 +91,161 @@ export interface Copy {
   leftIndent: string;
   firstLineIndent: string;
   rightIndent: string;
+
+  vault: VaultCopy;
+}
+
+export interface VaultCopy {
+  kindDocument: string;
+  kindTranscript: string;
+  kindOriginal: string;
+  kindAliasMap: string;
+  categoryAll: string;
+  categoryDocuments: string;
+  categoryTranscripts: string;
+  categoryOriginals: string;
+  categoryAliasMaps: string;
+
+  booting: string;
+  eyebrowPrivateSpace: string;
+  lockedTitle: string;
+  lockedBody: string;
+  passwordLabel: string;
+  passwordPlaceholder: string;
+  unlocking: string;
+  unlock: string;
+  useRecoveryPhrase: string;
+  autoLockNote: (minutes: number) => string;
+
+  stepOf: (current: number, total: number) => string;
+  stepAccess: string;
+  stepRecovery: string;
+  stepReady: string;
+  setupTitle1: string;
+  setupBody1: string;
+  newPasswordLabel: string;
+  newPasswordPlaceholder: string;
+  repeatPasswordLabel: string;
+  repeatPasswordPlaceholder: string;
+  argonHelp: string;
+  creating: string;
+  vaultContinue: string;
+  setupTitle2: string;
+  setupBody2: string;
+  recoverySampleLabel: string;
+  recoveryWarning: string;
+  recoverySavedCheckbox: string;
+  setupTitle3: string;
+  setupBody3: string;
+  setupSummaryPersonal: string;
+  setupSummaryRecovery: string;
+  setupSummaryAutoLock: (minutes: number) => string;
+  openVault: string;
+  onboardingFooter: string;
+
+  sidebarAria: string;
+  myVault: string;
+  personalSpace: string;
+  libraryLabel: string;
+  securityAndAccess: string;
+  backupTitle: string;
+  localOnlyTitle: string;
+  localOnlySub: string;
+  lockVault: string;
+
+  eyebrowVault: string;
+  eyebrowLibrary: string;
+  eyebrowPreferences: string;
+  securityHeading: string;
+  librarySubtitle: string;
+  securitySubtitle: string;
+  unlocked: string;
+  closeNotice: string;
+
+  accessCardTitle: string;
+  accessCardBody: string;
+  inactivityLock: string;
+  minutesValue: (minutes: number) => string;
+  onSuspend: string;
+  encryption: string;
+  keyDerivation: string;
+  recoveryCardTitle: string;
+  recoveryCardBody: string;
+  recoveryKeepNote: string;
+  usePhraseNow: string;
+  deviceCardTitle: string;
+  deviceCardBody: string;
+  fileVaultLabel: string;
+  fileVaultUnknown: string;
+  fileVaultOn: string;
+  fileVaultOff: string;
+  hardwareBound: string;
+  yes: string;
+  pending: string;
+  fileVaultWarning: string;
+  whatVaultProtects: string;
+  backupCardTitle: string;
+  backupCardBody: string;
+  entriesLabel: string;
+  sizeLabel: string;
+  createBackup: string;
+  restoreBackupTitle: string;
+
+  migrationTitle: string;
+  migrationBody: string;
+  migrate: string;
+
+  privacyFootnote: string;
+
+  searchAria: string;
+  searchPlaceholder: string;
+  clearSearch: string;
+  addToVault: string;
+
+  entriesCount: (count: number) => string;
+  encrypted: string;
+  sortAria: string;
+  sortRecent: string;
+  sortName: string;
+  viewAria: string;
+  gridView: string;
+  listView: string;
+
+  viewEntryDetail: (title: string) => string;
+  encryptedBadge: string;
+  emptyNoResults: string;
+  emptyNoResultsBody: string;
+  emptyStart: string;
+  emptyStartBody: string;
+  viewAll: string;
+  addFirst: string;
+
+  detailEyebrow: string;
+  closeDetail: string;
+  detailType: string;
+  detailAdded: string;
+  detailSize: string;
+  detailLocation: string;
+  thisDevice: string;
+  detailFingerprint: string;
+  detailNote: string;
+  exportDecrypted: string;
+  deleteFromVault: string;
+
+  libraryBottom: string;
+
+  noFileAdded: string;
+  imported: (title: string) => string;
+  exported: (destination: string) => string;
+  deleted: (title: string) => string;
+  backupSaved: (destination: string) => string;
+  restored: string;
+  recoveryValid: string;
+  unlockedWithRecovery: string;
+  migrationReport: (copied: number, remaining: number) => string;
+
+  passwordTooShort: string;
+  passwordsMismatch: string;
 }
 
 export const COPY: Record<Lang, Copy> = {
